@@ -41,6 +41,7 @@ try {
             'state' => $app->state($visit, $browser),
             'start' => $app->start($visit, $input),
             'start_invoice' => $app->startInvoice($visit, $input),
+            'invoice_export' => $app->invoiceExport($visit, App::string($input, 'payment_id', 32)),
             'status' => $app->poll($visit, App::string($input, 'payment_id', 32)),
             'cancel' => $app->cancel($visit, App::string($input, 'payment_id', 32)),
             'reader_status' => $app->readerAction($visit, App::string($input, 'payment_id', 32)),

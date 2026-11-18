@@ -17,6 +17,9 @@ python3 scripts/configure.py
 if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("printing","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y php-gd smbclient
 fi
+if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("invoice_export","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y smbclient
+fi
 chown root:kienzle-sumup /etc/kienzle-sumup/kienzle-sumup.toml
 chmod 640 /etc/kienzle-sumup/kienzle-sumup.toml
 if [ -f /etc/kienzle-sumup/t2med-ca.pem ]; then chown root:kienzle-sumup /etc/kienzle-sumup/t2med-ca.pem; fi

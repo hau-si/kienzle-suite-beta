@@ -72,6 +72,19 @@ final class Config {
         }
         $days = $this->get('invoice_inbox', 'max_age_days', 14);
         if (!is_int($days) || $days < 1 || $days > 90) throw new \RuntimeException('invoice_inbox.max_age_days muss 1 bis 90 betragen.');
+        if (!is_bool($this->get('invoice_export', 'enabled', false))) throw new \RuntimeException('invoice_export.enabled muss true oder false sein.');
+        if ($this->get('invoice_export', 'enabled', false)) {
+            if (!$this->get('invoice_inbox', 'enabled', false)) throw new \RuntimeException('Ablage der Rechnungs-PDF benötigt den aktivierten Rechnungseingang.');
+            $share = $this->get('invoice_export', 'share');
+            if (!is_string($share) || !preg_match('~^//[A-Za-z0-9][A-Za-z0-9.-]{0,252}/[A-Za-z0-9][A-Za-z0-9 $._-]{0,79}$~D', $share)) throw new \RuntimeException('Netzwerkordner als //server/freigabe angeben.');
+            $dir = $this->get('invoice_export', 'directory', '');
+            if (!is_string($dir) || !preg_match('~^[A-Za-z0-9 _.{}/-]{0,200}$~D', $dir) || preg_match('~(^|/)\.\.?(/|$)~', $dir)) throw new \RuntimeException('invoice_export.directory: nur Buchstaben, Ziffern, Leerzeichen, _ . - / sowie {jahr} und {monat}.');
+            foreach (['username', 'password', 'domain'] as $key) {
+                $value = $this->get('invoice_export', $key, '');
+                if (!is_string($value) || strlen($value) > 256 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new \RuntimeException('invoice_export.' . $key . ' ist ungültig.');
+            }
+            if (!in_array($this->get('invoice_export', 'when', 'paid'), ['paid', 'received'], true)) throw new \RuntimeException('invoice_export.when muss paid oder received sein.');
+        }
         if (!is_bool($this->get('mail', 'enabled', false))) throw new \RuntimeException('mail.enabled muss true oder false sein.');
         if ($this->get('mail', 'enabled', false)) {
             if (!is_string($this->get('mail', 'host')) || !preg_match('/^[A-Za-z0-9.-]+$/D', $this->get('mail', 'host'))) throw new \RuntimeException('SMTP-Hostname ist ungültig.');

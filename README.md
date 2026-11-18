@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.1**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.2**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -73,6 +73,35 @@ Ablauf und Schutz:
 - Nicht kassierte Rechnungen werden nach `max_age_days` (Standard 14) nicht mehr angeboten
   und beim nächsten Eingang gelöscht.
 
+### Original-PDF in einen Netzwerkordner (Steuerberatung)
+
+Optional wird die Original-PDF jeder Rechnung per SMB in eine Netzwerkfreigabe kopiert,
+z. B. auf das NAS oder einen Ordner, den die Steuerberatung abholt:
+
+```toml
+[invoice_export]
+enabled = true
+share = "//nas/steuerberater"
+directory = "Rechnungen/{jahr}/{monat}"   # Platzhalter aus dem Rechnungsdatum
+username = "praxis"                         # leer: Gastzugriff
+password = "…"
+domain = ""
+when = "paid"                               # oder "received"
+```
+
+- `when = "paid"`: nur per Karte bezahlte Rechnungen, Dateiname
+  `2026-03-15_RE2026-0042_42,50EUR_Karte.pdf`. Die Ablage startet automatisch nach der
+  erfolgreichen Zahlung und wird spätestens bei **Dokumentation in der Akte** nachgeholt.
+  Die Zahlungsseite zeigt „Rechnungs-PDF im Netzwerkordner abgelegt: …“; bei einem Fehler
+  erscheint **Rechnungs-PDF erneut ablegen**. Ein Fehler blockiert weder Zahlung noch Akteneintrag.
+- `when = "received"`: jede auf „SumUp-Rechnung“ gedruckte Rechnung sofort beim Eingang,
+  Dateiname ohne `_Karte`. Das Ergebnis steht in der Meldung des Druckauftrags.
+- Unterordner werden bei Bedarf angelegt. Jede Rechnung wird höchstens einmal abgelegt.
+  Der Dateiname enthält keine Patientendaten; die PDF selbst ist die vollständige Rechnung.
+- Die PDF wird nur bei aktivierter Ablage auf dem Anwendungsserver zwischengespeichert und
+  nach erfolgreicher Ablage gelöscht. Ohne Ablage werden nur Nummer, Datum, Betrag und Patient gespeichert.
+- Das Passwort steht wie die SMTP-Zugangsdaten nur in der geschützten TOML-Datei.
+
 ### Einrichtung
 
 **Anwendungsserver:** `sudo bash scripts/install-server.sh` ausführen und
@@ -80,6 +109,8 @@ Ablauf und Schutz:
 beantworten. Der Installer ergänzt `poppler-utils`, erzeugt den Schlüssel unter
 `[invoice_inbox]` und legt `/root/kienzle-sumup-printer` mit `invoice-printer.json` und
 `server.crt` an. Dieser Ordner ist nur für den Druckserver bestimmt, nicht für die Arbeitsplätze.
+Anschließend fragt der Installer, ob die Original-PDF zusätzlich in einen Netzwerkordner
+kopiert werden soll, und installiert dafür `smbclient`.
 
 ```toml
 [invoice_inbox]

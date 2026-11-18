@@ -7,6 +7,7 @@ let selectedGroups = new Set(), reasons = {};
 let readerTimer = null, readerChecking = false, readerMessage = '';
 let receiptShare = null, receiptRecipient = null, receiptMailRequest = null;
 let receiptPrintPayment = null;
+const exportTried = new Set();
 function message(text='') { $('message').textContent = text; $('message').hidden = !text; }
 async function api(action, data={}) {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 75000);
@@ -177,6 +178,7 @@ function renderPayment() {
   $('receipt-share').hidden=p.payment_status!=='successful';
   $('receipt-print').hidden=p.payment_status!=='successful' || !state.printing_enabled;
   if(p.payment_status==='successful') renderReceiptMail();
+  renderInvoiceExport(p);
   $('payment-amount').textContent=euro(p.amount_cents); $('payment-reference').textContent=p.t2med_invoice ? 'T2med-Rechnung '+p.t2med_invoice : p.invoice_number ? 'Rechnungsnummer: '+p.invoice_number : p.reference;
   $('payment-error').textContent=p.error_message; $('payment-error').hidden=!p.error_message;
   let title, description, symbol='…';
@@ -200,6 +202,20 @@ function renderPayment() {
   }
   $('payment-title').textContent=title; $('payment-description').textContent=description; $('status-symbol').textContent=symbol;
 }
+function renderInvoiceExport(p) {
+  const e = p.payment_status==='successful' ? p.invoice_export : null;
+  $('invoice-export-status').hidden = !e; $('invoice-export').hidden = !e || e.status!=='failed';
+  if(!e) return;
+  $('invoice-export-status').textContent = e.status==='done' ? 'Rechnungs-PDF im Netzwerkordner abgelegt: '+e.path
+    : e.status==='failed' ? 'Rechnungs-PDF nicht abgelegt: '+e.error : 'Rechnungs-PDF wird im Netzwerkordner abgelegt …';
+  // Einmal automatisch nach erfolgreicher Zahlung; der Server legt dieselbe Rechnung nie doppelt ab.
+  if(e.status==='pending' && !exportTried.has(p.id)) { exportTried.add(p.id); exportInvoice(p.id); }
+}
+async function exportInvoice(id) {
+  try { const result = await api('invoice_export',{payment_id:id}); if(state.payment?.id===id) { state.payment = result; renderPayment(); } }
+  catch(error) { if(state.payment?.id===id) { $('invoice-export-status').textContent='Rechnungs-PDF nicht abgelegt: '+error.message; $('invoice-export').hidden=false; } }
+}
+$('invoice-export').onclick = () => run(() => exportInvoice(state.payment.id));
 async function load() {
   state=await api('state'); csrf=state.csrf;
   $('welcome').hidden=true; $('workspace').hidden=false;

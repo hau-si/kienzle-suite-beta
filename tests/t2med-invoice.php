@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/src/bootstrap.php';
-use KienzleSumup\{App, Config, HttpClient, Problem, T2medInvoice};
+use KienzleSumup\{App, Config, HttpClient, InvoiceExport, Problem, T2medInvoice};
 
 function check(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function rejects(callable $fn, string $message, int $http = 0): Problem {
@@ -48,6 +48,24 @@ final class InvoiceFakeHttp extends HttpClient {
     }
 }
 
+final class FakeExport extends InvoiceExport {
+    public array $commands = [], $files = [], $auth = [];
+    public int $failures = 0;
+    protected function run(array $credentials, string $command): array {
+        $this->commands[] = $command;
+        if (($i = array_search('-A', $credentials, true)) !== false) $this->auth[] = file_get_contents($credentials[$i + 1]);
+        if (preg_match('/put "([^"]+)" "([^"]+)"/', $command, $m)) {
+            if ($this->failures > 0) { $this->failures--; return ['code' => 1, 'output' => 'NT_STATUS_ACCESS_DENIED opening remote file', 'stderr' => '']; }
+            $this->files[$m[2]] = file_get_contents($m[1]);
+        }
+        return ['code' => str_starts_with($command, 'mkdir') ? 1 : 0, 'output' => str_starts_with($command, 'mkdir') ? 'NT_STATUS_OBJECT_NAME_COLLISION' : '', 'stderr' => ''];
+    }
+}
+function exportConfig(string $when, string $user = ''): Config {
+    $v = configuration()->values;
+    $v['invoice_export'] = ['enabled' => true, 'share' => '//nas/steuerberater', 'directory' => 'Rechnungen/{jahr}/{monat}', 'username' => $user, 'password' => $user ? 'geheim' : '', 'domain' => '', 'when' => $when];
+    return new Config($v);
+}
 $dirs = [];
 try {
     // 1. Parser: Werte, Gegenprobe und Eindeutigkeit.
@@ -131,7 +149,49 @@ try {
     check(!str_contains(json_encode($http->checkout, JSON_UNESCAPED_UNICODE), 'Musterfrau') && !str_contains(json_encode($http->checkout), '1980'), 'Patientendaten an SumUp gesendet');
     check($app->poll($v, $payment['id'])['payment_status'] === 'successful', 'Erfolg nicht übernommen');
 
-    echo "OK: T2med-Rechnung lesen, Patientenabgleich, Ersetzen, Doppelzahlungsschutz, Akteneintrag und neutrale SumUp-Daten.\n";
+    // 5. Original-PDF in den Netzwerkordner (Steuerberatung).
+    $pdf = "%PDF-1.6\nTestrechnung\n";
+    check(InvoiceExport::filename(['invoice_number' => 'RE2026/0042', 'invoice_date' => '2026-03-15', 'amount_cents' => 123450], true) === '2026-03-15_RE2026_0042_1234,50EUR_Karte.pdf', 'Dateiname falsch');
+    $bad = configuration()->values; $bad['invoice_export'] = ['enabled' => true, 'share' => '//nas/steuer', 'directory' => '../etc', 'when' => 'paid'];
+    try { new Config($bad); throw new RuntimeException('Pfad mit .. akzeptiert'); } catch (\RuntimeException $e) { check(str_contains($e->getMessage(), 'directory'), 'Falsche Ablehnung: ' . $e->getMessage()); }
+    $bad['invoice_export']['directory'] = ''; $bad['invoice_inbox']['enabled'] = false;
+    try { new Config($bad); throw new RuntimeException('Ablage ohne Rechnungseingang akzeptiert'); } catch (\RuntimeException $e) { check(str_contains($e->getMessage(), 'Rechnungseingang'), 'Falsche Ablehnung: ' . $e->getMessage()); }
+    // a) Nur bezahlte Rechnungen, mit Anmeldung; erster Versuch scheitert.
+    $cfg = exportConfig('paid', 'praxis'); $dirs[] = $cfg->get('app', 'state_dir'); $export = new FakeExport($cfg);
+    $app = new App($cfg, null, null, null, $export); $app->db->migrate();
+    [$v, $b] = visit($app);
+    $app->storeInvoice($parsed, $pdf);
+    check($export->commands === [], 'Unbezahlte Rechnung im Modus paid abgelegt');
+    check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === $pdf, 'Original-PDF nicht gespeichert');
+    $payment = $app->startInvoice($v, ['request_id' => App::id(), 'invoice_id' => $app->state($v, $b)['invoices'][0]['id']]);
+    rejects(fn() => $app->invoiceExport($v, $payment['id']), 'Ablage vor erfolgreicher Zahlung', 409);
+    $app->mock($v, ['payment_id' => $payment['id'], 'status' => 'successful']);
+    $export->failures = 1;
+    $state = $app->invoiceExport($v, $payment['id'])['invoice_export'];
+    check($state['status'] === 'failed' && str_contains($state['error'], 'NT_STATUS_ACCESS_DENIED'), 'Fehlgeschlagene Ablage nicht gemeldet');
+    check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === $pdf, 'PDF nach Fehler verworfen');
+    $done = $app->document($v, $payment['id']);
+    check($done['doc_status'] === 'written' && $done['invoice_export']['status'] === 'done', 'Ablage beim Abschluss nicht nachgeholt');
+    check($done['invoice_export']['path'] === 'Rechnungen/2026/03/2026-03-15_RE2026-0042_42,50EUR_Karte.pdf', 'Falscher Ablagepfad');
+    check(($export->files['2026-03-15_RE2026-0042_42,50EUR_Karte.pdf'] ?? null) === $pdf, 'PDF-Inhalt nicht unverändert abgelegt');
+    check(in_array('mkdir "Rechnungen\\2026\\03"', $export->commands, true), 'Unterordner nicht angelegt');
+    check(str_contains($export->auth[0], "username = praxis\npassword = geheim"), 'Anmeldedaten nicht übergeben');
+    check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === null, 'PDF nach Ablage weiter gespeichert');
+    $puts = count(array_filter($export->commands, fn($c) => str_contains($c, 'put ')));
+    $app->invoiceExport($v, $payment['id']);
+    check(count(array_filter($export->commands, fn($c) => str_contains($c, 'put '))) === $puts, 'Rechnung doppelt abgelegt');
+    check(!str_contains(implode("\n", $export->commands), 'Musterfrau'), 'Patientendaten im Dateinamen');
+    // b) Jede gedruckte Rechnung, Gastzugriff.
+    $cfg = exportConfig('received'); $dirs[] = $cfg->get('app', 'state_dir'); $export = new FakeExport($cfg);
+    $app = new App($cfg, null, null, null, $export); $app->db->migrate();
+    $result = $app->storeInvoice($parsed, $pdf);
+    check(str_contains($result['message'], 'im Netzwerkordner abgelegt') && isset($export->files['2026-03-15_RE2026-0042_42,50EUR.pdf']) && $export->auth === [], 'Eingang nicht sofort abgelegt');
+    // c) Ablage aus: keine PDF aufbewahren.
+    $cfg = configuration(); $dirs[] = $cfg->get('app', 'state_dir'); $app = new App($cfg); $app->db->migrate();
+    $app->storeInvoice($parsed, $pdf);
+    check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === null, 'PDF ohne aktivierte Ablage gespeichert');
+
+    echo "OK: T2med-Rechnung lesen, Patientenabgleich, Ersetzen, Doppelzahlungsschutz, Akteneintrag, neutrale SumUp-Daten und Ablage im Netzwerkordner.\n";
 } finally {
     foreach ($dirs as $dir) if (is_dir($dir)) { array_map('unlink', glob($dir . '/*') ?: []); @rmdir($dir); }
 }

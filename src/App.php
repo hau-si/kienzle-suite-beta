@@ -8,7 +8,8 @@ final class App {
     private FhirClient $fhir;
     private ReceiptMailer $mailer;
     private ReceiptPrinter $printer;
-    public function __construct(public readonly Config $config, ?HttpClient $http = null, ?ReceiptMailer $mailer = null, ?ReceiptPrinter $printer = null) {
+    private InvoiceExport $export;
+    public function __construct(public readonly Config $config, ?HttpClient $http = null, ?ReceiptMailer $mailer = null, ?ReceiptPrinter $printer = null, ?InvoiceExport $export = null) {
         umask(0077);
         $this->db = new Database($config->get('app', 'state_dir'));
         $http ??= new HttpClient();
@@ -16,6 +17,7 @@ final class App {
         $this->fhir = new FhirClient($config, $http);
         $this->mailer = $mailer ?? new ReceiptMailer($config);
         $this->printer = $printer ?? new ReceiptPrinter($config);
+        $this->export = $export ?? new InvoiceExport($config);
     }
     public static function id(): string { return bin2hex(random_bytes(16)); }
     public static function string(array $input, string $key, int $max = 200, bool $required = true): string {
@@ -264,12 +266,14 @@ final class App {
     /** Vom Druckserver: T2med-Rechnung (PDF) als offene Rechnung ablegen. */
     public function inboxReceive(string $pdf): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);
-        return $this->storeInvoice(T2medInvoice::fromPdf($pdf, $this->config->get('app', 'max_amount_cents')));
+        return $this->storeInvoice(T2medInvoice::fromPdf($pdf, $this->config->get('app', 'max_amount_cents')), $pdf);
     }
     /** Gelesene Rechnung speichern (getrennt vom PDF-Lesen, damit testbar). */
-    public function storeInvoice(array $invoice): array {
+    public function storeInvoice(array $invoice, ?string $pdf = null): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);
-        return $this->db->transaction(function () use ($invoice): array {
+        // Die Original-PDF nur aufbewahren, wenn sie in den Netzwerkordner kopiert werden soll.
+        $keep = $this->export->enabled() && $pdf !== null ? $pdf : null;
+        $result = $this->db->transaction(function () use ($invoice, $keep): array {
             $this->purgeInbox();
             $number = $invoice['number'];
             // Eine bereits bezahlte oder gerade laufende Rechnung nie erneut anbieten.
@@ -277,12 +281,49 @@ final class App {
             if ($paid) throw new Problem($paid['payment_status'] === 'successful' ? 'Rechnung ' . $number . ' ist bereits per Karte bezahlt.' : 'Rechnung ' . $number . ' wird gerade am Terminal kassiert.', 409);
             // Erneuter Druck derselben Rechnungsnummer ersetzt die ältere Fassung.
             $this->db->query('UPDATE invoice_inbox SET superseded_at=? WHERE invoice_number=? AND superseded_at IS NULL', [time(), $number]);
-            $this->db->query('INSERT INTO invoice_inbox(id,invoice_number,invoice_date,amount_cents,patient_name,patient_birthdate,received_at) VALUES(?,?,?,?,?,?,?)',
-                [self::id(), $number, $invoice['invoice_date'], $invoice['amount_cents'], $invoice['patient_name'], $invoice['patient_birthdate'], time()]);
+            $id = self::id();
+            $stmt = $this->db->pdo->prepare('INSERT INTO invoice_inbox(id,invoice_number,invoice_date,amount_cents,patient_name,patient_birthdate,received_at,pdf) VALUES(?,?,?,?,?,?,?,?)');
+            foreach ([$id, $number, $invoice['invoice_date'], $invoice['amount_cents'], $invoice['patient_name'], $invoice['patient_birthdate'], time()] as $i => $value) $stmt->bindValue($i + 1, $value);
+            $stmt->bindValue(8, $keep, $keep === null ? \PDO::PARAM_NULL : \PDO::PARAM_LOB);
+            $stmt->execute();
             // Antwort an den Druckserver ohne Patientendaten.
-            return ['ok' => true, 'number' => $number, 'amount_cents' => $invoice['amount_cents'],
+            return ['ok' => true, 'id' => $id, 'number' => $number, 'amount_cents' => $invoice['amount_cents'],
                 'message' => 'Rechnung ' . $number . ' über ' . Money::format($invoice['amount_cents']) . ' liegt zum Kassieren bereit.'];
         });
+        if ($keep !== null && $this->export->when() === 'received') {
+            $status = $this->exportRow($result['id']);
+            $result['message'] .= $status['status'] === 'done' ? ' PDF im Netzwerkordner abgelegt.' : ' PDF NICHT im Netzwerkordner abgelegt: ' . $status['error'];
+        }
+        unset($result['id']);
+        return $result;
+    }
+    /** Original-PDF einer Rechnung ablegen; idempotent, Fehler werden gespeichert statt geworfen. */
+    private function exportRow(string $inboxId): array {
+        return $this->db->locked('invoice-export-' . $inboxId, function () use ($inboxId): array {
+            $row = $this->db->one('SELECT * FROM invoice_inbox WHERE id=?', [$inboxId]);
+            if (!$row) return ['status' => 'failed', 'error' => 'Rechnung nicht mehr vorhanden.', 'path' => ''];
+            if ($row['export_status'] === 'done') return ['status' => 'done', 'error' => '', 'path' => $row['export_path']];
+            if ($row['pdf'] === null) return ['status' => 'failed', 'error' => 'Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut drucken.', 'path' => ''];
+            try {
+                $path = $this->export->export($row, $row['pdf'], $this->export->when() === 'paid');
+                // Nach erfolgreicher Ablage keine Kopie der PDF auf dem Anwendungsserver behalten.
+                $this->db->query("UPDATE invoice_inbox SET export_status='done',export_error='',export_path=?,pdf=NULL WHERE id=?", [$path, $inboxId]);
+                return ['status' => 'done', 'error' => '', 'path' => $path];
+            } catch (Problem $e) {
+                error_log('kienzle-sumup: Rechnungsablage: ' . $e->getMessage());
+                $this->db->query("UPDATE invoice_inbox SET export_status='failed',export_error=? WHERE id=?", [$e->getMessage(), $inboxId]);
+                return ['status' => 'failed', 'error' => $e->getMessage(), 'path' => ''];
+            }
+        });
+    }
+    /** Nach erfolgreicher Kartenzahlung: Rechnungs-PDF in den Netzwerkordner kopieren. */
+    public function invoiceExport(array $visit, string $id): array {
+        if (!$this->export->enabled()) throw new Problem('Ablage im Netzwerkordner ist deaktiviert.', 409);
+        $payment = $this->payment($visit, $id);
+        if (empty($payment['inbox_id'])) throw new Problem('Diese Zahlung gehört zu keiner T2med-Rechnung.', 409);
+        if ($payment['payment_status'] !== 'successful') throw new Problem('Ablage erst nach erfolgreicher Zahlung.', 409);
+        $this->exportRow($payment['inbox_id']);
+        return $this->publicPayment($this->payment($visit, $id));
     }
     private function purgeInbox(): void {
         $limit = time() - $this->config->get('invoice_inbox', 'max_age_days', 14) * 86400;
@@ -293,7 +334,7 @@ final class App {
     private function openInvoices(array $visit): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false) || $visit['patient_birthdate'] === '') return [];
         $limit = time() - $this->config->get('invoice_inbox', 'max_age_days', 14) * 86400;
-        $rows = $this->db->query("SELECT i.* FROM invoice_inbox i WHERE i.superseded_at IS NULL AND i.received_at >= ? AND i.patient_birthdate=?
+        $rows = $this->db->query("SELECT i.id,i.invoice_number,i.invoice_date,i.amount_cents,i.patient_name,i.patient_birthdate FROM invoice_inbox i WHERE i.superseded_at IS NULL AND i.received_at >= ? AND i.patient_birthdate=?
             AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.t2med_invoice=i.invoice_number AND p.payment_status IN ('starting','pending','unknown','cancel_requested','successful'))
             ORDER BY i.received_at DESC", [$limit, $visit['patient_birthdate']])->fetchAll();
         $result = [];
@@ -562,6 +603,8 @@ final class App {
             $this->db->query("UPDATE payments SET doc_status='written',fhir_written_at=?,fhir_resource_id=?,error_message='' WHERE id=?", [time(), $resource, $payment['id']]);
             $this->db->query("UPDATE visits SET completed_at=?,oauth_cipher='' WHERE id=?", [time(), $payment['visit_id']]);
         });
+        // Spätestens beim Abschluss die Rechnungs-PDF ablegen; ein Fehler blockiert die Dokumentation nicht.
+        if (!empty($payment['inbox_id']) && $this->export->enabled() && $this->export->when() === 'paid') $this->exportRow($payment['inbox_id']);
         return $this->publicPayment($this->db->one('SELECT * FROM payments WHERE id=?', [$payment['id']]));
     }
     public function mock(array $visit, array $input): void {
@@ -583,6 +626,11 @@ final class App {
     private function publicPayment(array $p): array {
         return array_intersect_key($p, array_flip(['id', 'amount_cents', 'currency', 'reference', 'payment_status', 'doc_status', 'paid_at', 'error_message'])) +
             ['local_receipt' => !empty($p['invoice_json']), 'invoice_number' => !empty($p['invoice_json']) && $p['payment_status'] === 'successful' ? $p['transaction_id'] : null,
-             't2med_invoice' => $p['t2med_invoice'] ?? null];
+             't2med_invoice' => $p['t2med_invoice'] ?? null, 'invoice_export' => $this->exportState($p)];
+    }
+    private function exportState(array $p): ?array {
+        if (empty($p['inbox_id']) || !$this->export->enabled()) return null;
+        $row = $this->db->one('SELECT export_status,export_error,export_path FROM invoice_inbox WHERE id=?', [$p['inbox_id']]);
+        return $row ? ['status' => $row['export_status'] ?: 'pending', 'error' => $row['export_error'], 'path' => $row['export_path']] : null;
     }
 }

@@ -58,6 +58,20 @@ key = ""
 # Nicht kassierte Rechnungen werden nach dieser Anzahl Tage nicht mehr angeboten.
 max_age_days = 14
 
+# Optional: Original-PDF der T2med-Rechnung in einen Netzwerkordner (SMB) kopieren,
+# z. B. für die Steuerberatung. Dateiname: 2026-03-15_RE2026-0042_42,50EUR_Karte.pdf
+[invoice_export]
+enabled = false
+share = "//nas/steuerberater"
+# Unterordner in der Freigabe; {jahr} und {monat} stammen aus dem Rechnungsdatum.
+directory = "Rechnungen/{jahr}/{monat}"
+# Leer: Gastzugriff ohne Passwort.
+username = ""
+password = ""
+domain = ""
+# paid: nur per Karte bezahlte Rechnungen; received: jede auf SumUp-Rechnung gedruckte Rechnung.
+when = "paid"
+
 # Lokaler Leistungsbeleg / GOÄ-Rechnung mit Zahlungsbestätigung.
 # Name und Anschrift ausfüllen; Bestandszahlungen behalten ihren bisherigen Beleg.
 [practice]
