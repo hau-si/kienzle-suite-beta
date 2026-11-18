@@ -1,16 +1,16 @@
-Version 1.4.1 der Kartenzahlungsseite für T2med und SumUp Solo.
+Version 1.4.1-rechnung.1 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
-- Optional folgt nach den Rechnungspositionen und der Gesamtsumme „Vielen Dank.“ und
-  anschließend der originale SumUp-Beleg. Die lokale Zahlungsbestätigung entfällt dabei.
-- Rechnung und Originalbeleg bilden einen durchgehenden Bon ohne Zwischenschnitt.
-  Die vorhandene Einstellung `printing.cut` steuert ausschließlich den Schnitt am Ende.
-- PDF, E-Mail-Anhang und Direktdruck verwenden dieselbe Belegvariante. Bei einem
-  Abruffehler des Originals wird kein unvollständiger Beleg gedruckt oder versandt;
-  ein erneuter Versuch ist möglich.
-- Im Installer und unter `[practice]` mit `append_sumup_receipt = true` aktivierbar.
-  Standardmäßig bleibt die Option aus. Bereits gespeicherte lokale Rechnungen lassen
-  sich ebenfalls mit angehängtem Originalbeleg ausgeben; ihre Rechnungsdaten bleiben erhalten.
-- Starter und Download-URLs auf Version 1.4.1 aktualisiert.
+- Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
+  gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
+  mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
+  Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Rechnungseingang `/invoice-inbox.php` mit eigenem Schlüssel; PDF bis 5 MB.
+- Strikte Prüfung von Rechnungsnummer, Datum, Gesamtsumme, Zahlbetrag, Patient und
+  Geburtsdatum. Schutz vor Doppelzahlung derselben Rechnungsnummer.
+- Druckserver-Installer `scripts/install-invoice-printer.sh`, CUPS-Backend und
+  Mac-PDF-Treiber `macos/SumUp-Rechnung-PDF.ppd`.
+- Datenbank-Version 5 (neue Tabelle `invoice_inbox`); bestehende Daten bleiben erhalten.
+- Starter für die Arbeitsplätze unverändert; die Client-Installer laden weiterhin `v1.4.1`.
 
 Update auf dem Anwendungsserver:
 
@@ -19,16 +19,6 @@ git pull --ff-only
 sudo bash scripts/install-server.sh
 ```
 
-Im Installer **Originalen SumUp-Beleg nach Vielen Dank statt lokaler Zahlungsbestätigung
-anhängen** mit `ja` beantworten. Alternativ im vorhandenen Abschnitt `[practice]` der
-Datei `/etc/kienzle-sumup/kienzle-sumup.toml` setzen:
-
-```toml
-append_sumup_receipt = true
-```
-
-Danach die Zahlungsseite neu laden. Für überhaupt keinen Schnitt zusätzlich im vorhandenen
-Abschnitt `[printing]` `cut = false` setzen.
-
-Bestehende Einstellungen, Leistungen und Zahlungen werden erhalten. Die Binärdateien
-sind Starter und benötigen die vom Server-Installer erstellte `client.json`.
+Die neue Frage **T2med-Rechnungen über virtuellen Drucker „SumUp-Rechnung“ übernehmen**
+mit `ja` beantworten und danach auf dem Druckserver
+`sudo bash scripts/install-invoice-printer.sh /root/kienzle-sumup-printer` ausführen.

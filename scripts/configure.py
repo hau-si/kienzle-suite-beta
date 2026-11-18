@@ -128,6 +128,12 @@ def main():
     if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
     practice['append_sumup_receipt'] = answer == 'ja'
     config['practice'] = practice
+    inbox = {'enabled':get('invoice_inbox','enabled',False),'key':get('invoice_inbox','key',''),'max_age_days':get('invoice_inbox','max_age_days',14)}
+    answer = ask('T2med-Rechnungen über virtuellen Drucker „SumUp-Rechnung“ übernehmen (ja/nein)', 'ja' if inbox['enabled'] else 'nein')
+    if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
+    inbox['enabled'] = answer == 'ja'
+    if inbox['enabled'] and not inbox['key']: inbox['key'] = secrets.token_hex(32)
+    config['invoice_inbox'] = inbox
     text = '# Kienzle-SumUp · Zugangsdaten nicht weitergeben.\n'
     for section, values in config.items():
         text += '\n['+section+']\n'
@@ -165,6 +171,12 @@ def main():
     client={'server_url':base,'launcher_key':config['app']['launcher_key'],'certificate_sha256':hashlib.sha256(der).hexdigest()}
     write_private(setup/'client.json',json.dumps(client,indent=2)+'\n')
     write_private(setup/'server.crt',cert.read_text(),0o644)
+    if inbox['enabled']:
+        # Getrennt von den Arbeitsplatzdaten: nur für den Druckserver bestimmt.
+        printer=Path('/root/kienzle-sumup-printer');printer.mkdir(mode=0o700,exist_ok=True)
+        write_private(printer/'invoice-printer.json',json.dumps({'server_url':base,'inbox_key':inbox['key']},indent=2)+'\n')
+        write_private(printer/'server.crt',cert.read_text(),0o644)
+        print('Druckserver-Einrichtung für „SumUp-Rechnung“: /root/kienzle-sumup-printer')
     print('Konfiguration und Client-Einrichtungsdaten gespeichert. Keine Schlüssel werden ausgegeben.')
 
 

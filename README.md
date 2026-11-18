@@ -2,7 +2,12 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.1**, von Dr. Thomas Kienzle.
+
+> **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
+> erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
+> [T2med-Rechnung kassieren](#t2med-rechnung-kassieren). Die Starter für die Arbeitsplätze
+> sind unverändert und kommen weiterhin aus dem Original-Release `v1.4.1`.
 
 ## Video: Sumup in T2med anbinden
 
@@ -33,6 +38,80 @@ dokumentieren. **Version 1.4.1**, von Dr. Thomas Kienzle.
 **Leistungen verwalten** öffnet die Bearbeitung auf derselben Seite. Leistungen lassen sich
 anlegen, bearbeiten und löschen. Löschen entfernt sie aus der Auswahl; gespeicherte
 Zahlungen behalten ihre damaligen Bezeichnungen und Preise.
+
+## T2med-Rechnung kassieren
+
+Eine in T2med erstellte Rechnung (Liquidation) lässt sich direkt am Solo kassieren,
+ohne Leistungen ein zweites Mal auszuwählen:
+
+1. In T2med die Rechnung wie gewohnt erstellen und auf den Drucker **SumUp-Rechnung** drucken.
+2. Beim selben Patienten den Button **Kienzle-SumUp** betätigen. Oben erscheint
+   **Offene T2med-Rechnung** mit Rechnungsnummer, Datum und Betrag.
+3. **„42,50 € mit Karte kassieren“** anklicken und am Solo bezahlen lassen.
+4. Wie bisher **Dokumentation in der Akte**. Der Eintrag nennt
+   „T2med-Rechnung RE2026-0042 vom 15.03.2026“ mit Betrag und SumUp-Referenz.
+
+Ablauf und Schutz:
+
+- Der Druckserver reicht die PDF unverändert per HTTPS an `/invoice-inbox.php` weiter
+  (Serverzertifikat geprüft, eigener Rechnungseingangs-Schlüssel). Der Anwendungsserver
+  liest mit `pdftotext` **Re.-Nr.**, **Re.-Datum**, **Gesamtsumme** sowie Patient und
+  Geburtsdatum. Jede dieser Angaben muss eindeutig sein; der Betrag wird mit dem Satz
+  „Bitte überweisen Sie den Betrag von …“ gegengeprüft. Gutschriften, Beträge über
+  `max_amount_cents` und Bild-PDFs ohne Text werden abgelehnt; der Druckauftrag meldet dann einen Fehler.
+- Eine Rechnung wird nur angeboten, wenn **Name und Geburtsdatum** mit dem Patienten aus dem
+  T2med-Kontext übereinstimmen. Ein vorangestellter Titel auf der Rechnung ist erlaubt.
+- An SumUp gehen nur **Betrag**, **„Rechnung RE2026-0042“** als Beschreibung in den Umsätzen und die
+  neutrale Referenz. Keine Patientendaten.
+- Erneutes Drucken derselben Rechnungsnummer ersetzt die ältere Fassung. Eine bereits bezahlte
+  oder gerade laufende Rechnung wird abgelehnt und nicht erneut angeboten – auch nicht in einem
+  neuen Behandlungskontext. Nach abgelehnter Zahlung kann erneut kassiert werden.
+- Terminalsperre, verlorene Antworten, Statusabgleich und Aktendokumentation laufen über
+  denselben Weg wie bei ausgewählten Leistungen.
+- Es entsteht **keine zweite Rechnung**: Als Beleg dient der SumUp-Zahlungsbeleg; die
+  Rechnung selbst bleibt die aus T2med.
+- Nicht kassierte Rechnungen werden nach `max_age_days` (Standard 14) nicht mehr angeboten
+  und beim nächsten Eingang gelöscht.
+
+### Einrichtung
+
+**Anwendungsserver:** `sudo bash scripts/install-server.sh` ausführen und
+**T2med-Rechnungen über virtuellen Drucker „SumUp-Rechnung“ übernehmen** mit `ja`
+beantworten. Der Installer ergänzt `poppler-utils`, erzeugt den Schlüssel unter
+`[invoice_inbox]` und legt `/root/kienzle-sumup-printer` mit `invoice-printer.json` und
+`server.crt` an. Dieser Ordner ist nur für den Druckserver bestimmt, nicht für die Arbeitsplätze.
+
+```toml
+[invoice_inbox]
+enabled = true
+key = "…vom Installer erzeugt…"
+max_age_days = 14
+```
+
+**Druckserver (kienzlebox):** Den Ordner `/root/kienzle-sumup-printer` geschützt dorthin
+kopieren (entfällt, wenn beides auf demselben Rechner läuft) und im Projektverzeichnis ausführen:
+
+```bash
+sudo bash scripts/install-invoice-printer.sh /root/kienzle-sumup-printer
+```
+
+Der Installer prüft zuerst Verbindung, Zertifikat und Schlüssel und legt dann die freigegebene
+CUPS-Warteschlange `SumUp-Rechnung` mit dem Backend `kienzle-sumup:/` an. Das Backend liest
+Konfiguration und Spooldatei als root und arbeitet danach als Benutzer `lp`; PostScript wird mit
+Ghostscript in PDF umgewandelt. Erneute Prüfung jederzeit mit
+`sudo /usr/lib/cups/backend/kienzle-sumup --check`, Entfernen mit
+`sudo bash scripts/install-invoice-printer.sh --uninstall`.
+
+**Arbeitsplätze:**
+
+- **Windows:** IPP-Drucker `http://kienzlebox:631/printers/SumUp-Rechnung` mit dem Treiber
+  „Microsoft IPP Class Driver“ hinzufügen (wie beim Terminzettel). Papierformat A4.
+- **Mac:** „SumUp-Rechnung @ kienzlebox“ hinzufügen und als Treiber
+  [`macos/SumUp-Rechnung-PDF.ppd`](macos/SumUp-Rechnung-PDF.ppd) wählen. Er reicht die PDF
+  mit Text unverändert weiter.
+
+Fehler eines Druckauftrags (z. B. „Rechnung … ist bereits per Karte bezahlt“) stehen in der
+CUPS-Auftragsliste bzw. in `/var/log/cups/error_log`; sie enthalten keine Patientendaten.
 
 ## GOÄ-Angaben, Kombinationen und eigener Beleg
 
@@ -551,6 +630,7 @@ lokal in `mock_records` gespeichert. Entwicklungsmodus erlaubt keine echten Schn
 ```bash
 php tests/critical.php
 php tests/invoice.php
+php tests/t2med-invoice.php
 cd client && go test ./...
 ```
 

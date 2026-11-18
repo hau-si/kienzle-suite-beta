@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS payments (
     checkout_id TEXT, client_transaction_id TEXT, transaction_id TEXT,
     created_at INTEGER NOT NULL, paid_at INTEGER, checked_at INTEGER NOT NULL DEFAULT 0,
     fhir_resource_id TEXT, fhir_written_at INTEGER, error_message TEXT NOT NULL DEFAULT '',
-    invoice_json TEXT
+    invoice_json TEXT, inbox_id TEXT, t2med_invoice TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS reader_busy ON payments(reader_id)
     WHERE payment_status IN ('starting','pending','unknown','cancel_requested');
@@ -53,3 +53,10 @@ CREATE TABLE IF NOT EXISTS receipt_prints (
     request_id TEXT PRIMARY KEY, payment_id TEXT NOT NULL REFERENCES payments(id),
     status TEXT NOT NULL, created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS invoice_inbox (
+    id TEXT PRIMARY KEY, invoice_number TEXT NOT NULL, invoice_date TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+    patient_name TEXT NOT NULL, patient_birthdate TEXT NOT NULL,
+    received_at INTEGER NOT NULL, superseded_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS invoice_inbox_number ON invoice_inbox(invoice_number, superseded_at);

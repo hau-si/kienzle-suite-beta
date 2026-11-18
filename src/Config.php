@@ -65,6 +65,13 @@ final class Config {
             $width = $this->get('printing', 'width_dots', 420);
             if (!is_int($width) || $width < 128 || $width > 420) throw new \RuntimeException('TM-m10-Druckbreite muss 128 bis 420 Punkte betragen.');
         }
+        if (!is_bool($this->get('invoice_inbox', 'enabled', false))) throw new \RuntimeException('invoice_inbox.enabled muss true oder false sein.');
+        if ($this->get('invoice_inbox', 'enabled', false)) {
+            if (!preg_match('/^[a-f0-9]{64}$/D', (string)$this->get('invoice_inbox', 'key'))) throw new \RuntimeException('invoice_inbox.key muss 32 zufällige Bytes als Hex enthalten.');
+            if ($this->get('invoice_inbox', 'key') === $this->get('app', 'launcher_key')) throw new \RuntimeException('invoice_inbox.key darf nicht dem Starter-Schlüssel entsprechen.');
+        }
+        $days = $this->get('invoice_inbox', 'max_age_days', 14);
+        if (!is_int($days) || $days < 1 || $days > 90) throw new \RuntimeException('invoice_inbox.max_age_days muss 1 bis 90 betragen.');
         if (!is_bool($this->get('mail', 'enabled', false))) throw new \RuntimeException('mail.enabled muss true oder false sein.');
         if ($this->get('mail', 'enabled', false)) {
             if (!is_string($this->get('mail', 'host')) || !preg_match('/^[A-Za-z0-9.-]+$/D', $this->get('mail', 'host'))) throw new \RuntimeException('SMTP-Hostname ist ungültig.');

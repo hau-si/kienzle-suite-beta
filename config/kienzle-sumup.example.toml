@@ -50,6 +50,14 @@ share = "//kienzlebox/TMm10"
 width_dots = 420
 cut = true
 
+# Optional: T2med-Rechnungen über den virtuellen Drucker „SumUp-Rechnung“ übernehmen.
+# Der Druckserver sendet die PDF mit diesem Schlüssel an /invoice-inbox.php.
+[invoice_inbox]
+enabled = false
+key = ""
+# Nicht kassierte Rechnungen werden nach dieser Anzahl Tage nicht mehr angeboten.
+max_age_days = 14
+
 # Lokaler Leistungsbeleg / GOÄ-Rechnung mit Zahlungsbestätigung.
 # Name und Anschrift ausfüllen; Bestandszahlungen behalten ihren bisherigen Beleg.
 [practice]

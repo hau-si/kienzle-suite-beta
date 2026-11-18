@@ -39,6 +39,28 @@ function updateTotal() {
   $('total').textContent = Number.isFinite(sum) ? euro(sum) : '—';
   $('pay').textContent = sum > 0 ? euro(sum) + ' mit Karte kassieren' : 'Mit Karte kassieren';
   $('pay').disabled = busy || !!state.reader_payment || !(sum > 0 && sum <= state.max_amount_cents);
+  document.querySelectorAll('.invoice-pay').forEach(b => b.disabled = busy || !!state.reader_payment);
+}
+function renderInvoices() {
+  const list = state.invoices || []; $('invoices').replaceChildren(); $('invoices-section').hidden = !list.length;
+  for (const invoice of list) {
+    const box = element('div','','invoice'), line = element('div','','invoice-line');
+    line.append(element('span','Rechnung '+invoice.number+' vom '+invoice.invoice_date.split('-').reverse().join('.')), element('strong',euro(invoice.amount_cents)));
+    const button = element('button',euro(invoice.amount_cents)+' mit Karte kassieren','primary wide invoice-pay');
+    button.onclick = () => run(async() => {
+      const key = 'ks-invoice-'+visitId;
+      // Schlüssel vor dem Netzaufruf speichern; bei verlorener Antwort denselben Vorgang prüfen.
+      let request = null; try { request = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch {}
+      if (!request || request.invoice_id !== invoice.id) request = {invoice_id: invoice.id, request_id: crypto.randomUUID()};
+      sessionStorage.setItem(key, JSON.stringify(request));
+      try { state.payment = await api('start_invoice', request); }
+      catch(error) { try { await load(); } catch {} throw error; }
+      retrySelection = false; state.reader_payment = null; readerMessage = '';
+      sessionStorage.removeItem(key); renderPayment();
+    });
+    box.append(line, button); $('invoices').append(box);
+  }
+  updateTotal();
 }
 function selectedIds() {
   const ids=new Set(selected);
@@ -155,7 +177,7 @@ function renderPayment() {
   $('receipt-share').hidden=p.payment_status!=='successful';
   $('receipt-print').hidden=p.payment_status!=='successful' || !state.printing_enabled;
   if(p.payment_status==='successful') renderReceiptMail();
-  $('payment-amount').textContent=euro(p.amount_cents); $('payment-reference').textContent=p.invoice_number ? 'Rechnungsnummer: '+p.invoice_number : p.reference;
+  $('payment-amount').textContent=euro(p.amount_cents); $('payment-reference').textContent=p.t2med_invoice ? 'T2med-Rechnung '+p.t2med_invoice : p.invoice_number ? 'Rechnungsnummer: '+p.invoice_number : p.reference;
   $('payment-error').textContent=p.error_message; $('payment-error').hidden=!p.error_message;
   let title, description, symbol='…';
   if(p.doc_status==='written') {
@@ -188,7 +210,7 @@ async function load() {
   $('practice-hint').hidden=state.local_receipts;
   if(!$('service-date').value) $('service-date').value=state.today;
   $('service-date').max=state.today;
-  renderServices(); renderPayment();
+  renderServices(); renderInvoices(); renderPayment();
 }
 async function poll() {
   if(busy) { timer=setTimeout(poll,2200); return; }

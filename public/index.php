@@ -14,7 +14,8 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <section id="welcome" class="card"><h1>Kartenzahlung</h1><p>Bitte diese Seite aus der Patientenakte in T2med öffnen.</p><button id="demo" class="secondary" hidden>Testpatient öffnen</button></section>
 <div id="workspace" hidden>
 <section class="patient"><span class="eyebrow">AKTUELLER PATIENT</span><h1 id="patient-name"></h1><p id="patient-birth"></p></section>
-<section class="card" id="selection"><div class="section-heading"><h2>Leistungen</h2><button type="button" id="manage-toggle" class="text-button" aria-expanded="false">Leistungen verwalten</button></div>
+<section class="card" id="selection"><div id="invoices-section" class="invoices" hidden><h2>Offene T2med-Rechnung</h2><div id="invoices"></div><p class="muted">Rechnungsnummer und Betrag stammen aus der in T2med auf „SumUp-Rechnung“ gedruckten Rechnung. Nur Betrag und Rechnungsnummer gehen an SumUp.</p></div>
+<div class="section-heading"><h2>Leistungen</h2><button type="button" id="manage-toggle" class="text-button" aria-expanded="false">Leistungen verwalten</button></div>
 <p id="practice-hint" class="muted" hidden>Für eigene Leistungsbelege und GOÄ-Rechnungen bitte Praxisname und Anschrift im Server-Installer eintragen.</p>
 <div id="groups-section" hidden><h3>Kombinationen</h3><div id="groups"></div><p class="muted">Gemeinsame Einzelleistungen werden nur einmal berechnet.</p><h3>Einzelleistungen</h3></div>
 <div id="services"></div><p id="empty" class="muted" hidden>Noch keine Leistungen angelegt. Über „Leistungen verwalten“ kannst du beginnen.</p>
@@ -64,5 +65,5 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <label id="mock-fhir-label" class="mock-option" hidden><input type="checkbox" id="mock-fhir-fail"> t2med-Fehler simulieren</label>
 </section></div>
 <p id="message" class="message" role="alert" hidden></p>
-<footer><a href="https://github.com/thomaskien/t2med-sumup" target="_blank" rel="noopener noreferrer">kienzle-sumup für T2med v<?= $version ?> von Dr. Thomas Kienzle</a></footer>
+<footer><a href="https://github.com/thomaskien/t2med-sumup" target="_blank" rel="noopener noreferrer">kienzle-sumup für T2med v<?= $version ?> von Dr. Thomas Kienzle</a> · Fork mit T2med-Rechnungseingang</footer>
 </main></body></html>

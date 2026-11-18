@@ -7,7 +7,7 @@ if [ ! -f /etc/debian_version ]; then echo 'Dieser Installer unterstützt Debian
 if ! command -v systemctl >/dev/null; then echo 'systemd wird benötigt.'; exit 1; fi
 umask 077
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
 if ! id kienzle-sumup >/dev/null 2>&1; then useradd --system --home-dir /var/lib/kienzle-sumup --shell /usr/sbin/nologin kienzle-sumup; fi
 install -d -m 750 -o root -g kienzle-sumup /etc/kienzle-sumup
@@ -62,6 +62,7 @@ php_admin_flag[display_errors] = off
 php_admin_flag[log_errors] = on
 php_admin_flag[expose_php] = off
 php_admin_value[memory_limit] = 64M
+php_admin_value[post_max_size] = 8M
 php_admin_value[error_log] = /var/log/kienzle-sumup/php.log
 EOF
 cat > /etc/kienzle-sumup/apache.conf <<EOF
@@ -123,6 +124,10 @@ SSLSessionCache shmcb:/run/kienzle-sumup-apache/sslcache(512000)
             SetHandler "proxy:unix:/run/kienzle-sumup-php/php.sock|fcgi://localhost"
         </FilesMatch>
     </Directory>
+    # Rechnungseingang vom Druckserver: PDF bis 5 MB, sonst gilt das kleine Limit oben.
+    <Location "/invoice-inbox.php">
+        LimitRequestBody 5300000
+    </Location>
     SetEnvIfNoCase Authorization "^(.*)$" HTTP_AUTHORIZATION=\$1
 </VirtualHost>
 EOF
@@ -180,3 +185,7 @@ systemctl enable --now kienzle-sumup-php.service kienzle-sumup-apache.service
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
 echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'
+if [ -d /root/kienzle-sumup-printer ]; then
+  echo 'Rechnungseingang: /root/kienzle-sumup-printer geschützt auf den Druckserver kopieren und dort'
+  echo '  sudo bash scripts/install-invoice-printer.sh /pfad/zu/kienzle-sumup-printer  ausführen.'
+fi
