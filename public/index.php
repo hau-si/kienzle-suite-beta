@@ -14,7 +14,17 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <section id="welcome" class="card"><h1>Kartenzahlung</h1><p>Bitte diese Seite aus der Patientenakte in T2med öffnen.</p><button id="demo" class="secondary" hidden>Testpatient öffnen</button></section>
 <div id="workspace" hidden>
 <section class="patient"><span class="eyebrow">AKTUELLER PATIENT</span><h1 id="patient-name"></h1><p id="patient-birth"></p></section>
-<section class="card" id="selection"><div id="invoices-section" class="invoices" hidden><h2>Offene T2med-Rechnung</h2><div id="invoices"></div><p class="muted">Rechnungsnummer und Betrag stammen aus der in T2med auf „SumUp-Rechnung“ gedruckten Rechnung. Nur Betrag und Rechnungsnummer gehen an SumUp.</p></div>
+<section class="card" id="selection"><div id="print-box" class="print-box" hidden>
+<div class="print-row"><label class="check"><input type="checkbox" id="auto-print"> Rechnung nach der Zahlung drucken</label><button type="button" id="print-settings-toggle" class="text-button" aria-expanded="false">Druckeinstellungen</button></div>
+<p id="print-targets" class="muted small"></p>
+<div id="print-settings" class="print-settings" hidden>
+<label class="check"><input type="checkbox" id="print-default"> Häkchen standardmäßig setzen (gilt für alle Arbeitsplätze)</label>
+<fieldset id="print-target-set"><legend>In der App erzeugte Rechnungen drucken auf</legend>
+<label class="check"><input type="radio" name="print-target" value="office" id="target-office"> <span id="target-office-label"></span></label>
+<label class="check"><input type="radio" name="print-target" value="receipt" id="target-receipt"> <span id="target-receipt-label"></span></label></fieldset>
+<p class="muted small">T2med-Rechnungen werden immer auf dem Praxisdrucker gedruckt.</p>
+<button type="button" id="print-settings-save" class="secondary">Speichern</button></div></div>
+<div id="invoices-section" class="invoices" hidden><h2>Offene T2med-Rechnung</h2><div id="invoices"></div><p class="muted">Rechnungsnummer und Betrag stammen aus der in T2med auf „SumUp-Rechnung“ gedruckten Rechnung. Nur Betrag und Rechnungsnummer gehen an SumUp.</p></div>
 <div class="section-heading"><h2>Leistungen</h2><button type="button" id="manage-toggle" class="text-button" aria-expanded="false">Leistungen verwalten</button></div>
 <p id="practice-hint" class="muted" hidden>Für eigene Leistungsbelege und GOÄ-Rechnungen bitte Praxisname und Anschrift im Server-Installer eintragen.</p>
 <div id="groups-section" hidden><h3>Kombinationen</h3><div id="groups"></div><p class="muted">Gemeinsame Einzelleistungen werden nur einmal berechnet.</p><h3>Einzelleistungen</h3></div>
@@ -52,6 +62,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p id="receipt-mail-status" class="muted" role="status" hidden></p>
 <button id="receipt-print" class="secondary wide" hidden>Beleg drucken</button>
 <p id="receipt-print-status" class="muted" role="status" hidden></p>
+<p id="invoice-print-status" class="muted" role="status" hidden></p><button id="invoice-print" class="text-button" hidden>Rechnung erneut drucken</button>
 <p id="invoice-export-status" class="muted" role="status" hidden></p><button id="invoice-export" class="text-button" hidden>Rechnungs-PDF erneut ablegen</button>
 <button id="document" class="primary wide" hidden>Dokumentation in der Akte</button><button id="retry" class="primary wide" hidden>Erneut versuchen</button><button id="cancel" class="text-button" hidden>Zahlung abbrechen</button>
 <button id="receipt-share" class="text-button" hidden>Beleglink / E-Mail-Adresse ändern</button>
@@ -66,5 +77,5 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <label id="mock-fhir-label" class="mock-option" hidden><input type="checkbox" id="mock-fhir-fail"> t2med-Fehler simulieren</label>
 </section></div>
 <p id="message" class="message" role="alert" hidden></p>
-<footer><a href="https://github.com/thomaskien/t2med-sumup" target="_blank" rel="noopener noreferrer">kienzle-sumup für T2med v<?= $version ?> von Dr. Thomas Kienzle</a> · Fork mit T2med-Rechnungseingang</footer>
+<footer><a href="https://github.com/thomaskien/t2med-sumup" target="_blank" rel="noopener noreferrer">kienzle-sumup für T2med v<?= $version ?> von Dr. Thomas Kienzle · Fork mit T2med-Rechnungseingang</a></footer>
 </main></body></html>

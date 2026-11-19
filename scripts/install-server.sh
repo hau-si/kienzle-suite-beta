@@ -17,6 +17,10 @@ python3 scripts/configure.py
 if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("printing","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y php-gd smbclient
 fi
+# CUPS-Client für den Praxisdrucker (A4) bzw. einen Bondrucker an einer CUPS-RAW-Warteschlange.
+if php -r 'require $argv[1]; $c=KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml"); exit($c->get("office_printing","enabled",false) || ($c->get("printing","enabled",false) && $c->get("printing","transport","samba")==="cups") ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y cups-client
+fi
 if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("invoice_export","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y smbclient
 fi

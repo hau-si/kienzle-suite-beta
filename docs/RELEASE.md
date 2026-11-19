@@ -1,9 +1,13 @@
-Version 1.4.1-rechnung.3 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.4 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.4: Häkchen „Rechnung nach der Zahlung drucken“ (praxisweit voreinstellbar,
+  pro Zahlung abwählbar). T2med-Rechnungen auf dem Praxisdrucker (A4, CUPS), App-Rechnungen
+  wahlweise A4 oder Bon. Bondrucker-Modell Epson TM-m30III (80 mm, 576 Punkte) und Anbindung
+  über eine CUPS-RAW-Warteschlange als Alternative zu Samba. Datenbank-Version 8.
 - Neu in rechnung.3: Auch die in der App erzeugten Rechnungen/Leistungsbelege werden nach
   erfolgreicher Zahlung automatisch im Netzwerkordner abgelegt (Installer-Abfrage,
   `invoice_export.app_invoices`), auch ohne Rechnungseingang. Stündlicher Timer

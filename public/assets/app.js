@@ -8,6 +8,8 @@ let readerTimer = null, readerChecking = false, readerMessage = '';
 let receiptShare = null, receiptRecipient = null, receiptMailRequest = null;
 let receiptPrintPayment = null;
 const exportTried = new Set();
+const printTried = new Set();
+let printTouched = false;
 function message(text='') { $('message').textContent = text; $('message').hidden = !text; }
 async function api(action, data={}) {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 75000);
@@ -52,7 +54,7 @@ function renderInvoices() {
       const key = 'ks-invoice-'+visitId;
       // Schlüssel vor dem Netzaufruf speichern; bei verlorener Antwort denselben Vorgang prüfen.
       let request = null; try { request = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch {}
-      if (!request || request.invoice_id !== invoice.id) request = {invoice_id: invoice.id, request_id: crypto.randomUUID()};
+      if (!request || request.invoice_id !== invoice.id) request = {invoice_id: invoice.id, request_id: crypto.randomUUID(), ...printChoice()};
       sessionStorage.setItem(key, JSON.stringify(request));
       try { state.payment = await api('start_invoice', request); }
       catch(error) { try { await load(); } catch {} throw error; }
@@ -179,6 +181,7 @@ function renderPayment() {
   $('receipt-print').hidden=p.payment_status!=='successful' || !state.printing_enabled;
   if(p.payment_status==='successful') renderReceiptMail();
   renderInvoiceExport(p);
+  renderInvoicePrint(p);
   $('payment-amount').textContent=euro(p.amount_cents); $('payment-reference').textContent=p.t2med_invoice ? 'T2med-Rechnung '+p.t2med_invoice : p.invoice_number ? 'Rechnungsnummer: '+p.invoice_number : p.reference;
   $('payment-error').textContent=p.error_message; $('payment-error').hidden=!p.error_message;
   let title, description, symbol='…';
@@ -202,6 +205,47 @@ function renderPayment() {
   }
   $('payment-title').textContent=title; $('payment-description').textContent=description; $('status-symbol').textContent=symbol;
 }
+function printChoice() { return $('print-box').hidden ? {} : {auto_print: $('auto-print').checked}; }
+function renderPrintBox() {
+  const s = state.print;
+  $('print-box').hidden = !s || !(s.office || s.receipt);
+  if ($('print-box').hidden) return;
+  if (!printTouched) $('auto-print').checked = s.auto_print;
+  const parts = [];
+  if (s.t2med_possible && (state.invoices || []).length) parts.push('T2med-Rechnung → ' + s.office_label);
+  if (s.app_possible) parts.push('Rechnung aus der Leistungsauswahl → ' + (s.app_target === 'office' ? s.office_label : s.receipt_label));
+  if (!parts.length) parts.push(s.office ? 'T2med-Rechnungen → ' + s.office_label : 'Für App-Rechnungen Praxisdaten im Installer eintragen.');
+  $('print-targets').textContent = parts.join(' · ');
+  $('target-office').disabled = !s.office; $('target-receipt').disabled = !s.receipt;
+  $('target-office-label').textContent = s.office ? s.office_label : 'Praxisdrucker (nicht eingerichtet)';
+  $('target-receipt-label').textContent = s.receipt ? s.receipt_label : 'Bondrucker (nicht eingerichtet)';
+}
+$('auto-print').onchange = () => { printTouched = true; };
+$('print-settings-toggle').onclick = () => {
+  const open = $('print-settings').hidden; $('print-settings').hidden = !open; $('print-settings-toggle').setAttribute('aria-expanded', String(open));
+  if (open) { $('print-default').checked = state.print.auto_print; $('target-' + state.print.app_target).checked = true; }
+};
+$('print-settings-save').onclick = () => run(async () => {
+  const target = document.querySelector('input[name="print-target"]:checked')?.value || state.print.app_target;
+  state.print = await api('print_settings', {auto_print: $('print-default').checked, app_target: target});
+  printTouched = false; $('print-settings').hidden = true; renderPrintBox(); message('Druckeinstellungen gespeichert.');
+});
+function renderInvoicePrint(p) {
+  const e = p.payment_status === 'successful' ? p.invoice_print : null;
+  $('invoice-print-status').hidden = !e; $('invoice-print').hidden = !e || e.status === 'pending';
+  if (!e) return;
+  $('invoice-print').textContent = e.status === 'failed' ? 'Rechnung erneut drucken' : 'Rechnung nochmals drucken';
+  $('invoice-print-status').textContent = e.status === 'done' ? 'Rechnung gedruckt: ' + e.info
+    : e.status === 'simulated' ? 'Testmodus – Rechnung aufbereitet, nicht gedruckt (' + e.info + ').'
+    : e.status === 'failed' ? 'Rechnung nicht gedruckt: ' + e.error : 'Rechnung wird gedruckt (' + e.label + ') …';
+  // Einmal automatisch nach erfolgreicher Zahlung; der Server druckt dieselbe Rechnung nie doppelt.
+  if (e.status === 'pending' && !printTried.has(p.id)) { printTried.add(p.id); printInvoice(p.id, false); }
+}
+async function printInvoice(id, again) {
+  try { const result = await api('invoice_print', {payment_id: id, again}); if (state.payment?.id === id) { state.payment = result; renderPayment(); } }
+  catch (error) { if (state.payment?.id === id) { $('invoice-print-status').textContent = 'Rechnung nicht gedruckt: ' + error.message; $('invoice-print').hidden = false; } }
+}
+$('invoice-print').onclick = () => run(() => printInvoice(state.payment.id, true));
 function renderInvoiceExport(p) {
   const e = p.payment_status==='successful' ? p.invoice_export : null;
   $('invoice-export-status').hidden = !e; $('invoice-export').hidden = !e || e.status!=='failed';
@@ -226,7 +270,7 @@ async function load() {
   $('practice-hint').hidden=state.local_receipts;
   if(!$('service-date').value) $('service-date').value=state.today;
   $('service-date').max=state.today;
-  renderServices(); renderInvoices(); renderPayment();
+  renderServices(); renderInvoices(); renderPrintBox(); renderPayment();
 }
 async function poll() {
   if(busy) { timer=setTimeout(poll,2200); return; }
@@ -252,7 +296,7 @@ $('pay').onclick=()=>run(async()=>{
   if(!$('service-date').reportValidity()) return;
   for(const input of $('basket').querySelectorAll('textarea')) if(!input.reportValidity()) return;
   const ids=selectedIds();
-  const data={services:[...selected].sort(),groups:[...selectedGroups].sort(),reasons:Object.fromEntries(Object.entries(reasons).filter(([id,value])=>ids.has(id) && value.trim())),service_date:$('service-date').value,manual_amount:$('manual').value.trim()};
+  const data={services:[...selected].sort(),groups:[...selectedGroups].sort(),reasons:Object.fromEntries(Object.entries(reasons).filter(([id,value])=>ids.has(id) && value.trim())),service_date:$('service-date').value,manual_amount:$('manual').value.trim(),...printChoice()};
   // Schlüssel und Anfrage vor dem Netzaufruf speichern; bei verlorener Antwort wiederverwenden.
   if(!startRequest) startRequest={...data,request_id:crypto.randomUUID()};
   sessionStorage.setItem('ks-start-'+visitId,JSON.stringify(startRequest));

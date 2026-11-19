@@ -9,7 +9,8 @@ final class App {
     private ReceiptMailer $mailer;
     private ReceiptPrinter $printer;
     private InvoiceExport $export;
-    public function __construct(public readonly Config $config, ?HttpClient $http = null, ?ReceiptMailer $mailer = null, ?ReceiptPrinter $printer = null, ?InvoiceExport $export = null) {
+    private OfficePrinter $office;
+    public function __construct(public readonly Config $config, ?HttpClient $http = null, ?ReceiptMailer $mailer = null, ?ReceiptPrinter $printer = null, ?InvoiceExport $export = null, ?OfficePrinter $office = null) {
         umask(0077);
         $this->db = new Database($config->get('app', 'state_dir'));
         $http ??= new HttpClient();
@@ -18,6 +19,7 @@ final class App {
         $this->mailer = $mailer ?? new ReceiptMailer($config);
         $this->printer = $printer ?? new ReceiptPrinter($config);
         $this->export = $export ?? new InvoiceExport($config);
+        $this->office = $office ?? new OfficePrinter($config);
     }
     public static function id(): string { return bin2hex(random_bytes(16)); }
     public static function string(array $input, string $key, int $max = 200, bool $required = true): string {
@@ -128,6 +130,7 @@ final class App {
             'printing_enabled' => $this->config->get('printing', 'enabled', false),
             'mock_document_fail' => (bool)$visit['mock_document_fail'],
             'invoices' => $this->openInvoices($visit),
+            'print' => $this->printSettings(),
             'max_amount_cents' => $this->config->get('app', 'max_amount_cents')];
     }
     private function editable(array $visit): void {
@@ -196,7 +199,7 @@ final class App {
         $payload = [$ids, $manual];
         if (array_key_exists('groups', $input) || array_key_exists('reasons', $input) || array_key_exists('service_date', $input)) $payload = [...$payload, $groups, $reasons, $dateInput];
         $hash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
-        return $this->db->locked('reader', function () use ($visit, $request, $hash, $ids, $manual, $groups, $reasons, $date): array {
+        return $this->db->locked('reader', function () use ($visit, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input): array {
             $existing = $this->db->one('SELECT * FROM payments WHERE request_id=?', [$request]);
             if ($existing) {
                 if ($existing['visit_id'] !== $visit['id'] || $existing['request_hash'] !== $hash) throw new Problem('Der Vorgangsschlüssel gehört zu einer anderen Zahlung.', 409);
@@ -207,7 +210,7 @@ final class App {
             $pending = $this->db->one("SELECT * FROM payments WHERE visit_id=? AND payment_status IN ('starting','pending','unknown','cancel_requested','successful')", [$visit['id']]);
             if ($pending) return $this->publicPayment($pending);
             if ($this->readerPayment($visit)) throw new Problem('Das Terminal ist belegt. Du kannst den anderen Vorgang unten prüfen oder abbrechen.', 409);
-            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $ids, $manual, $groups, $reasons, $date): array {
+            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input): array {
                 $visit = $fresh;
                 $items = []; $amount = 0; $max = $this->config->get('app', 'max_amount_cents');
                 foreach ($groups as $groupId) {
@@ -245,6 +248,7 @@ final class App {
                 $id = self::id();
                 $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                     [$id, $visit['id'], $request, $hash, 'POS-' . strtoupper($id), $this->config->get('sumup', 'reader_id') ?: 'mock-reader', $amount, json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'starting', time(), $invoice]);
+                $this->markAutoPrint($id, $input);
                 return $this->db->one('SELECT * FROM payments WHERE id=?', [$id]);
             });
             return $this->begin($payment);
@@ -272,7 +276,7 @@ final class App {
     public function storeInvoice(array $invoice, ?string $pdf = null): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);
         // Die Original-PDF nur aufbewahren, wenn sie in den Netzwerkordner kopiert werden soll.
-        $keep = $this->export->enabled() && $pdf !== null ? $pdf : null;
+        $keep = ($this->export->enabled() || $this->office->enabled()) && $pdf !== null ? $pdf : null;
         $result = $this->db->transaction(function () use ($invoice, $keep): array {
             $this->purgeInbox();
             $number = $invoice['number'];
@@ -290,7 +294,7 @@ final class App {
             return ['ok' => true, 'id' => $id, 'number' => $number, 'amount_cents' => $invoice['amount_cents'],
                 'message' => 'Rechnung ' . $number . ' über ' . Money::format($invoice['amount_cents']) . ' liegt zum Kassieren bereit.'];
         });
-        if ($keep !== null && $this->export->when() === 'received') {
+        if ($keep !== null && $this->export->enabled() && $this->export->when() === 'received') {
             $status = $this->exportRow($result['id']);
             $result['message'] .= $status['status'] === 'done' ? ' PDF im Netzwerkordner abgelegt.' : ' PDF NICHT im Netzwerkordner abgelegt: ' . $status['error'];
         }
@@ -307,7 +311,8 @@ final class App {
             try {
                 $path = $this->export->export($row, $row['pdf'], $this->export->when() === 'paid');
                 // Nach erfolgreicher Ablage keine Kopie der PDF auf dem Anwendungsserver behalten.
-                $this->db->query("UPDATE invoice_inbox SET export_status='done',export_error='',export_path=?,pdf=NULL WHERE id=?", [$path, $inboxId]);
+                $this->db->query("UPDATE invoice_inbox SET export_status='done',export_error='',export_path=? WHERE id=?", [$path, $inboxId]);
+                $this->releaseInboxPdf($inboxId);
                 return ['status' => 'done', 'error' => '', 'path' => $path];
             } catch (Problem $e) {
                 error_log('kienzle-sumup: Rechnungsablage: ' . $e->getMessage());
@@ -373,6 +378,8 @@ final class App {
         $limit = time() - $this->config->get('invoice_inbox', 'max_age_days', 14) * 86400;
         // Nur nie kassierte Einträge löschen; Zahlungen behalten ihre Zuordnung.
         $this->db->query('DELETE FROM invoice_inbox WHERE (received_at < ? OR superseded_at < ?) AND id NOT IN (SELECT inbox_id FROM payments WHERE inbox_id IS NOT NULL)', [$limit, $limit]);
+        // Bezahlte, aber nie abgeschlossene Vorgänge: Original-PDF nach Ablauf der Frist ebenfalls löschen.
+        $this->db->query("UPDATE invoice_inbox SET pdf=NULL WHERE pdf IS NOT NULL AND received_at < ? AND id IN (SELECT inbox_id FROM payments WHERE inbox_id IS NOT NULL AND payment_status='successful')", [$limit]);
     }
     /** Offene Rechnungen genau dieses Patienten (Name und Geburtsdatum aus dem T2med-Kontext). */
     private function openInvoices(array $visit): array {
@@ -395,7 +402,7 @@ final class App {
         $invoiceId = self::string($input, 'invoice_id', 32);
         if (!preg_match('/^[a-f0-9]{32}$/D', $invoiceId)) throw new Problem('Ungültige Rechnung.');
         $hash = hash('sha256', json_encode(['t2med_invoice', $invoiceId], JSON_THROW_ON_ERROR));
-        return $this->db->locked('reader', function () use ($visit, $request, $hash, $invoiceId): array {
+        return $this->db->locked('reader', function () use ($visit, $request, $hash, $invoiceId, $input): array {
             $existing = $this->db->one('SELECT * FROM payments WHERE request_id=?', [$request]);
             if ($existing) {
                 if ($existing['visit_id'] !== $visit['id'] || $existing['request_hash'] !== $hash) throw new Problem('Der Vorgangsschlüssel gehört zu einer anderen Zahlung.', 409);
@@ -406,7 +413,7 @@ final class App {
             $pending = $this->db->one("SELECT * FROM payments WHERE visit_id=? AND payment_status IN ('starting','pending','unknown','cancel_requested','successful')", [$visit['id']]);
             if ($pending) return $this->publicPayment($pending);
             if ($this->readerPayment($visit)) throw new Problem('Das Terminal ist belegt. Du kannst den anderen Vorgang unten prüfen oder abbrechen.', 409);
-            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $invoiceId): array {
+            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $invoiceId, $input): array {
                 // Erneut innerhalb der Transaktion prüfen: offen, aktuell und zum Patienten passend.
                 $open = array_column($this->openInvoices($fresh), null, 'id');
                 if (!isset($open[$invoiceId])) throw new Problem('Diese Rechnung ist nicht mehr offen oder gehört nicht zu diesem Patienten. Bitte Seite neu laden.', 409);
@@ -417,6 +424,7 @@ final class App {
                 $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json,inbox_id,t2med_invoice) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                     [$id, $fresh['id'], $request, $hash, 'POS-' . strtoupper($id), $this->config->get('sumup', 'reader_id') ?: 'mock-reader', $invoice['amount_cents'],
                     json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'starting', time(), null, $invoice['id'], $invoice['invoice_number']]);
+                $this->markAutoPrint($id, $input);
                 return $this->db->one('SELECT * FROM payments WHERE id=?', [$id]);
             });
             return $this->begin($payment);
@@ -649,6 +657,8 @@ final class App {
         });
         // Spätestens beim Abschluss die Rechnungs-PDF ablegen; ein Fehler blockiert die Dokumentation nicht.
         $this->exportPayment($this->db->one('SELECT * FROM payments WHERE id=?', [$payment['id']]));
+        $this->autoPrint($payment['id']);
+        if (!empty($payment['inbox_id'])) $this->releaseInboxPdf($payment['inbox_id']);
         return $this->publicPayment($this->db->one('SELECT * FROM payments WHERE id=?', [$payment['id']]));
     }
     public function mock(array $visit, array $input): void {
@@ -667,10 +677,112 @@ final class App {
             $this->db->query("UPDATE payments SET payment_status=?,paid_at=?,transaction_id=?,error_message='' WHERE id=?", [$status, $status === 'successful' ? time() : null, $status === 'successful' ? 'TEST-' . $id : null, $id]);
         });
     }
+    // --- Rechnung automatisch drucken ----------------------------------------------------
+    /** Praxisweite Einstellung und verfügbare Drucker. */
+    public function printSettings(): array {
+        $office = $this->office->enabled(); $receipt = (bool)$this->config->get('printing', 'enabled', false);
+        $rows = array_column($this->db->query("SELECT key,value FROM settings WHERE key IN ('auto_print','app_print_target')")->fetchAll(), 'value', 'key');
+        $target = $rows['app_print_target'] ?? ($receipt ? 'receipt' : 'office');
+        if ($target === 'receipt' && !$receipt) $target = 'office';
+        if ($target === 'office' && !$office) $target = $receipt ? 'receipt' : 'office';
+        $model = $this->config->get('printing', 'model', 'tm-m10');
+        return ['office' => $office, 'receipt' => $receipt, 'auto_print' => ($rows['auto_print'] ?? '0') === '1' && ($office || $receipt),
+            'app_target' => $target, 'office_label' => $office ? 'Praxisdrucker „' . $this->office->label() . '“' : '',
+            'receipt_label' => $receipt ? (Config::PRINTER_MODELS[$model]['label'] ?? 'Bondrucker') : '',
+            't2med_possible' => $office, 'app_possible' => $this->config->practiceReady() && ($target === 'office' ? $office : $receipt)];
+    }
+    public function savePrintSettings(array $visit, array $input): array {
+        $auto = $input['auto_print'] ?? null; $target = $input['app_target'] ?? null;
+        if (!is_bool($auto) || !in_array($target, ['office', 'receipt'], true)) throw new Problem('Ungültige Druckeinstellung.');
+        $settings = $this->printSettings();
+        if (!$settings[$target]) throw new Problem($target === 'office' ? 'Der Praxisdrucker ist nicht eingerichtet.' : 'Der Bondrucker ist nicht eingerichtet.', 409);
+        foreach (['auto_print' => $auto ? '1' : '0', 'app_print_target' => $target] as $key => $value) {
+            $this->db->query('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at', [$key, $value, time()]);
+        }
+        return $this->printSettings();
+    }
+    /** Ziel für diese Zahlung: T2med-Rechnung immer Praxisdrucker, App-Rechnung laut Einstellung. */
+    private function printTarget(array $payment): ?string {
+        $settings = $this->printSettings();
+        if (!empty($payment['inbox_id'])) return $settings['office'] ? 'office' : null;
+        if (empty($payment['invoice_json'])) return null;   // ohne lokale Rechnung nur der SumUp-Beleg
+        return $settings[$settings['app_target']] ? $settings['app_target'] : null;
+    }
+    /** Häkchen der Zahlungsseite; ohne Angabe gilt die praxisweite Einstellung. */
+    private function markAutoPrint(string $paymentId, array $input): void {
+        $payment = $this->db->one('SELECT * FROM payments WHERE id=?', [$paymentId]);
+        $wanted = array_key_exists('auto_print', $input) ? $input['auto_print'] === true : $this->printSettings()['auto_print'];
+        $this->db->query('UPDATE payments SET auto_print=? WHERE id=?', [$wanted && $this->printTarget($payment) ? 1 : 0, $paymentId]);
+    }
+    /** Druckt die Rechnung höchstens einmal automatisch; Fehler werden gespeichert, nicht geworfen. */
+    private function autoPrint(string $paymentId, bool $again = false): void {
+        $this->db->locked('invoice-print-' . $paymentId, function () use ($paymentId, $again): void {
+            $payment = $this->db->one('SELECT * FROM payments WHERE id=?', [$paymentId]);
+            if (!$payment || $payment['payment_status'] !== 'successful' || !$payment['auto_print']) return;
+            if (!$again && in_array($payment['print_status'], ['done', 'simulated'], true)) return;
+            $target = $this->printTarget($payment);
+            try {
+                if (!$target) throw new Problem('Kein passender Drucker eingerichtet.', 409);
+                $title = 'Rechnung ' . ($payment['t2med_invoice'] ?: $payment['transaction_id']);
+                if ($target === 'office') {
+                    if (!empty($payment['inbox_id'])) {
+                        $row = $this->db->one('SELECT pdf FROM invoice_inbox WHERE id=?', [$payment['inbox_id']]);
+                        if (!$row || $row['pdf'] === null) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med drucken.', 409);
+                        $pdf = $row['pdf'];
+                    } else {
+                        $pdf = ReceiptPdf::convert(InvoiceReceipt::a4($this->receiptSource($payment)));
+                    }
+                    $data = null;
+                } else {
+                    $data = $this->printer->prepare($this->receiptSource($payment));
+                }
+                $label = $target === 'office' ? $this->printSettings()['office_label'] : $this->printSettings()['receipt_label'];
+                if ($this->config->get('sumup', 'mode') !== 'live') {
+                    // Testmodus: aufbereiten, aber nichts an den Drucker senden (wie beim Direktdruck).
+                    $this->db->query("UPDATE payments SET print_status='simulated',print_error='',print_info=? WHERE id=?", ['Test: ' . $label, $paymentId]);
+                } else {
+                    $info = $target === 'office' ? $label . ', Auftrag ' . $this->office->send($pdf, $title) : $label;
+                    // Bondrucker: wie „Beleg drucken“ nacheinander übergeben.
+                    if ($data !== null) $this->db->locked('receipt-print', fn() => $this->printer->send($data));
+                    $this->db->query("UPDATE payments SET print_status='done',print_error='',print_info=? WHERE id=?", [$info, $paymentId]);
+                }
+            } catch (Problem $e) {
+                error_log('kienzle-sumup: Rechnungsdruck: ' . $e->getMessage());
+                $this->db->query("UPDATE payments SET print_status='failed',print_error=? WHERE id=?", [$e->getMessage(), $paymentId]);
+            }
+            if (!empty($payment['inbox_id'])) $this->releaseInboxPdf($payment['inbox_id']);
+        });
+    }
+    /** Nach erfolgreicher Zahlung: automatisch bzw. auf Wunsch erneut drucken. */
+    public function invoicePrint(array $visit, array $input): array {
+        $payment = $this->payment($visit, self::string($input, 'payment_id', 32));
+        if ($payment['payment_status'] !== 'successful') throw new Problem('Drucken erst nach erfolgreicher Zahlung.', 409);
+        if (!$this->printTarget($payment)) throw new Problem('Für diese Zahlung ist kein Rechnungsdrucker eingerichtet.', 409);
+        $again = ($input['again'] ?? false) === true;
+        if (!$payment['auto_print']) { $this->db->query('UPDATE payments SET auto_print=1 WHERE id=?', [$payment['id']]); $again = true; }
+        $this->autoPrint($payment['id'], $again);
+        return $this->publicPayment($this->payment($visit, $payment['id']));
+    }
+    private function printState(array $p): ?array {
+        if (empty($p['auto_print'])) return null;
+        $target = $this->printTarget($p);
+        return ['status' => ($p['print_status'] ?? '') ?: 'pending', 'error' => $p['print_error'] ?? '', 'info' => $p['print_info'] ?? '',
+            'target' => $target, 'label' => $target ? $this->printSettings()[$target . '_label'] : ''];
+    }
+    /** Original-PDF löschen, sobald Ablage und Druck erledigt sind (bzw. nicht vorgesehen). */
+    private function releaseInboxPdf(string $inboxId): void {
+        $row = $this->db->one('SELECT export_status FROM invoice_inbox WHERE id=?', [$inboxId]);
+        // Bis zum Abschluss (Akteneintrag) bleibt die PDF für Nachdrucke erhalten.
+        $paid = $this->db->one("SELECT p.auto_print,p.print_status FROM payments p JOIN visits v ON v.id=p.visit_id WHERE p.inbox_id=? AND p.payment_status='successful' AND v.completed_at IS NOT NULL LIMIT 1", [$inboxId]);
+        if (!$row || !$paid) return;
+        $exportDone = !$this->export->enabled() || $row['export_status'] === 'done';
+        $printDone = !$paid['auto_print'] || in_array($paid['print_status'], ['done', 'simulated'], true);
+        if ($exportDone && $printDone) $this->db->query('UPDATE invoice_inbox SET pdf=NULL WHERE id=?', [$inboxId]);
+    }
     private function publicPayment(array $p): array {
         return array_intersect_key($p, array_flip(['id', 'amount_cents', 'currency', 'reference', 'payment_status', 'doc_status', 'paid_at', 'error_message'])) +
             ['local_receipt' => !empty($p['invoice_json']), 'invoice_number' => !empty($p['invoice_json']) && $p['payment_status'] === 'successful' ? $p['transaction_id'] : null,
-             't2med_invoice' => $p['t2med_invoice'] ?? null, 'invoice_export' => $this->exportState($p)];
+             't2med_invoice' => $p['t2med_invoice'] ?? null, 'invoice_export' => $this->exportState($p), 'invoice_print' => $this->printState($p)];
     }
     private function exportState(array $p): ?array {
         if (!$this->export->enabled()) return null;

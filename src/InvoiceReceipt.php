@@ -4,6 +4,21 @@ namespace KienzleSumup;
 
 /** Lokaler Bon: keinerlei Abruf oder Übertragung medizinischer Daten an SumUp. */
 final class InvoiceReceipt {
+    /**
+     * Setzt den Beleg (52,5 mm breit) lesbar vergrößert auf eine A4-Seite für den Praxisdrucker.
+     * Sehr lange Belege werden so verkleinert, dass sie auf eine Seite passen.
+     */
+    public static function a4(string $svg): string {
+        if (!preg_match('/<svg\b[^>]*\bviewBox="0 0 (\d+) (\d+)"/', $svg, $m)) throw new Problem('Beleg kann nicht für A4 aufbereitet werden.', 500);
+        [$w, $h] = [(int)$m[1], (int)$m[2]];
+        $width = 90.0; $height = $width * $h / $w;
+        if ($height > 267) { $height = 267.0; $width = $height * $w / $h; }
+        $x = (210 - $width) / 2;
+        $inner = preg_replace('/<svg\b([^>]*?)\s(width|height)="[^"]*"([^>]*?)\s(width|height)="[^"]*"/', '<svg$1$3', $svg, 1);
+        $inner = preg_replace('/<svg\b/', sprintf('<svg x="%.2f" y="15" width="%.2f" height="%.2f"', $x, $width, $height), $inner, 1);
+        return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210mm" height="297mm" viewBox="0 0 210 297">'
+            . '<rect width="210" height="297" fill="white"/>' . $inner . '</svg>';
+    }
     public static function source(array $invoice, array $payment, ?string $sumupReceipt = null): string {
         if ($payment['status'] !== 'successful') throw new Problem('Ein bezahlter Beleg benötigt eine bestätigte Zahlung.', 409);
         $parts = []; $y = 28;

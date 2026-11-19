@@ -25,6 +25,7 @@ jobs:
       - run: php tests/reader-cancel.php
       - run: php tests/invoice.php
       - run: php tests/t2med-invoice.php
+      - run: php tests/auto-print.php
       - run: php tests/print-format.php
       - run: php tests/mail-mime.php
       - run: python3 tests/tls-pin.py
@@ -43,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install isolated server in mock mode with optional printing and invoice inbox
-        run: printf '\n\n\n\n\nja\n\n\n\nTestpraxis\nMusterstrasse 1\n12345 Musterstadt\n\nja\nja\nnein\n' | sudo bash scripts/install-server.sh
+        run: printf '\n\n\n\n\nja\n\n\n\n\n\n\nTestpraxis\nMusterstrasse 1\n12345 Musterstadt\n\nja\nja\nnein\n' | sudo bash scripts/install-server.sh
       - name: Check HTTPS and PHP
         run: |
           sudo systemctl is-active kienzle-sumup-apache kienzle-sumup-php

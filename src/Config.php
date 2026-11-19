@@ -60,10 +60,23 @@ final class Config {
             if (!is_bool($this->get('printing', $key, $default))) throw new \RuntimeException('printing.' . $key . ' muss true oder false sein.');
         }
         if ($this->get('printing', 'enabled', false)) {
-            $share = $this->get('printing', 'share');
-            if (!is_string($share) || !preg_match('~^//[A-Za-z0-9][A-Za-z0-9.-]{0,252}/[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$~D', $share)) throw new \RuntimeException('Druckerfreigabe als //server/drucker angeben.');
-            $width = $this->get('printing', 'width_dots', 420);
-            if (!is_int($width) || $width < 128 || $width > 420) throw new \RuntimeException('TM-m10-Druckbreite muss 128 bis 420 Punkte betragen.');
+            $model = $this->get('printing', 'model', 'tm-m10');
+            if (!isset(self::PRINTER_MODELS[$model])) throw new \RuntimeException('printing.model muss tm-m10 oder tm-m30iii sein.');
+            $transport = $this->get('printing', 'transport', 'samba');
+            if ($transport === 'samba') {
+                $share = $this->get('printing', 'share');
+                if (!is_string($share) || !preg_match('~^//[A-Za-z0-9][A-Za-z0-9.-]{0,252}/[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$~D', $share)) throw new \RuntimeException('Druckerfreigabe als //server/drucker angeben.');
+            } elseif ($transport === 'cups') {
+                $this->cupsTarget('printing');
+            } else throw new \RuntimeException('printing.transport muss samba oder cups sein.');
+            $max = self::PRINTER_MODELS[$model]['max_dots'];
+            $width = $this->get('printing', 'width_dots', self::PRINTER_MODELS[$model]['width_dots']);
+            if (!is_int($width) || $width < 128 || $width > $max) throw new \RuntimeException('Druckbreite für ' . self::PRINTER_MODELS[$model]['label'] . ' muss 128 bis ' . $max . ' Punkte betragen.');
+        }
+        if (!is_bool($this->get('office_printing', 'enabled', false)) || !is_bool($this->get('office_printing', 'duplex', false))) throw new \RuntimeException('office_printing.enabled/duplex muss true oder false sein.');
+        if ($this->get('office_printing', 'enabled', false)) {
+            $this->cupsTarget('office_printing');
+            if (!in_array($this->get('office_printing', 'media', 'A4'), ['A4', 'Letter'], true)) throw new \RuntimeException('office_printing.media muss A4 oder Letter sein.');
         }
         if (!is_bool($this->get('invoice_inbox', 'enabled', false))) throw new \RuntimeException('invoice_inbox.enabled muss true oder false sein.');
         if ($this->get('invoice_inbox', 'enabled', false)) {
@@ -99,6 +112,17 @@ final class Config {
         }
     }
 
+    /** Bondrucker: Breite in Druckpunkten (203 dpi). TM-m30III: 80 mm Papier, 72 mm bedruckbar. */
+    public const PRINTER_MODELS = [
+        'tm-m10' => ['label' => 'Epson TM-m10 (58 mm)', 'width_dots' => 420, 'max_dots' => 420],
+        'tm-m30iii' => ['label' => 'Epson TM-m30III (80 mm)', 'width_dots' => 576, 'max_dots' => 576],
+    ];
+    private function cupsTarget(string $section): void {
+        $queue = $this->get($section, 'queue', '');
+        if (!is_string($queue) || !preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,126}$/D', $queue)) throw new \RuntimeException($section . '.queue: Name der CUPS-Warteschlange angeben.');
+        $server = $this->get($section, 'cups_server', '');
+        if (!is_string($server) || ($server !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}(:[0-9]{1,5})?$/D', $server))) throw new \RuntimeException($section . '.cups_server: leer (lokal) oder host[:port].');
+    }
     public function get(string $section, string $key, mixed $default = null): mixed {
         return $this->values[$section][$key] ?? $default;
     }

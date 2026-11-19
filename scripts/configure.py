@@ -109,17 +109,40 @@ def main():
         mail['from_address'] = ask('Absender-E-Mail-Adresse',mail['from_address'])
         mail['from_name'] = ask('Absendername / Praxisname',mail['from_name'])
     config['mail'] = mail
-    printing = {key:get('printing',key,default) for key,default in {'enabled':False,'share':'//kienzlebox/TMm10','width_dots':420,'cut':True}.items()}
-    answer = ask('Direktdruck auf Epson TM-m10 über Samba aktivieren (ja/nein)', 'ja' if printing['enabled'] else 'nein')
+    printing = {key:get('printing',key,default) for key,default in {'enabled':False,'model':'tm-m10','transport':'samba','share':'//kienzlebox/TMm10','cups_server':'','queue':'TMm10','width_dots':None,'cut':True}.items()}
+    answer = ask('Direktdruck auf einen Epson-Bondrucker aktivieren (ja/nein)', 'ja' if printing['enabled'] else 'nein')
     if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
     printing['enabled'] = answer == 'ja'
     if printing['enabled']:
-        printing['share'] = ask('Samba-Druckerfreigabe (Gastzugriff ohne Passwort)',printing['share']).replace('\\','/')
-        printing['width_dots'] = int(ask('Druckbreite in Punkten (TM-m10 mit 58 mm: 420)',str(printing['width_dots'])))
+        printing['model'] = ask('Bondrucker: tm-m10 (58 mm) oder tm-m30iii (80 mm)',printing['model']).lower().replace('-iii','iii')
+        if printing['model'] not in ('tm-m10','tm-m30iii'): raise ValueError('Bitte tm-m10 oder tm-m30iii eingeben.')
+        printing['transport'] = ask('Verbindung: samba (Freigabe auf dem Druckserver) oder cups (RAW-Warteschlange, z. B. TM-m30III per LAN)',printing['transport'])
+        if printing['transport'] not in ('samba','cups'): raise ValueError('Bitte samba oder cups eingeben.')
+        if printing['transport'] == 'samba':
+            printing['share'] = ask('Samba-Druckerfreigabe (Gastzugriff ohne Passwort)',printing['share']).replace('\\','/')
+        else:
+            printing['queue'] = ask('Name der CUPS-RAW-Warteschlange',printing['queue'])
+            printing['cups_server'] = ask('CUPS-Server (leer: dieser Rechner, sonst host:631)',printing['cups_server'])
+        default_width = 576 if printing['model'] == 'tm-m30iii' else 420
+        # Standardbreite des gewählten Modells vorschlagen; eigene Werte bleiben erhalten.
+        if printing['width_dots'] in (None, 420, 576) or printing['width_dots'] > default_width: printing['width_dots'] = default_width
+        printing['width_dots'] = int(ask('Druckbreite in Punkten (TM-m10/58 mm: 420, TM-m30III/80 mm: 576)',str(printing['width_dots'])))
         answer = ask('Bon nach dem Drucken schneiden (ja/nein)', 'ja' if printing['cut'] else 'nein')
         if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
         printing['cut'] = answer == 'ja'
+    if printing['width_dots'] is None: printing.pop('width_dots')
     config['printing'] = printing
+    office = {key:get('office_printing',key,default) for key,default in {'enabled':False,'cups_server':'','queue':'Praxisdrucker','media':'A4','duplex':False}.items()}
+    answer = ask('Normalen Praxisdrucker (A4) für Rechnungen über CUPS einrichten (ja/nein)', 'ja' if office['enabled'] else 'nein')
+    if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
+    office['enabled'] = answer == 'ja'
+    if office['enabled']:
+        office['queue'] = ask('Name der CUPS-Warteschlange des Praxisdruckers (lpstat -p zeigt alle)',office['queue'])
+        office['cups_server'] = ask('CUPS-Server (leer: dieser Rechner, sonst z. B. kienzlebox:631)',office['cups_server'])
+        answer = ask('Beidseitig drucken (ja/nein)', 'ja' if office['duplex'] else 'nein')
+        if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
+        office['duplex'] = answer == 'ja'
+    config['office_printing'] = office
     print('Praxisdaten für lokale Leistungsbelege / GOÄ-Rechnungen (Name und Anschrift erforderlich).')
     practice = {}
     for key, label in [('name','Praxis / Rechnungsaussteller'),('street','Straße und Hausnummer'),('city','PLZ und Ort'),('contact','Kontakt auf dem Beleg (optional)')]:

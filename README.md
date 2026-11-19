@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.3**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.4**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -72,6 +72,53 @@ Ablauf und Schutz:
   Rechnung selbst bleibt die aus T2med.
 - Nicht kassierte Rechnungen werden nach `max_age_days` (Standard 14) nicht mehr angeboten
   und beim nächsten Eingang gelöscht.
+
+### Rechnung automatisch drucken
+
+Über der Leistungsauswahl steht das Häkchen **„Rechnung nach der Zahlung drucken“**. Ist es
+gesetzt, wird die Rechnung nach der erfolgreichen Zahlung automatisch gedruckt:
+
+- **T2med-Rechnungen** immer auf dem **Praxisdrucker** (A4): die Original-PDF aus T2med, unverändert.
+- **In der App erzeugte Rechnungen/Leistungsbelege** wahlweise auf dem **Praxisdrucker**
+  (als A4-Seite mit vergrößertem Beleg) oder auf dem **Bondrucker** (wie „Beleg drucken“).
+
+Unter **Druckeinstellungen** legt die Praxis fest, ob das Häkchen standardmäßig gesetzt ist
+(gilt für alle Arbeitsplätze) und auf welchem Drucker App-Rechnungen landen. Für eine einzelne
+Zahlung lässt sich das Häkchen vor dem Kassieren abwählen. Nach der Zahlung zeigt die Seite
+„Rechnung gedruckt: Praxisdrucker „Laserdrucker“, Auftrag Laserdrucker-42“; bei einem Fehler
+erscheint **Rechnung erneut drucken**. Jede Rechnung wird höchstens einmal automatisch gedruckt;
+ein Nachdruck ist bis zum Abschluss möglich. Ein Druckfehler blockiert weder Zahlung noch
+Akteneintrag. Im Testmodus wird die Rechnung aufbereitet, aber nicht gedruckt.
+
+Praxisdrucker über CUPS (lokal oder auf dem Druckserver):
+
+```toml
+[office_printing]
+enabled = true
+cups_server = "kienzlebox:631"   # leer: CUPS auf diesem Server
+queue = "Laserdrucker"           # Name aus lpstat -p
+media = "A4"
+duplex = false
+```
+
+### Bondrucker: Epson TM-m10 oder TM-m30III
+
+```toml
+[printing]
+enabled = true
+model = "tm-m30iii"      # tm-m10 (58 mm, 420 Punkte) oder tm-m30iii (80 mm, 576 Punkte)
+transport = "cups"       # samba: Freigabe //kienzlebox/TMm10; cups: RAW-Warteschlange
+queue = "TMm10"
+cups_server = ""         # leer: dieser Server
+width_dots = 576
+cut = true
+```
+
+Der TM-m30III druckt den Beleg auf 72 mm bedruckbarer Breite (80-mm-Rolle). Mit `transport = "cups"`
+geht der Bon unverändert als ESC/POS an eine RAW-Warteschlange, z. B. den per LAN angebundenen
+Drucker (`lpadmin -p TMm10 -v socket://IP:9100 -m raw`); Samba ist dafür nicht nötig. Beim
+TM-m30III im Web-Config „Sicherer Druck“ deaktivieren, sonst verwirft er RAW-Aufträge ohne Fehler.
+Der Installer fragt Modell, Verbindung und Praxisdrucker ab und installiert `cups-client`.
 
 ### Rechnungen in einen Netzwerkordner (Steuerberatung)
 
