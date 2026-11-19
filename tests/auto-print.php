@@ -134,6 +134,16 @@ try {
     check(array_slice($raw['args'], 0, 3) === ['/usr/bin/lp', '-d', 'TMm10'] && in_array('raw', $raw['args'], true), 'Bon nicht als RAW an CUPS: ' . implode(' ', $raw['args']));
     check(str_starts_with($raw['data'], "\x1b\x40") && str_contains($raw['data'], "\x30\x70\x30\x01\x01\x31" . pack('v', 576)) && str_ends_with($raw['data'], "\x1d\x56\x42\x00"), 'ESC/POS nicht in TM-m30III-Breite');
 
+    // 5b. Derselbe Ablauf mit dem TM-m10 über die Samba-Freigabe (bisherige Einrichtung).
+    $cfg10 = new Config(values('tm-m10', 'samba')); $dirs[] = $cfg10->get('app', 'state_dir');
+    $r10 = new FakeReceipt($cfg10); $app10 = new App($cfg10, new PrintHttp(), null, $r10, null, new FakeOffice($cfg10)); $app10->db->migrate();
+    [$v10] = visit($app10, 'tm-m10');
+    $p10 = localPayment($app10, $v10, true);
+    check($app10->invoicePrint($v10, ['payment_id' => $p10['id']])['invoice_print']['status'] === 'done', 'App-Rechnung auf TM-m10 nicht gedruckt');
+    check(count($r10->sambaJobs) === 1 && $r10->cupsJobs === [], 'TM-m10 nicht über Samba angesprochen');
+    check(str_contains($r10->sambaJobs[0], "\x30\x70\x30\x01\x01\x31" . pack('v', 420)), 'ESC/POS nicht in TM-m10-Breite (420)');
+    check($app10->state($v10, visit($app10, 'tm-m10-b')[1])['print']['receipt_label'] === 'Epson TM-m10 (58 mm)', 'TM-m10 nicht als Bondrucker angezeigt');
+
     // 6. App-Rechnung auf dem Praxisdrucker: A4-Seite mit vergrößertem Beleg.
     $app->savePrintSettings($v3, ['auto_print' => true, 'app_target' => 'office']);
     [$v4] = visit($app, 'print-4');
