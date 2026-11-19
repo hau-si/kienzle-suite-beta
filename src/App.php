@@ -320,10 +320,54 @@ final class App {
     public function invoiceExport(array $visit, string $id): array {
         if (!$this->export->enabled()) throw new Problem('Ablage im Netzwerkordner ist deaktiviert.', 409);
         $payment = $this->payment($visit, $id);
-        if (empty($payment['inbox_id'])) throw new Problem('Diese Zahlung gehört zu keiner T2med-Rechnung.', 409);
         if ($payment['payment_status'] !== 'successful') throw new Problem('Ablage erst nach erfolgreicher Zahlung.', 409);
-        $this->exportRow($payment['inbox_id']);
+        if (!$this->exportPayment($payment, true)) throw new Problem('Für diese Zahlung ist keine Ablage vorgesehen.', 409);
         return $this->publicPayment($this->payment($visit, $id));
+    }
+    /** Legt die zur Zahlung gehörende Rechnung ab; false, wenn für diese Zahlung keine Ablage vorgesehen ist. */
+    private function exportPayment(array $payment, bool $manual = false): bool {
+        if (!$this->export->enabled() || $payment['payment_status'] !== 'successful') return false;
+        if (!empty($payment['inbox_id'])) {
+            // Im Modus received wird beim Eingang abgelegt; danach nur noch auf ausdrücklichen Wunsch wiederholen.
+            if ($this->export->when() !== 'paid' && !$manual) return false;
+            $this->exportRow($payment['inbox_id']); return true;
+        }
+        if (empty($payment['invoice_json']) || !$this->export->appInvoices()) return false;
+        $this->exportAppInvoice($payment['id']); return true;
+    }
+    /** In der App erzeugte Rechnung/Leistungsbeleg ablegen; idempotent, Fehler werden gespeichert. */
+    private function exportAppInvoice(string $paymentId): void {
+        $this->db->locked('payment-export-' . $paymentId, function () use ($paymentId): void {
+            $payment = $this->db->one('SELECT * FROM payments WHERE id=?', [$paymentId]);
+            if (!$payment || $payment['export_status'] === 'done' || $payment['payment_status'] !== 'successful') return;
+            try {
+                $invoice = json_decode($payment['invoice_json'], true, 32, JSON_THROW_ON_ERROR);
+                $paid = (new \DateTimeImmutable('@' . $payment['paid_at']))->setTimezone(new \DateTimeZone($invoice['timezone']));
+                // Dieselbe Belegvariante wie PDF-Download, E-Mail und Direktdruck.
+                $pdf = ReceiptPdf::convert($this->receiptSource($payment));
+                $path = $this->export->export(['invoice_number' => (string)$payment['transaction_id'], 'invoice_date' => $paid->format('Y-m-d'),
+                    'amount_cents' => $payment['amount_cents']], $pdf, true);
+                $this->db->query("UPDATE payments SET export_status='done',export_error='',export_path=? WHERE id=?", [$path, $paymentId]);
+            } catch (Problem $e) {
+                error_log('kienzle-sumup: Rechnungsablage: ' . $e->getMessage());
+                $this->db->query("UPDATE payments SET export_status='failed',export_error=? WHERE id=?", [$e->getMessage(), $paymentId]);
+            }
+        });
+    }
+    /** Für die Kommandozeile: alle noch nicht abgelegten bezahlten Rechnungen nachholen. */
+    public function exportPending(): array {
+        if (!$this->export->enabled()) throw new Problem('Ablage im Netzwerkordner ist deaktiviert.', 409);
+        $rows = $this->db->query("SELECT p.* FROM payments p LEFT JOIN invoice_inbox i ON i.id=p.inbox_id WHERE p.payment_status='successful'
+            AND ((p.inbox_id IS NOT NULL AND i.export_status<>'done' AND i.pdf IS NOT NULL) OR (p.inbox_id IS NULL AND p.invoice_json IS NOT NULL AND p.export_status<>'done'))
+            ORDER BY p.paid_at")->fetchAll();
+        $result = ['done' => 0, 'failed' => 0, 'errors' => []];
+        foreach ($rows as $payment) {
+            if (!$this->exportPayment($payment, true)) continue;
+            $state = $this->exportState($this->db->one('SELECT * FROM payments WHERE id=?', [$payment['id']]));
+            if (($state['status'] ?? '') === 'done') $result['done']++;
+            else { $result['failed']++; $result['errors'][] = ($payment['t2med_invoice'] ?: $payment['transaction_id']) . ': ' . ($state['error'] ?? ''); }
+        }
+        return $result;
     }
     private function purgeInbox(): void {
         $limit = time() - $this->config->get('invoice_inbox', 'max_age_days', 14) * 86400;
@@ -604,7 +648,7 @@ final class App {
             $this->db->query("UPDATE visits SET completed_at=?,oauth_cipher='' WHERE id=?", [time(), $payment['visit_id']]);
         });
         // Spätestens beim Abschluss die Rechnungs-PDF ablegen; ein Fehler blockiert die Dokumentation nicht.
-        if (!empty($payment['inbox_id']) && $this->export->enabled() && $this->export->when() === 'paid') $this->exportRow($payment['inbox_id']);
+        $this->exportPayment($this->db->one('SELECT * FROM payments WHERE id=?', [$payment['id']]));
         return $this->publicPayment($this->db->one('SELECT * FROM payments WHERE id=?', [$payment['id']]));
     }
     public function mock(array $visit, array $input): void {
@@ -629,8 +673,10 @@ final class App {
              't2med_invoice' => $p['t2med_invoice'] ?? null, 'invoice_export' => $this->exportState($p)];
     }
     private function exportState(array $p): ?array {
-        if (empty($p['inbox_id']) || !$this->export->enabled()) return null;
-        $row = $this->db->one('SELECT export_status,export_error,export_path FROM invoice_inbox WHERE id=?', [$p['inbox_id']]);
-        return $row ? ['status' => $row['export_status'] ?: 'pending', 'error' => $row['export_error'], 'path' => $row['export_path']] : null;
+        if (!$this->export->enabled()) return null;
+        if (!empty($p['inbox_id'])) $row = $this->db->one('SELECT export_status,export_error,export_path FROM invoice_inbox WHERE id=?', [$p['inbox_id']]);
+        elseif (!empty($p['invoice_json']) && $this->export->appInvoices()) $row = $p;
+        else return null;
+        return $row ? ['status' => ($row['export_status'] ?? '') ?: 'pending', 'error' => $row['export_error'] ?? '', 'path' => $row['export_path'] ?? ''] : null;
     }
 }

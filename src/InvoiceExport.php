@@ -11,6 +11,8 @@ class InvoiceExport {
 
     public function enabled(): bool { return (bool)$this->config->get('invoice_export', 'enabled', false); }
     public function when(): string { return $this->config->get('invoice_export', 'when', 'paid'); }
+    /** Auch die in der App erzeugten Rechnungen/Leistungsbelege ablegen? */
+    public function appInvoices(): bool { return $this->enabled() && (bool)$this->config->get('invoice_export', 'app_invoices', false); }
 
     /** Dateiname: 2026-03-15_RE2026-0042_42,50EUR[_Karte].pdf */
     public static function filename(array $invoice, bool $paid): string {
@@ -28,7 +30,8 @@ class InvoiceExport {
     public function export(array $invoice, string $pdf, bool $paid): string {
         if (!$this->enabled()) throw new Problem('Ablage im Netzwerkordner ist deaktiviert.', 409);
         if (!str_starts_with($pdf, '%PDF-')) throw new Problem('Original-PDF der Rechnung fehlt.', 409);
-        $name = self::filename($invoice, $paid);
+        // Testzahlungen nie mit echten Rechnungen verwechseln.
+        $name = ($this->config->get('sumup', 'mode') === 'mock' ? 'TEST_' : '') . self::filename($invoice, $paid);
         $folders = $this->directory($invoice);
         $file = tempnam(sys_get_temp_dir(), 'ks-invoice-'); $auth = tempnam(sys_get_temp_dir(), 'ks-auth-');
         if ($file === false || $auth === false) throw new Problem('Ablage konnte nicht vorbereitet werden.', 500);

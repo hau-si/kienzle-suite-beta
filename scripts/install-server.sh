@@ -183,8 +183,43 @@ for file in install-linux.sh install-macos.command install-windows.ps1 install-w
   install -m 700 "client/$file" "/root/kienzle-sumup-clients/$file"
 done
 if [ -d dist ]; then cp dist/kienzle-sumup-* dist/SHA256SUMS /root/kienzle-sumup-clients/; fi
+# Stündliche Nachholung der Rechnungsablage, nur bei aktivierter Ablage.
+if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("invoice_export","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
+  cat > /etc/systemd/system/kienzle-sumup-export.service <<'UNIT'
+[Unit]
+Description=Kienzle-SumUp Rechnungsablage nachholen
+After=network-online.target
+[Service]
+Type=oneshot
+User=kienzle-sumup
+Group=kienzle-sumup
+ExecStart=/usr/bin/php /opt/kienzle-sumup/scripts/export-invoices.php --quiet
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup
+UNIT
+  cat > /etc/systemd/system/kienzle-sumup-export.timer <<'UNIT'
+[Unit]
+Description=Kienzle-SumUp Rechnungsablage stündlich nachholen
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+[Install]
+WantedBy=timers.target
+UNIT
+  chmod 644 /etc/systemd/system/kienzle-sumup-export.service /etc/systemd/system/kienzle-sumup-export.timer
+  export_timer=1
+else
+  systemctl disable --now kienzle-sumup-export.timer 2>/dev/null || true
+  rm -f /etc/systemd/system/kienzle-sumup-export.service /etc/systemd/system/kienzle-sumup-export.timer
+  export_timer=0
+fi
 systemctl daemon-reload
 systemctl enable --now kienzle-sumup-php.service kienzle-sumup-apache.service
+if [ "$export_timer" = 1 ]; then systemctl enable --now kienzle-sumup-export.timer; fi
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
 echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'

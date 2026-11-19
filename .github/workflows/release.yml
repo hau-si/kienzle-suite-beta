@@ -29,6 +29,7 @@ jobs:
       - run: php tests/mail-mime.php
       - run: python3 tests/tls-pin.py
       - run: python3 -m py_compile scripts/invoice-printer/kienzle-sumup-backend.py
+      - run: php -l scripts/export-invoices.php
       - run: find src public scripts -name '*.php' -exec php -l {} \;
       - run: bash -n scripts/install-server.sh scripts/install-invoice-printer.sh client/install-linux.sh client/install-macos.command
       - run: cd client && go test ./...

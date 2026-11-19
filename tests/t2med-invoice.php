@@ -172,8 +172,8 @@ try {
     check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === $pdf, 'PDF nach Fehler verworfen');
     $done = $app->document($v, $payment['id']);
     check($done['doc_status'] === 'written' && $done['invoice_export']['status'] === 'done', 'Ablage beim Abschluss nicht nachgeholt');
-    check($done['invoice_export']['path'] === 'Rechnungen/2026/03/2026-03-15_RE2026-0042_42,50EUR_Karte.pdf', 'Falscher Ablagepfad');
-    check(($export->files['2026-03-15_RE2026-0042_42,50EUR_Karte.pdf'] ?? null) === $pdf, 'PDF-Inhalt nicht unverändert abgelegt');
+    check($done['invoice_export']['path'] === 'Rechnungen/2026/03/TEST_2026-03-15_RE2026-0042_42,50EUR_Karte.pdf', 'Falscher Ablagepfad');
+    check(($export->files['TEST_2026-03-15_RE2026-0042_42,50EUR_Karte.pdf'] ?? null) === $pdf, 'PDF-Inhalt nicht unverändert abgelegt');
     check(in_array('mkdir "Rechnungen\\2026\\03"', $export->commands, true), 'Unterordner nicht angelegt');
     check(str_contains($export->auth[0], "username = praxis\npassword = geheim"), 'Anmeldedaten nicht übergeben');
     check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === null, 'PDF nach Ablage weiter gespeichert');
@@ -185,13 +185,66 @@ try {
     $cfg = exportConfig('received'); $dirs[] = $cfg->get('app', 'state_dir'); $export = new FakeExport($cfg);
     $app = new App($cfg, null, null, null, $export); $app->db->migrate();
     $result = $app->storeInvoice($parsed, $pdf);
-    check(str_contains($result['message'], 'im Netzwerkordner abgelegt') && isset($export->files['2026-03-15_RE2026-0042_42,50EUR.pdf']) && $export->auth === [], 'Eingang nicht sofort abgelegt');
+    check(str_contains($result['message'], 'im Netzwerkordner abgelegt') && isset($export->files['TEST_2026-03-15_RE2026-0042_42,50EUR.pdf']) && $export->auth === [], 'Eingang nicht sofort abgelegt');
     // c) Ablage aus: keine PDF aufbewahren.
     $cfg = configuration(); $dirs[] = $cfg->get('app', 'state_dir'); $app = new App($cfg); $app->db->migrate();
     $app->storeInvoice($parsed, $pdf);
     check($app->db->one('SELECT pdf FROM invoice_inbox')['pdf'] === null, 'PDF ohne aktivierte Ablage gespeichert');
 
-    echo "OK: T2med-Rechnung lesen, Patientenabgleich, Ersetzen, Doppelzahlungsschutz, Akteneintrag, neutrale SumUp-Daten und Ablage im Netzwerkordner.\n";
+    // 6. In der App erzeugte Rechnungen (GOÄ/Leistungsbeleg) ablegen, auch ohne Rechnungseingang.
+    $appValues = function (bool $appInvoices, bool $practice = true, bool $inbox = false): Config {
+        $v = configuration()->values;
+        $v['invoice_inbox']['enabled'] = $inbox;
+        $v['invoice_export'] = ['enabled' => true, 'share' => '//nas/steuerberater', 'directory' => 'Rechnungen/{jahr}', 'username' => '', 'password' => '',
+            'domain' => '', 'when' => 'paid', 'app_invoices' => $appInvoices];
+        $v['practice'] = $practice ? ['name' => 'Testpraxis', 'street' => 'Praxisstraße 1', 'city' => '12345 Musterstadt'] : [];
+        return new Config($v);
+    };
+    $bad = configuration()->values; $bad['invoice_inbox']['enabled'] = false;
+    $bad['invoice_export'] = ['enabled' => true, 'share' => '//nas/steuer', 'directory' => '', 'when' => 'paid', 'app_invoices' => false];
+    try { new Config($bad); throw new RuntimeException('Ablage ohne Quelle akzeptiert'); } catch (\RuntimeException $e) { check(str_contains($e->getMessage(), 'app_invoices'), 'Falsche Ablehnung: ' . $e->getMessage()); }
+    $paidLocal = function (App $app) {
+        [$v, $b] = visit($app);
+        $app->saveService($v, ['label' => 'Beratung', 'price' => '10,72', 'goae_code' => '1', 'factor' => '2,3']);
+        $service = $app->db->one("SELECT id FROM services WHERE label='Beratung'")['id'];
+        $payment = $app->start($v, ['request_id' => App::id(), 'services' => [$service], 'groups' => [], 'reasons' => [], 'manual_amount' => '', 'service_date' => date('Y-m-d')]);
+        $app->mock($v, ['payment_id' => $payment['id'], 'status' => 'successful']);
+        return [$v, $payment['id']];
+    };
+    $cfg = $appValues(true); $dirs[] = $cfg->get('app', 'state_dir'); $export = new FakeExport($cfg);
+    $app = new App($cfg, null, null, null, $export); $app->db->migrate();
+    [$v, $id] = $paidLocal($app);
+    $export->failures = 1;
+    $state = $app->invoiceExport($v, $id)['invoice_export'];
+    check($state['status'] === 'failed', 'Fehlgeschlagene Ablage der App-Rechnung nicht gemeldet');
+    // Fenster geschlossen, NAS wieder da: der stündliche Timer holt die Ablage nach.
+    $pending = $app->exportPending();
+    check($pending['done'] === 1 && $pending['failed'] === 0, 'Nachholung der App-Rechnung fehlgeschlagen');
+    $tx = $app->db->one('SELECT transaction_id FROM payments WHERE id=?', [$id])['transaction_id'];
+    $name = 'TEST_' . date('Y-m-d') . '_' . $tx . '_10,72EUR_Karte.pdf';
+    check(isset($export->files[$name]) && str_starts_with($export->files[$name], '%PDF-'), 'App-Rechnung nicht als PDF abgelegt: ' . implode(', ', array_keys($export->files)));
+    check(in_array('mkdir "Rechnungen\\' . date('Y') . '"', $export->commands, true), 'Jahresordner nicht angelegt');
+    $puts = count(array_filter($export->commands, fn($c) => str_contains($c, 'put ')));
+    $app->exportPending(); $done = $app->document($v, $id);
+    check($done['invoice_export']['status'] === 'done' && count(array_filter($export->commands, fn($c) => str_contains($c, 'put '))) === $puts, 'App-Rechnung doppelt abgelegt');
+    // Abschluss ohne vorherige Ablage legt ebenfalls ab.
+    [$v, $id] = $paidLocal($app);
+    check($app->document($v, $id)['invoice_export']['status'] === 'done', 'App-Rechnung beim Abschluss nicht abgelegt');
+    // Abfrage verneint: App-Rechnungen bleiben unberührt.
+    $cfg = $appValues(false, true, true); $dirs[] = $cfg->get('app', 'state_dir');
+    $export = new FakeExport($cfg); $app = new App($cfg, null, null, null, $export); $app->db->migrate();
+    [$v, $id] = $paidLocal($app);
+    check($app->document($v, $id)['invoice_export'] === null && $export->commands === [], 'App-Rechnung trotz app_invoices = false abgelegt');
+    rejects(fn() => $app->invoiceExport($v, $id), 'Ablage trotz app_invoices = false', 409);
+    // Ohne Praxisdaten entsteht keine App-Rechnung (SumUp-Beleg) und es wird nichts abgelegt.
+    $cfg = $appValues(true, false); $dirs[] = $cfg->get('app', 'state_dir'); $export = new FakeExport($cfg);
+    $app = new App($cfg, null, null, null, $export); $app->db->migrate();
+    [$v, $b] = visit($app);
+    $payment = $app->start($v, ['request_id' => App::id(), 'services' => [], 'groups' => [], 'reasons' => [], 'manual_amount' => '12,00', 'service_date' => date('Y-m-d')]);
+    $app->mock($v, ['payment_id' => $payment['id'], 'status' => 'successful']);
+    check($app->document($v, $payment['id'])['invoice_export'] === null && $export->commands === [], 'Zahlung ohne App-Rechnung abgelegt');
+
+    echo "OK: T2med-Rechnung lesen, Patientenabgleich, Ersetzen, Doppelzahlungsschutz, Akteneintrag, neutrale SumUp-Daten und Ablage von T2med- und App-Rechnungen im Netzwerkordner.\n";
 } finally {
     foreach ($dirs as $dir) if (is_dir($dir)) { array_map('unlink', glob($dir . '/*') ?: []); @rmdir($dir); }
 }

@@ -69,8 +69,10 @@ directory = "Rechnungen/{jahr}/{monat}"
 username = ""
 password = ""
 domain = ""
-# paid: nur per Karte bezahlte Rechnungen; received: jede auf SumUp-Rechnung gedruckte Rechnung.
+# T2med-Rechnungen: paid = nur per Karte bezahlte, received = jede auf SumUp-Rechnung gedruckte.
 when = "paid"
+# Auch die in dieser App erzeugten Rechnungen/Leistungsbelege nach erfolgreicher Zahlung ablegen.
+app_invoices = false
 
 # Lokaler Leistungsbeleg / GOÄ-Rechnung mit Zahlungsbestätigung.
 # Name und Anschrift ausfüllen; Bestandszahlungen behalten ihren bisherigen Beleg.

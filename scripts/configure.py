@@ -134,20 +134,27 @@ def main():
     inbox['enabled'] = answer == 'ja'
     if inbox['enabled'] and not inbox['key']: inbox['key'] = secrets.token_hex(32)
     config['invoice_inbox'] = inbox
-    export = {key:get('invoice_export',key,default) for key,default in {'enabled':False,'share':'//nas/steuerberater','directory':'Rechnungen/{jahr}/{monat}','username':'','password':'','domain':'','when':'paid'}.items()}
-    if inbox['enabled']:
-        answer = ask('Original-PDF der Rechnung zusätzlich in einen Netzwerkordner kopieren, z. B. für die Steuerberatung (ja/nein)', 'ja' if export['enabled'] else 'nein')
+    export = {key:get('invoice_export',key,default) for key,default in {'enabled':False,'share':'//nas/steuerberater','directory':'Rechnungen/{jahr}/{monat}','username':'','password':'','domain':'','when':'paid','app_invoices':False}.items()}
+    answer = ask('Rechnungen als PDF zusätzlich in einen Netzwerkordner kopieren, z. B. für die Steuerberatung (ja/nein)', 'ja' if export['enabled'] else 'nein')
+    if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
+    export['enabled'] = answer == 'ja'
+    if export['enabled']:
+        answer = ask('In dieser App erzeugte Rechnungen/Leistungsbelege nach erfolgreicher Zahlung ablegen (ja/nein)', 'ja' if export['app_invoices'] or not inbox['enabled'] else 'nein')
         if answer not in ('ja','nein'): raise ValueError('Bitte ja oder nein eingeben.')
-        export['enabled'] = answer == 'ja'
-    else: export['enabled'] = False
+        export['app_invoices'] = answer == 'ja'
+        if not export['app_invoices'] and not inbox['enabled']:
+            print('Ohne Rechnungseingang und ohne App-Rechnungen gibt es nichts abzulegen; Ablage bleibt aus.'); export['enabled'] = False
+        elif export['app_invoices'] and not (practice.get('name') and practice.get('street') and practice.get('city')):
+            print('Hinweis: App-Rechnungen entstehen erst, wenn Praxisname, Straße und Ort eingetragen sind.')
     if export['enabled']:
         export['share'] = ask('Netzwerkfreigabe (SMB), z. B. //nas/steuerberater',export['share']).replace('\\','/')
         export['directory'] = ask('Unterordner ({jahr} und {monat} werden ersetzt, leer: direkt in die Freigabe)',export['directory'])
         export['username'] = ask('Benutzername für die Freigabe (leer: Gastzugriff)',export['username'])
         export['password'] = ask('Passwort für die Freigabe',export['password'],True) if export['username'] else ''
         export['domain'] = ask('Domäne/Arbeitsgruppe (optional)',export['domain']) if export['username'] else ''
-        export['when'] = ask('Welche Rechnungen ablegen: paid (nur per Karte bezahlte) oder received (jede gedruckte)',export['when'])
-        if export['when'] not in ('paid','received'): raise ValueError('Bitte paid oder received eingeben.')
+        if inbox['enabled']:
+            export['when'] = ask('Welche T2med-Rechnungen ablegen: paid (nur per Karte bezahlte) oder received (jede gedruckte)',export['when'])
+            if export['when'] not in ('paid','received'): raise ValueError('Bitte paid oder received eingeben.')
     config['invoice_export'] = export
     text = '# Kienzle-SumUp · Zugangsdaten nicht weitergeben.\n'
     for section, values in config.items():

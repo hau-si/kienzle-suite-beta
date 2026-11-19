@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.2**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.3**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -73,10 +73,12 @@ Ablauf und Schutz:
 - Nicht kassierte Rechnungen werden nach `max_age_days` (Standard 14) nicht mehr angeboten
   und beim nächsten Eingang gelöscht.
 
-### Original-PDF in einen Netzwerkordner (Steuerberatung)
+### Rechnungen in einen Netzwerkordner (Steuerberatung)
 
-Optional wird die Original-PDF jeder Rechnung per SMB in eine Netzwerkfreigabe kopiert,
-z. B. auf das NAS oder einen Ordner, den die Steuerberatung abholt:
+Optional werden Rechnungen als PDF per SMB in eine Netzwerkfreigabe kopiert, z. B. auf das
+NAS oder einen Ordner, den die Steuerberatung abholt. Das gilt für die Original-PDF der
+T2med-Rechnungen und – nach eigener Abfrage im Installer – auch für die **in dieser App
+erzeugten** Rechnungen und Leistungsbelege:
 
 ```toml
 [invoice_export]
@@ -86,8 +88,15 @@ directory = "Rechnungen/{jahr}/{monat}"   # Platzhalter aus dem Rechnungsdatum
 username = "praxis"                         # leer: Gastzugriff
 password = "…"
 domain = ""
-when = "paid"                               # oder "received"
+when = "paid"                               # T2med-Rechnungen: oder "received"
+app_invoices = true                         # auch in der App erzeugte Rechnungen ablegen
 ```
+
+- `app_invoices = true`: Jede in der App erzeugte „Privatärztliche Rechnung“ bzw. jeder
+  „Leistungsbeleg“ wird nach erfolgreicher Zahlung als PDF abgelegt – dieselbe Variante wie
+  bei PDF-Download, E-Mail und Direktdruck. Dateiname mit der SumUp-Transaktions-ID als
+  Rechnungsnummer, z. B. `2026-11-19_TX8K2M4P_42,50EUR_Karte.pdf`. Das funktioniert auch ohne
+  Rechnungseingang. Zahlungen ohne lokalen Beleg (keine Praxisdaten) werden nicht abgelegt.
 
 - `when = "paid"`: nur per Karte bezahlte Rechnungen, Dateiname
   `2026-03-15_RE2026-0042_42,50EUR_Karte.pdf`. Die Ablage startet automatisch nach der
@@ -97,6 +106,10 @@ when = "paid"                               # oder "received"
 - `when = "received"`: jede auf „SumUp-Rechnung“ gedruckte Rechnung sofort beim Eingang,
   Dateiname ohne `_Karte`. Das Ergebnis steht in der Meldung des Druckauftrags.
 - Unterordner werden bei Bedarf angelegt. Jede Rechnung wird höchstens einmal abgelegt.
+- Fehlgeschlagene Ablagen (z. B. NAS aus) holt der Timer `kienzle-sumup-export.timer`
+  stündlich nach – auch wenn das Zahlungsfenster längst geschlossen ist. Manuell:
+  `sudo runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/export-invoices.php`.
+- Im Testmodus (`mock`) beginnen alle Dateinamen mit `TEST_`.
   Der Dateiname enthält keine Patientendaten; die PDF selbst ist die vollständige Rechnung.
 - Die PDF wird nur bei aktivierter Ablage auf dem Anwendungsserver zwischengespeichert und
   nach erfolgreicher Ablage gelöscht. Ohne Ablage werden nur Nummer, Datum, Betrag und Patient gespeichert.
@@ -109,8 +122,10 @@ when = "paid"                               # oder "received"
 beantworten. Der Installer ergänzt `poppler-utils`, erzeugt den Schlüssel unter
 `[invoice_inbox]` und legt `/root/kienzle-sumup-printer` mit `invoice-printer.json` und
 `server.crt` an. Dieser Ordner ist nur für den Druckserver bestimmt, nicht für die Arbeitsplätze.
-Anschließend fragt der Installer, ob die Original-PDF zusätzlich in einen Netzwerkordner
-kopiert werden soll, und installiert dafür `smbclient`.
+Anschließend fragt der Installer, ob Rechnungen zusätzlich in einen Netzwerkordner kopiert
+werden sollen, und dann **„In dieser App erzeugte Rechnungen/Leistungsbelege nach erfolgreicher
+Zahlung ablegen (ja/nein)“**. Er installiert dafür `smbclient` und den stündlichen Timer.
+Die Ablage lässt sich auch ganz ohne Rechnungseingang nur für App-Rechnungen einrichten.
 
 ```toml
 [invoice_inbox]

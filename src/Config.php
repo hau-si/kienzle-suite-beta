@@ -74,7 +74,8 @@ final class Config {
         if (!is_int($days) || $days < 1 || $days > 90) throw new \RuntimeException('invoice_inbox.max_age_days muss 1 bis 90 betragen.');
         if (!is_bool($this->get('invoice_export', 'enabled', false))) throw new \RuntimeException('invoice_export.enabled muss true oder false sein.');
         if ($this->get('invoice_export', 'enabled', false)) {
-            if (!$this->get('invoice_inbox', 'enabled', false)) throw new \RuntimeException('Ablage der Rechnungs-PDF benötigt den aktivierten Rechnungseingang.');
+            if (!is_bool($this->get('invoice_export', 'app_invoices', false))) throw new \RuntimeException('invoice_export.app_invoices muss true oder false sein.');
+            if (!$this->get('invoice_inbox', 'enabled', false) && !$this->get('invoice_export', 'app_invoices', false)) throw new \RuntimeException('Ablage der Rechnungs-PDF benötigt den Rechnungseingang oder invoice_export.app_invoices = true.');
             $share = $this->get('invoice_export', 'share');
             if (!is_string($share) || !preg_match('~^//[A-Za-z0-9][A-Za-z0-9.-]{0,252}/[A-Za-z0-9][A-Za-z0-9 $._-]{0,79}$~D', $share)) throw new \RuntimeException('Netzwerkordner als //server/freigabe angeben.');
             $dir = $this->get('invoice_export', 'directory', '');

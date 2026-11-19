@@ -1,9 +1,14 @@
-Version 1.4.1-rechnung.2 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.3 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.3: Auch die in der App erzeugten Rechnungen/Leistungsbelege werden nach
+  erfolgreicher Zahlung automatisch im Netzwerkordner abgelegt (Installer-Abfrage,
+  `invoice_export.app_invoices`), auch ohne Rechnungseingang. Stündlicher Timer
+  `kienzle-sumup-export.timer` holt fehlgeschlagene Ablagen nach; `TEST_`-Präfix im
+  Testmodus. Datenbank-Version 7.
 - Neu in rechnung.2: Original-PDF der Rechnung optional per SMB in einen Netzwerkordner
   kopieren (z. B. für die Steuerberatung), wahlweise nur bezahlte (`paid`) oder jede
   gedruckte Rechnung (`received`), mit Unterordnern `{jahr}/{monat}`. Datenbank-Version 6.
