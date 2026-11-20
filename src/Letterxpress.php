@@ -21,14 +21,18 @@ final class Letterxpress {
         return $this->http->request($method, self::BASE . $path, ['Accept: application/json', 'Content-Type: application/json'], ['auth' => $this->auth()] + $body);
     }
     /** Fehlermeldung der API ohne Zugangsdaten, kurz und ohne Steuerzeichen. */
+    private static function qpdf(): ?string {
+        foreach (['/usr/bin/qpdf', '/usr/local/bin/qpdf', '/opt/homebrew/bin/qpdf'] as $path) if (is_executable($path)) return $path;
+        return null;
+    }
+
     /**
      * PDF für Letterxpress aufbereiten: Rechteschutz (ohne Kennwort) entfernen und Hochformat-Seiten anderer Größe (z. B. US Letter
      * aus dem Druckertreiber) auf A4 bringen. Der Inhalt wird nicht skaliert: die obere linke Ecke bleibt, damit das Adressfenster
      * an seiner Stelle bleibt; rechts und unten wird beschnitten bzw. aufgefüllt.
      */
     private static function unprotected(string $pdf): string {
-        $binary = null;
-        foreach (['/usr/bin/qpdf', '/usr/local/bin/qpdf', '/opt/homebrew/bin/qpdf'] as $path) if (is_executable($path)) { $binary = $path; break; }
+        $binary = self::qpdf();
         if (!$binary) return $pdf;
         $rewrite = function (string $data, array $options) use ($binary): ?string {
             $file = tempnam(sys_get_temp_dir(), 'ks-lxp-');
@@ -94,7 +98,7 @@ final class Letterxpress {
         if ($response['status'] !== 200) throw new Problem($this->reason($response), 502);
         $data = is_array($response['body']['data'] ?? null) ? $response['body']['data'] : [];
         $balance = isset($data['balance']) && is_numeric($data['balance']) ? number_format((float)$data['balance'], 2, ',', '.') . ' ' . (($data['currency'] ?? 'EUR') === 'EUR' ? '€' : preg_replace('/[^A-Za-z]/', '', (string)$data['currency'])) : 'unbekannt';
-        return 'Verbunden. Guthaben: ' . $balance . '. Betrieb: ' . ($this->mode() === 'live' ? 'Live (echter Postversand)' : 'Test (nichts wird verschickt)') . '.';
+        return 'Verbunden. Guthaben: ' . $balance . '.' . (self::qpdf() ? '' : ' Achtung: qpdf fehlt auf dem Server („sudo apt install qpdf“), PDFs anderer Größe lassen sich nicht auf A4 bringen.') . ' Betrieb: ' . ($this->mode() === 'live' ? 'Live (echter Postversand)' : 'Test (nichts wird verschickt)') . '.';
     }
 
     /** Status einer Rechnung für Anzeige: sent_at, mode, status, error. */
@@ -120,7 +124,7 @@ final class Letterxpress {
             if ($row['pdf'] === null || !str_starts_with((string)$row['pdf'], '%PDF-')) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut auf „SumUp-Rechnung“ drucken.', 409);
             $prepared = self::unprotected((string)$row['pdf']);
             // Vorab prüfen statt erst von Letterxpress abgewiesen zu werden (kein Versuch, kein Guthabenverbrauch).
-            if (($problem = self::formatProblem($prepared)) !== null) throw new Problem($problem . ' PDF: ' . self::describe($prepared) . '.', 422);
+            if (($problem = self::formatProblem($prepared)) !== null) throw new Problem((self::qpdf() ? '' : 'Auf dem Server fehlt das Programm qpdf zum Umwandeln: „sudo apt install qpdf“ ausführen, danach erneut senden. ') . $problem . ' PDF: ' . self::describe($prepared) . '.', 422);
             $file = base64_encode($prepared);
             $letter = ['base64_file' => $file, 'base64_file_checksum' => md5($file),
                 'filename_original' => 'Rechnung-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $row['invoice_number']) . '.pdf',
