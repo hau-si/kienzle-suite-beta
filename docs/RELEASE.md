@@ -4,6 +4,9 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.32: PHPMailer 6.9.3 wird mitgeliefert (`src/vendor/phpmailer`, nur Exception/PHPMailer/SMTP, LGPL 2.1) und dient als Rückfall,
+  wenn das Systempaket `libphp-phpmailer` fehlt; das Systempaket hat Vorrang. Der Installer richtet `unattended-upgrades`
+  ein, falls keine automatischen Sicherheitsupdates konfiguriert sind. `tests/mail-mime.php` läuft damit auch ohne Systempaket.
 - Neu in rechnung.31: Leistungsverwaltung (Leistungen, GOÄ-Angaben, Rechner, Kombinationen) auch im Adminpanel, Reiter „Praxis & Rechnungen“.
   Gemeinsame Logik in `src/Catalog.php`, gemeinsamer GOÄ-Rechner in `public/assets/goae-calc.js`.
 - Neu in rechnung.30: README mit Funktionsübersicht und aktuellen Screenshots (Testdaten, `docs/screenshots/`).

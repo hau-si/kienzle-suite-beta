@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.31**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.32**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -379,8 +379,11 @@ Belegabruf, Drucken und E-Mail-Versand verändern weder Zahlung noch Akteneintra
 Der Browser kann nur auf Belege seiner erfolgreich bestätigten Zahlungen zugreifen.
 Die Zusammenstellung der Belege erfolgt vollständig auf dem Praxisserver. SumUp-Originalbelege
 werden ohne API-Key vom geprüften Beleglink geladen. Die PDF-Umwandlung erfolgt lokal
-mit `rsvg-convert`. Konverter und PHPMailer kommen als
-Distributionspakete (`librsvg2-bin`, `libphp-phpmailer`) über den Installer.
+mit `rsvg-convert`. Der Konverter kommt als Distributionspaket (`librsvg2-bin`) über den Installer.
+PHPMailer wird bevorzugt aus dem Systempaket `libphp-phpmailer` geladen (Sicherheitsupdates über `apt`);
+fehlt es, nutzt die Anwendung die mitgelieferte Kopie in `src/vendor/phpmailer` (PHPMailer 6.9.3, LGPL 2.1).
+Der Installer richtet außerdem automatische Sicherheitsupdates (`unattended-upgrades`) ein, falls sie fehlen;
+Kernel-Updates und Neustarts bleiben Sache der Praxis (`sudo apt update && sudo apt full-upgrade`, danach Neustart).
 Im Testmodus wird ein markierter Testbeleg erzeugt und kein SMTP-Versand ausgeführt.
 
 ## Optionaler Direktdruck auf den Epson TM-m10
