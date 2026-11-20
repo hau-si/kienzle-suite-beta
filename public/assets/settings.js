@@ -83,11 +83,10 @@ function render(data) {
   if (data.clients) renderClients(data.clients);
   if (data.export_years) renderExport(data.export_years, data.mode);
   if (data.export_years) t2medPaidSetup(data.export_years, data.mode);
-  const tabs = $('tabs'), root = $('sections'); tabs.replaceChildren(); root.replaceChildren();
-  tabs.append(el('a', 'Drucker einrichten', 'tab-strong', {href: '#s-printers'}), el('a', 'Arbeitsplätze einrichten', 'tab-strong', {href: '#s-clients'}), el('a', 'T2med abhaken', 'tab-strong', {href: '#s-t2med-paid'}), el('a', 'Export Steuerberatung', 'tab-strong', {href: '#s-export'}));
+  const root = $('sections');
+  document.querySelectorAll('[data-generated]').forEach(node => node.remove());
   for (const section of data.sections) {
-    tabs.append(el('a', section.label, null, {href: '#s-' + section.id}));
-    const card = el('section', null, 'card settings-card', {id: 's-' + section.id});
+    const card = el('section', null, 'card settings-card', {id: 's-' + section.id, 'data-generated': '1'});
     card.append(el('h2', section.label));
     const form = el('form', null, 'settings-form');
     for (const field of section.fields) {
@@ -147,6 +146,81 @@ function render(data) {
     applyVisibility(form, section);
     if (section.id === 'terminzettel') terminzettelCard(card, form, section, data.terminzettel || {});
   }
+  layoutTabs(data);
+}
+
+// ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
+const TABS = [
+  {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-t2med-paid', 's-export']},
+  {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
+  {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
+  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-password']},
+];
+let activeTab = null;
+function tabOf(cardId) { return (TABS.find(t => t.cards.includes(cardId)) || {}).id; }
+function layoutTabs(data) {
+  const panels = $('tab-panels'), bar = $('tabs');
+  if (!bar.childElementCount) {
+    for (const tab of TABS) {
+      const button = el('button', null, 'tab', {type: 'button', role: 'tab', id: 'tab-' + tab.id, 'aria-controls': 'panel-' + tab.id});
+      button.append(el('span', tab.label));
+      if (tab.hint) button.append(el('small', tab.hint));
+      button.append(el('span', null, 'tab-badge', {id: 'badge-' + tab.id, hidden: ''}));
+      button.onclick = () => { activate(tab.id); history.replaceState(null, '', '#' + tab.id); };
+      bar.append(button);
+      panels.append(el('div', null, 'tab-panel', {id: 'panel-' + tab.id, role: 'tabpanel', 'aria-labelledby': 'tab-' + tab.id}));
+    }
+  }
+  for (const tab of TABS) for (const id of tab.cards) { const card = $(id); if (card) $('panel-' + tab.id).append(card); }
+  const open = renderChecklist(data);
+  if (!activeTab) {
+    const hash = location.hash.slice(1);
+    activate(TABS.some(t => t.id === hash) ? hash : tabOf(hash) || (open ? 'einrichtung' : 'abrechnung'));
+    if (tabOf(hash)) setTimeout(() => $(hash)?.scrollIntoView({block: 'start'}), 50);
+  } else activate(activeTab);
+}
+function activate(id) {
+  activeTab = id;
+  for (const tab of TABS) {
+    $('panel-' + tab.id).hidden = tab.id !== id;
+    $('tab-' + tab.id).setAttribute('aria-selected', String(tab.id === id));
+  }
+}
+// Verweise wie #s-printers öffnen den passenden Reiter und springen zur Karte.
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.slice(1), tab = TABS.some(t => t.id === hash) ? hash : tabOf(hash);
+  if (!tab) return;
+  activate(tab);
+  if (tabOf(hash)) $(hash)?.scrollIntoView({behavior: 'smooth', block: 'start'});
+});
+function badge(tab, count) { const b = $('badge-' + tab); if (!b) return; b.hidden = !count; b.textContent = count ? String(count) : ''; }
+
+/** Überblick der einmaligen Schritte; liefert die Zahl offener Pflichtpunkte. */
+function renderChecklist(data) {
+  const value = (section, key) => (data.sections.find(s => s.id === section)?.fields.find(f => f.key === key) || {}).value;
+  const tz = data.terminzettel || {};
+  const items = [
+    {done: true, label: 'Admin-Passwort festgelegt', card: 's-password'},
+    {done: !!(value('practice', 'name') || '').trim() && !!(value('practice', 'street') || '').trim(), label: 'Praxisname und Anschrift (für Rechnungen und Barzahlungen)', card: 's-practice'},
+    {done: data.mode === 'live', label: data.mode === 'live' ? 'SumUp live verbunden' : 'SumUp: noch Testmodus – Zugangsdaten eintragen und auf Live stellen', card: 's-sumup'},
+    {done: data.fhir_mode === 'live', label: data.fhir_mode === 'live' ? 'T2med-Anbindung live' : 'T2med-Anbindung: noch Testmodus', card: 's-fhir'},
+    {done: !!value('printing', 'enabled'), optional: true, label: 'Bondrucker eingerichtet', card: 's-printers'},
+    {done: !!value('office_printing', 'enabled'), optional: true, label: 'Praxisdrucker (A4) eingerichtet', card: 's-printers'},
+    {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
+    {done: !!value('invoice_inbox', 'enabled'), optional: true, label: 'T2med-Rechnungen über „SumUp-Rechnung“ übernehmen', card: 's-invoice_inbox'},
+    {info: true, label: 'Arbeitsplätze: Starter-Paket auf jedem Kassen-PC einmal installieren', card: 's-clients'},
+  ];
+  const list = $('checklist'); list.replaceChildren();
+  for (const item of items) {
+    const li = el('li', null, item.info ? 'info' : item.done ? 'done' : item.optional ? 'optional' : 'open');
+    li.append(el('span', item.info ? 'i' : item.done ? '✓' : '○', 'mark-icon'));
+    const link = el('a', item.label, null, {href: '#' + item.card}); li.append(link);
+    if (item.optional && !item.done) li.append(el('small', ' optional'));
+    list.append(li);
+  }
+  const open = items.filter(i => !i.done && !i.info && !i.optional).length;
+  badge('einrichtung', open);
+  return open;
 }
 async function busy(button, action) {
   button.disabled = true;
@@ -347,6 +421,7 @@ function renderT2medPaid(data) {
   const sum = data.rows.reduce((t, r) => t + r.amount_cents, 0);
   const euro = c => (c / 100).toLocaleString('de-DE', {style: 'currency', currency: 'EUR'});
   const date = d => d ? d.split('-').reverse().join('.') : '';
+  badge('abrechnung', data.open_total);
   $('t2med-summary').textContent = data.rows.length ? data.rows.length + ' Rechnungen, zusammen ' + euro(sum) + '. Noch nicht abgehakt insgesamt: ' + data.open_total + '.' : 'Keine Rechnungen für diese Auswahl.' + (data.open_total ? '' : ' Alles abgehakt.');
   if (!data.rows.length) return;
   const t = el('table'); const head = el('tr');

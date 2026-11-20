@@ -26,9 +26,11 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted small">Passwort vergessen? Auf dem Server <code>sudo bash scripts/install-server.sh --admin-reset</code> ausführen.</p></section>
 
 <div id="settings" hidden>
-<nav id="tabs" class="settings-tabs" aria-label="Bereiche"></nav>
+<nav id="tabs" class="tab-bar" role="tablist" aria-label="Bereiche"></nav>
 <p id="warning" class="inline-error" hidden></p>
-<div id="sections"></div>
+<div id="tab-panels"></div>
+<div id="sections" hidden></div>
+<section class="card settings-card" id="s-checklist"><h2>Einrichtung – Überblick</h2><p class="muted">Diese Schritte sind nur einmal nötig. Ein Klick auf einen Punkt öffnet die passende Einstellung.</p><ul id="checklist" class="checklist"></ul></section>
 <section class="card settings-card" id="s-printers"><h2>Drucker einrichten</h2>
 <p class="muted">Bondrucker (Epson TM-m10, TM-m30III) und A4-Drucker im Netzwerk oder per USB an diesem Server einrichten – ohne Terminal.</p>
 <div id="printers-unavailable" class="inline-error" hidden>Der Druckdienst fehlt auf diesem Server. Bitte einmal <code>sudo bash scripts/install-server.sh</code> ausführen.</div>
@@ -51,12 +53,12 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <div id="client-downloads" class="row-buttons"></div>
 <div id="client-steps" class="steps"></div>
 <p class="muted small">Die Pakete enthalten den Starter-Schlüssel der Praxis: nicht per E-Mail verschicken, nach der Einrichtung löschen.</p></section>
-<section class="card" id="invoice-printer-help" hidden><h2>Drucker „SumUp-Rechnung“ einrichten</h2>
+<section class="card settings-card" id="invoice-printer-help" hidden><h2>Drucker „SumUp-Rechnung“ einrichten</h2>
 <p>Auf dem Server, auf dem T2med-Rechnungen gedruckt werden sollen (meist dieser Server), im Projektordner ausführen:</p>
 <pre class="code">sudo bash scripts/install-invoice-printer.sh</pre>
 <p class="muted small">Läuft der Druckserver auf einem anderen Rechner: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
 <button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></section>
-<section class="card"><h2>Admin-Passwort ändern</h2>
+<section class="card settings-card" id="s-password"><h2>Admin-Passwort ändern</h2>
 <form id="password-form"><label>Bisheriges Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
 <label>Neues Passwort (mind. 10 Zeichen)<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>
 <button class="secondary" type="submit">Passwort ändern</button></form></section>

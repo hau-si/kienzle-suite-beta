@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.10**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.11**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -460,6 +460,19 @@ Erreichbar über den Link **Einstellungen** unten auf der Kartenzahlungsseite od
 `https://<server>:7868/settings.php`. Die Seite ist durch das Admin-Passwort geschützt
 (Sitzung 30 Minuten, nach 5 Fehlversuchen 5 Minuten Sperre); die Arbeitsplätze kassieren
 weiterhin ohne Passwort.
+
+Die Seite hat vier Reiter:
+
+| Reiter | Inhalt |
+| --- | --- |
+| **Abrechnung** (laufend) | T2med-Rechnungen als bezahlt abhaken, Export für die Steuerberatung |
+| **Praxis & Rechnungen** | Praxisdaten, Umsatzsteuer, Höchstbetrag, E-Mail-Versand, Ablage im Netzwerkordner |
+| **Drucker & Bons** | Bondrucker, Praxisdrucker (A4), Terminzettel mit Vorschau |
+| **Einrichtung** (einmalig) | Überblick mit offenen Schritten, Drucker einrichten, Arbeitsplätze, SumUp, T2med-Anbindung, Rechnungseingang, Admin-Passwort |
+
+Solange Pflichtschritte der Einrichtung offen sind (Praxisdaten, SumUp live, T2med live), öffnet die Seite den
+Reiter „Einrichtung“, danach „Abrechnung“. Zahlen an den Reitern zeigen offene Punkte bzw. noch nicht
+abgehakte T2med-Rechnungen. Adressen wie `/settings.php#drucker` öffnen einen Reiter direkt.
 
 | Bereich | Inhalt |
 | --- | --- |
