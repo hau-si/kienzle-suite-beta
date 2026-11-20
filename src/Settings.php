@@ -102,6 +102,16 @@ final class Settings {
             'label_transfer' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor dem Überweisungsbetrag (Gegenprobe)', 'optional' => true],
             'label_patient' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor Patient und Geburtsdatum', 'optional' => true],
         ]],
+        'letterxpress' => ['label' => 'Letterxpress (Rechnung per Post)', 'fields' => [
+            'enabled' => ['type' => 'bool', 'label' => 'Rechnungen per Post über Letterxpress versenden'],
+            'username' => ['type' => 'string', 'label' => 'Letterxpress Benutzername'],
+            'api_key' => ['type' => 'secret', 'label' => 'Letterxpress API-Key'],
+            'mode' => ['type' => 'choice', 'label' => 'Betrieb', 'default' => 'test', 'choices' => ['test' => 'Test (nur Postausgang bei Letterxpress, es wird nichts gedruckt oder verschickt)', 'live' => 'Live (echter Postversand, kostenpflichtig)']],
+            'color' => ['type' => 'choice', 'label' => 'Druck', 'default' => '1', 'choices' => ['1' => 'Schwarz-Weiß', '4' => 'Farbe']],
+            'duplex' => ['type' => 'bool', 'label' => 'Beidseitig drucken', 'default' => false],
+            'shipping' => ['type' => 'choice', 'label' => 'Versandart', 'default' => 'auto', 'choices' => ['auto' => 'Automatisch (Inland oder Ausland)', 'national' => 'Nur Inland', 'international' => 'Ausland']],
+            'registered' => ['type' => 'choice', 'label' => 'Einschreiben', 'default' => 'none', 'choices' => ['none' => 'Kein Einschreiben', 'r1' => 'Einwurf-Einschreiben', 'r2' => 'Einschreiben']],
+        ]],
         'invoice_export' => ['label' => 'Ablage im Netzwerkordner', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Rechnungen als PDF in einen Netzwerkordner kopieren'],
             'share' => ['type' => 'string', 'label' => 'Freigabe (//server/freigabe)', 'default' => '//nas/steuerberater'],

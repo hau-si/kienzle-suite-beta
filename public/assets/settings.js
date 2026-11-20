@@ -2,13 +2,15 @@
 const $ = id => document.getElementById(id);
 let csrf = '';
 const TESTS = {sumup: ['sumup', 'Verbindung zu SumUp prüfen'], printing: ['receipt_printer', 'Testbon drucken'],
-  office_printing: ['office_printer', 'Testseite drucken'], terminzettel: ['terminzettel', 'Beispiel-Terminzettel drucken'], invoice_export: ['export', 'Schreibzugriff prüfen']};
+  office_printing: ['office_printer', 'Testseite drucken'], terminzettel: ['terminzettel', 'Beispiel-Terminzettel drucken'], invoice_export: ['export', 'Schreibzugriff prüfen'], letterxpress: ['letterxpress', 'Verbindung und Guthaben prüfen']};
 // Felder, die nur bei bestimmten Werten sichtbar sind.
 const SHOW = {
   'sumup.api_key': v => v.mode === 'live', 'sumup.affiliate_key': v => v.mode === 'live', 'sumup.app_id': v => v.mode === 'live',
   'sumup.merchant_code': v => v.mode === 'live', 'sumup.reader_id': v => v.mode === 'live',
   'fhir.base_url': v => v.mode === 'live', 'fhir.launch_urls': v => v.mode === 'live', 'fhir.api_key': v => v.mode === 'live',
   'fhir.entry_code': v => v.mode === 'live', 'fhir.ca_pem': v => v.mode === 'live', 'fhir.pin_certificate': v => v.mode === 'live',
+  'letterxpress.username': v => v.enabled, 'letterxpress.api_key': v => v.enabled, 'letterxpress.mode': v => v.enabled, 'letterxpress.color': v => v.enabled,
+  'letterxpress.duplex': v => v.enabled, 'letterxpress.shipping': v => v.enabled, 'letterxpress.registered': v => v.enabled,
   'printing.queue': v => v.transport === 'cups', 'printing.cups_server': v => v.transport === 'cups', 'printing.share': v => v.transport === 'samba',
   'terminzettel.header_size': v => !!(v.header_text || '').trim(), 'terminzettel.header_bold': v => !!(v.header_text || '').trim(),
   'terminzettel.heading_size': v => !!(v.heading || '').trim(), 'terminzettel.footer_size': v => !!(v.footer_text || '').trim(),
@@ -174,7 +176,7 @@ function renderInvoicePrinter(info) {
 }
 
 // ---- Aktualisierung von GitHub ----------------------------------------------------------
-let updateTimer = null;
+let updateTimer = null, updateOpened = false;
 const when = t => t ? new Date(t * 1000).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '';
 async function loadUpdate(force) {
   try { renderUpdate(await api('update_check', {force})); }
@@ -184,13 +186,13 @@ function renderUpdate(info) {
   const box = $('update-box'); box.replaceChildren();
   const running = ['running', 'requested'].includes(info.status?.state);
   const failed = info.status?.state === 'failed';
-  // Kopfzeile immer sichtbar; die Glocke erscheint auf jedem Reiter, sobald eine neue Version bereitsteht.
-  $('update-summary').textContent = 'Aktualisierung · ' + (running ? 'läuft …' : info.available ? 'Neue Version ' + info.remote + ' verfügbar' : 'Version ' + (info.current || '?') + (info.remote ? ' ist aktuell' : ''));
+  // Die Glocke steht in der Reiterleiste und ist auf jedem Reiter sichtbar, sobald eine neue Version bereitsteht.
+  const group = document.querySelector('#group-update > summary');
+  if (group) group.textContent = 'Aktualisierung' + (running ? ' · läuft …' : info.available ? ' · Neue Version ' + info.remote + ' verfügbar' : '');
   const bell = $('update-bell'); bell.hidden = !(info.available && !running);
   bell.title = info.available ? 'Neue Version ' + info.remote + ' verfügbar' : '';
   bell.setAttribute('aria-label', bell.title || 'Aktualisierung');
-  $('s-update').classList.toggle('has-update', !!info.available || running || failed);
-  if (info.available || running || failed) $('s-update').open = true;
+  if ((info.available || running || failed) && !updateOpened) { updateOpened = true; openGroupOf('s-update'); }
   if (running) { updateProgress(info.status); return; }
   const facts = el('dl', null, 'update-facts');
   const add = (k, v) => { facts.append(el('dt', k), el('dd', v)); };
@@ -235,7 +237,8 @@ function updateProgress(status) {
 // ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
 // Einmalige Einrichtung in einklappbaren Themenblöcken (alles Weitere steht in den Reitern daneben).
 const GROUPS = [
-  {id: 'praxis', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
+  {id: 'update', label: 'Aktualisierung', cards: ['s-update']},
+  {id: 'praxis', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-letterxpress', 's-invoice_export']},
   {id: 'zahlung', label: 'Zahlung & T2med', cards: ['s-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help']},
   {id: 'drucker', label: 'Drucker', cards: ['s-printers', 's-printing', 's-office_printing']},
   {id: 'terminzettel', label: 'Terminzettel', cards: ['s-terminzettel']},
@@ -293,12 +296,13 @@ function activate(id) {
 // Verweise wie #s-printers öffnen den passenden Reiter und springen zur Karte.
 window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1), tab = TABS.some(t => t.id === hash) ? hash : tabOf(hash);
-  if (hash === 's-update') { $('s-update').open = true; $('s-update').scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
   if (!tab) return;
   activate(tab);
   openGroupOf(hash);
   if (tabOf(hash)) $(hash)?.scrollIntoView({behavior: 'smooth', block: 'start'});
 });
+function showUpdate() { activate('einrichtung'); openGroupOf('s-update'); history.replaceState(null, '', '#s-update'); $("group-update")?.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+document.addEventListener('DOMContentLoaded', () => { const bell = $('update-bell'); if (bell) bell.onclick = e => { e.preventDefault(); showUpdate(); }; });
 function badge(tab, count) { const b = $('badge-' + tab); if (!b) return; b.hidden = !count; b.textContent = count ? String(count) : ''; }
 
 /** Anleitung für T2med: Drittanbieter-Zugriff mit Menüleisten-Button (Aufruf-Adresse zum Kopieren). */
@@ -810,13 +814,28 @@ function renderInbox(data) {
   if (!data.items.length) box.append(el('p', 'Noch keine Rechnung eingegangen.', 'muted'));
   else {
     const table = el('table', null, 'fw-table'), head = el('tr');
-    for (const h of ['Eingang', 'Nummer', 'Betrag', 'Patient', 'Geb.', 'Status', '']) head.append(el('th', h));
+    for (const h of ['Eingang', 'Nummer', 'Betrag', 'Patient', 'Geb.', 'Status', ...(data.letter_enabled ? ['Post'] : []), '']) head.append(el('th', h));
     table.append(head);
     for (const r of data.items) {
       const tr = el('tr');
       const born = r.birthdate ? r.birthdate.split('-').reverse().join('.') : '';
       for (const v of [when(r.received_at), r.number, euro(r.amount_cents), r.patient, born, inboxState[r.status] || r.status]) tr.append(el('td', v));
+      if (data.letter_enabled) {
+        const l = r.letter || {};
+        tr.append(el('td', l.status === 'unknown' ? 'unklar' : l.status === 'sent' ? (l.mode === 'live' ? 'gesendet ' : 'Test ') + when(l.sent_at) : ''));
+      }
       const last = el('td');
+      if (data.letter_enabled && r.postable) {
+        const l = r.letter || {};
+        const post = el('button', l.status ? 'Nochmal per Post' : 'Per Post', 'secondary small-button', {type: 'button', 'aria-label': 'Rechnung ' + r.number + ' per Post senden'});
+        post.onclick = () => {
+          const live = data.letter_mode === 'live';
+          const text = (l.status ? 'Diese Rechnung wurde schon einmal gesendet. Wirklich NOCHMAL senden?\n\n' : '') + 'Rechnung ' + r.number + ' (' + r.patient + ', ' + euro(r.amount_cents) + ') ' + (live ? 'jetzt per Post über Letterxpress versenden?' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)?') + '\n\nDabei gehen die Rechnung mit Patientendaten an Letterxpress.' + (live ? ' Das kostet Porto und Druck.' : '');
+          if (!confirm(text)) return;
+          busy(post, async () => { const res = await api('inbox_letter', {id: r.id, again: !!l.status}); renderInbox(res); message(res.message); });
+        };
+        last.append(post, ' ');
+      }
       if (r.deletable) {
         const del = el('button', 'Löschen', 'secondary small-button', {type: 'button', 'aria-label': 'Rechnung ' + r.number + ' löschen'});
         del.onclick = () => { if (!confirm('Rechnung ' + r.number + ' (' + r.patient + ', ' + euro(r.amount_cents) + ') aus dem Eingang löschen?')) return; busy(del, async () => { const res = await api('inbox_delete', {id: r.id}); renderInbox(res); message(res.message); }); };

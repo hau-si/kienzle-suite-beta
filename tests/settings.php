@@ -122,6 +122,9 @@ try {
     problem(fn() => $page->handle('inbox_delete', ['id' => str_repeat('a', 32)], $session, 'falsch'), 'Löschen ohne CSRF-Token', 403);
     problem(fn() => $page->handle('inbox_delete', ['id' => 'x'], $session, $login['csrf']), 'Ungültige ID beim Löschen', 422);
     problem(fn() => $page->handle('inbox_delete', ['id' => str_repeat('a', 32)], $session, $login['csrf']), 'Unbekannte Rechnung gelöscht', 404);
+    problem(fn() => $page->handle('inbox_letter', ['id' => str_repeat('a', 32)], $session, 'falsch'), 'Postversand ohne CSRF-Token', 403);
+    problem(fn() => $page->handle('inbox_letter', ['id' => str_repeat('a', 32)], $session, $login['csrf']), 'Postversand bei ausgeschaltetem Letterxpress', 409);
+    check(in_array('letterxpress', array_column($page->handle('get', [], $session, $login['csrf'])['sections'], 'id'), true), 'Letterxpress-Abschnitt fehlt in den Einstellungen');
     problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'void'], $session, 'falsch'), 'Korrektur ohne CSRF-Token', 403);
     problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'amount', 'amount' => 'abc'], $session, $login['csrf']), 'Ungültiger Betrag bei Korrektur', 400);
     problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'void'], $session, $login['csrf']), 'Unbekannte Zahlung storniert', 404);

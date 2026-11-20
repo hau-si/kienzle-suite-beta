@@ -82,7 +82,27 @@ function renderInvoices() {
     cash.onclick = () => { if (confirm(euro(invoice.amount_cents)+' bar erhalten? Die Zahlung wird als bezahlt erfasst.')) pay('cash')(); };
     const later = element('button','Später (Überweisung)','text-button invoice-later');
     later.onclick = () => { invoiceLater.add(invoice.id); renderInvoices(); };
-    box.append(line, card, cash, later); $('invoices').append(box);
+    box.append(line, card, cash, later);
+    if (state.letter?.enabled && invoice.letter?.postable) {
+      const sent = invoice.letter || {};
+      const when = sent.sent_at ? new Date(sent.sent_at * 1000).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '';
+      const note = sent.status === 'unknown' ? 'Postversand unklar – bitte den Postausgang bei Letterxpress prüfen.'
+        : sent.status === 'sent' ? (sent.mode === 'live' ? 'Per Post gesendet am ' : 'Testbrief an Letterxpress am ') + when : '';
+      if (note) box.append(element('p', note, 'muted invoice-letter-note'));
+      const post = element('button', sent.status ? 'Erneut per Post senden …' : 'Per Post senden (Letterxpress)', 'text-button invoice-letter');
+      post.onclick = () => run(async() => {
+        const again = !!sent.status;
+        const live = state.letter.mode === 'live';
+        const text = (again ? 'Diese Rechnung wurde schon einmal gesendet. Wirklich NOCHMAL senden?\n\n' : '')
+          + 'Rechnung ' + invoice.number + ' über ' + euro(invoice.amount_cents) + ' für ' + state.patient.name + ' ' + (live ? 'jetzt per Post über Letterxpress versenden?' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)?')
+          + '\n\nDabei gehen die Rechnung mit Patientendaten an Letterxpress.' + (live ? ' Das kostet Porto und Druck.' : '');
+        if (!confirm(text)) return;
+        const result = await api('invoice_letter', {invoice_id: invoice.id, again});
+        message(result.message); await load();
+      });
+      box.append(post);
+    }
+    $('invoices').append(box);
   }
   updateTotal();
 }

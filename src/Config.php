@@ -54,6 +54,18 @@ final class Config {
         if ($pin && (!is_string($this->get('fhir', 'ca_file')) || !str_starts_with($this->get('fhir', 'ca_file'), '/'))) {
             throw new \RuntimeException('Zertifikatsbindung benötigt einen absoluten ca_file-Pfad zum t2med-Serverzertifikat.');
         }
+        if ($this->get('letterxpress', 'enabled', false)) {
+            foreach (['username' => 'Benutzername', 'api_key' => 'API-Key'] as $key => $label) {
+                $value = $this->get('letterxpress', $key, '');
+                if (!is_string($value) || trim($value) === '' || mb_strlen($value) > 200 || preg_match('/[\x00-\x1f]/', $value)) throw new \RuntimeException('Bitte den Letterxpress ' . $label . ' eintragen.');
+            }
+        }
+        foreach (['mode' => ['test', 'live'], 'color' => ['1', '4'], 'shipping' => ['auto', 'national', 'international'], 'registered' => ['none', 'r1', 'r2']] as $key => $allowed) {
+            $default = ['mode' => 'test', 'color' => '1', 'shipping' => 'auto', 'registered' => 'none'][$key];
+            if (!in_array((string)$this->get('letterxpress', $key, $default), $allowed, true)) throw new \RuntimeException('letterxpress.' . $key . ' hat einen ungültigen Wert.');
+        }
+        if ((string)$this->get('letterxpress', 'registered', 'none') !== 'none' && (string)$this->get('letterxpress', 'shipping', 'auto') === 'international') throw new \RuntimeException('Einschreiben ist bei Letterxpress nur für Inlandsbriefe möglich.');
+        if (!is_bool($this->get('letterxpress', 'duplex', false)) || !is_bool($this->get('letterxpress', 'enabled', false))) throw new \RuntimeException('letterxpress.enabled und letterxpress.duplex müssen true oder false sein.');
         $entry = $this->get('fhir', 'entry_code', 'ZAHLUNG');
         if (!is_string($entry) || $entry === '' || mb_strlen($entry) > 20) throw new \RuntimeException('Aktenkürzel muss 1–20 Zeichen lang sein.');
         foreach (['enabled' => false, 'cut' => true, 'cash_receipt_auto' => false] as $key => $default) {

@@ -15,10 +15,11 @@ class InvoiceExport {
     public function appInvoices(): bool { return $this->enabled() && (bool)$this->config->get('invoice_export', 'app_invoices', false); }
 
     /** Dateiname: 2026-03-15_RE2026-0042_42,50EUR[_Karte].pdf */
-    public static function filename(array $invoice, bool $paid): string {
+    /** $paid: false = unbezahlt, true/'Karte' = per Karte bezahlt, 'Bar' = bar bezahlt. */
+    public static function filename(array $invoice, bool|string $paid): string {
         $number = preg_replace('/[^A-Za-z0-9._-]/', '_', $invoice['invoice_number']);
         $amount = number_format($invoice['amount_cents'] / 100, 2, ',', '');
-        return $invoice['invoice_date'] . '_' . $number . '_' . $amount . 'EUR' . ($paid ? '_Karte' : '') . '.pdf';
+        return $invoice['invoice_date'] . '_' . $number . '_' . $amount . 'EUR' . ($paid === true ? '_Karte' : (is_string($paid) && $paid !== '' ? '_' . $paid : '')) . '.pdf';
     }
     /** Unterordner mit Platzhaltern {jahr} und {monat} aus dem Rechnungsdatum. */
     public function directory(array $invoice): array {
@@ -27,7 +28,7 @@ class InvoiceExport {
         return array_values(array_filter(explode('/', $path), static fn($part) => $part !== ''));
     }
 
-    public function export(array $invoice, string $pdf, bool $paid): string {
+    public function export(array $invoice, string $pdf, bool|string $paid): string {
         if (!$this->enabled()) throw new Problem('Ablage im Netzwerkordner ist deaktiviert.', 409);
         if (!str_starts_with($pdf, '%PDF-')) throw new Problem('Original-PDF der Rechnung fehlt.', 409);
         // Testzahlungen nie mit echten Rechnungen verwechseln.

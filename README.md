@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.33**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.34**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -198,6 +198,20 @@ TM-m30III im Web-Config „Sicherer Druck“ deaktivieren, sonst verwirft er RAW
 Modell, Verbindung und Praxisdrucker stehen unter **Einstellungen → Bondrucker / Praxisdrucker (A4)**;
 mit „Testbon drucken“ bzw. „Testseite drucken“ lässt sich die Verbindung sofort prüfen.
 
+### Rechnung per Post senden (Letterxpress)
+
+Optional lässt sich eine offene T2med-Rechnung mit einem Klick als Brief über [Letterxpress](https://www.letterxpress.de)
+verschicken (API v3). Einstellungen → Praxis → „Letterxpress (Rechnung per Post)“: Benutzername und API-Key,
+Betrieb (Test oder Live), Schwarz-Weiß/Farbe, beidseitig, Versandart und Einschreiben werden dort einmal festgelegt.
+„Verbindung und Guthaben prüfen“ testet die Zugangsdaten.
+
+- Der Knopf „Per Post senden“ erscheint auf der Kassenseite und im Rechnungseingang (Admin), nur für offene Rechnungen mit
+  gespeichertem PDF. Vor dem Senden fragt ein Dialog nach; im Testbetrieb landet der Brief nur im Postausgang bei Letterxpress.
+- Die Anschrift liest Letterxpress aus dem Adressfenster der T2med-Rechnung. Eine zweite Sendung ist nur nach Bestätigung möglich;
+  nach einem unklaren Zeitüberschreitungsfehler wird nicht automatisch erneut gesendet.
+- Datenschutz: Die Rechnung mit Patientendaten geht an Letterxpress. Einen Auftragsverarbeitungsvertrag muss die Praxis selbst abschließen.
+- Nicht in der Testumgebung geprüft: die echte Letterxpress-API.
+
 ### Rechnungen in einen Netzwerkordner (Steuerberatung)
 
 Optional werden Rechnungen als PDF per SMB in eine Netzwerkfreigabe kopiert, z. B. auf das
@@ -223,13 +237,14 @@ app_invoices = true                         # auch in der App erzeugte Rechnunge
   Rechnungsnummer, z. B. `2026-11-19_TX8K2M4P_42,50EUR_Karte.pdf`. Das funktioniert auch ohne
   Rechnungseingang. Zahlungen ohne lokalen Beleg (keine Praxisdaten) werden nicht abgelegt.
 
-- `when = "paid"`: nur per Karte bezahlte Rechnungen, Dateiname
-  `2026-03-15_RE2026-0042_42,50EUR_Karte.pdf`. Die Ablage startet automatisch nach der
+- `when = "paid"`: nur bezahlte Rechnungen (Karte oder bar), Dateiname
+  `2026-03-15_RE2026-0042_42,50EUR_Karte.pdf` bzw. `…_Bar.pdf` bei Barzahlung. Abgelegt wird das PDF der
+  Rechnung (bei T2med-Rechnungen das Original), nicht die Quittung. Die Ablage startet automatisch nach der
   erfolgreichen Zahlung und wird spätestens bei **Dokumentation in der Akte** nachgeholt.
   Die Zahlungsseite zeigt „Rechnungs-PDF im Netzwerkordner abgelegt: …“; bei einem Fehler
   erscheint **Rechnungs-PDF erneut ablegen**. Ein Fehler blockiert weder Zahlung noch Akteneintrag.
 - `when = "received"`: jede auf „SumUp-Rechnung“ gedruckte Rechnung sofort beim Eingang,
-  Dateiname ohne `_Karte`. Das Ergebnis steht in der Meldung des Druckauftrags.
+  Dateiname ohne `_Karte`/`_Bar`. Das Ergebnis steht in der Meldung des Druckauftrags.
 - Unterordner werden bei Bedarf angelegt. Jede Rechnung wird höchstens einmal abgelegt.
 - Fehlgeschlagene Ablagen (z. B. NAS aus) holt der Timer `kienzle-sumup-export.timer`
   stündlich nach – auch wenn das Zahlungsfenster längst geschlossen ist. Manuell:
@@ -541,13 +556,13 @@ Erreichbar über den Link **Einstellungen** unten auf der Kartenzahlungsseite od
 (Sitzung 30 Minuten, nach 5 Fehlversuchen 5 Minuten Sperre); die Arbeitsplätze kassieren
 weiterhin ohne Passwort.
 
-Die Seite hat drei Reiter; die Aktualisierung steht als Leiste ganz oben, eine Glocke in der Reiterleiste zeigt auf jedem Reiter, wenn eine neue Version bereitsteht:
+Die Seite hat drei Reiter; eine Glocke rechts in der Reiterleiste zeigt auf jedem Reiter, wenn eine neue Version bereitsteht (Klick öffnet Einrichtung → Aktualisierung):
 
 | Reiter | Inhalt |
 | --- | --- |
 | **Abrechnung** (laufend) | Rechnungseingang, T2med-Rechnungen als bezahlt abhaken, Export für die Steuerberatung |
 | **Leistungen** | Leistungen, GOÄ-Angaben und Kombinationen für die Kasse |
-| **Einrichtung** (einmalig) | Überblick mit offenen Schritten und einklappbare Blöcke: Praxis & Rechnungen (Praxisdaten, Umsatzsteuer, E-Mail, Ablage), Zahlung & T2med (SumUp, T2med-Anbindung, Rechnungseingang), Drucker (Drucker einrichten, Bondrucker, Praxisdrucker), **Terminzettel**, Arbeitsplätze & Netzwerk, Sicherheit (Protokoll, Admin-Passwort) |
+| **Einrichtung** (einmalig) | Überblick mit offenen Schritten und einklappbare Blöcke: Praxis & Rechnungen (Praxisdaten, Umsatzsteuer, E-Mail, Ablage), Zahlung & T2med (SumUp, T2med-Anbindung, Rechnungseingang), Drucker (Drucker einrichten, Bondrucker, Praxisdrucker), **Terminzettel**, Arbeitsplätze & Netzwerk, Sicherheit (Protokoll, Admin-Passwort); ganz oben der Block Aktualisierung |
 
 Solange Pflichtschritte der Einrichtung offen sind (Praxisdaten, SumUp live, T2med live), öffnet die Seite den
 Reiter „Einrichtung“, danach „Abrechnung“. Zahlen an den Reitern zeigen offene Punkte bzw. noch nicht
@@ -1029,7 +1044,7 @@ VPN, trägst du als `192.168.2.0/24` ein), und klickst **Firewall anwenden**.
 
 ## Aktualisieren im Webinterface
 
-In der Leiste **Aktualisierung** ganz oben auf der Einstellungsseite steht die installierte Version, die Quelle und die
+Unter **Einstellungen → Einrichtung → Aktualisierung** steht die installierte Version, die Quelle und die
 neueste Version auf GitHub (geprüft alle sechs Stunden oder mit „Jetzt auf neue Version prüfen“). Ist eine
 neuere Version da, erscheint eine Glocke in der Reiterleiste; die Karte listet die Neuerungen aus
 `docs/RELEASE.md`. **„Jetzt aktualisieren“** startet die Aktualisierung – ohne Terminal:
@@ -1103,6 +1118,7 @@ lokal in `mock_records` gespeichert. Entwicklungsmodus erlaubt keine echten Schn
 php tests/critical.php
 php tests/invoice.php
 php tests/t2med-invoice.php
+php tests/letterxpress.php
 cd client && go test ./...
 ```
 

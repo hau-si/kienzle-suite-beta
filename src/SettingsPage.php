@@ -70,6 +70,7 @@ final class SettingsPage {
             't2med_done' => $this->t2medDone($input),
             't2med_correct' => $this->t2medCorrect($input),
             'inbox_delete' => $this->inboxDelete($input),
+            'inbox_letter' => $this->inboxLetter($input),
             'catalog' => $this->catalog()->overview(),
             'catalog_service_save' => $this->catalogChange(fn(Catalog $c) => $c->saveService($input), 'Leistung gespeichert.'),
             'catalog_service_delete' => $this->catalogChange(fn(Catalog $c) => $c->deleteService(App::string($input, 'id', 32)), 'Leistung gelöscht. Frühere Zahlungen behalten ihre Angaben.'),
@@ -153,6 +154,8 @@ final class SettingsPage {
                 return 'Testseite übergeben: Auftrag ' . $office->send(ReceiptPdf::convert($svg), 'Kienzle-SumUp Testseite') . '.';
             case 'export':
                 return (new InvoiceExport($config))->check();
+            case 'letterxpress':
+                return (new Letterxpress($config, $this->http ?? new HttpClient(), $this->db))->check();
             default:
                 throw new Problem('Unbekannter Test.', 404);
         }
@@ -262,6 +265,12 @@ final class SettingsPage {
         $catalog = $this->catalog();
         $change($catalog);
         return $catalog->overview() + ['message' => $message];
+    }
+    /** Rechnung aus dem Eingang per Post senden (nur mit Admin-Sitzung, CSRF und ausdrücklicher Bestätigung in der Oberfläche). */
+    private function inboxLetter(array $input): array {
+        $config = $this->config();
+        $result = (new Letterxpress($config, $this->http ?? new HttpClient(), $this->db))->send(App::string($input, 'id', 32), ($input['again'] ?? false) === true);
+        return InboxOverview::build($this->db, $config) + ['message' => $result['message']];
     }
     private function inboxDelete(array $input): array {
         InboxOverview::delete($this->db, App::string($input, 'id', 32));

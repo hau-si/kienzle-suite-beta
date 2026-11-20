@@ -259,6 +259,13 @@ try {
     $app->invoiceExport($v, $payment['id']);
     check(count(array_filter($export->commands, fn($c) => str_contains($c, 'put '))) === $puts, 'Rechnung doppelt abgelegt');
     check(!str_contains(implode("\n", $export->commands), 'Musterfrau'), 'Patientendaten im Dateinamen');
+    // Bar bezahlte T2med-Rechnung: dieselbe Ablage, Dateiname mit „_Bar“.
+    [$vc, $bc] = visit($app, 'test-bar');
+    $app->storeInvoice(['number' => 'RE2026-0077', 'amount_cents' => 1500] + $parsed, $pdf);
+    $cashPay = $app->startInvoice($vc, ['request_id' => App::id(), 'invoice_id' => $app->state($vc, $bc)['invoices'][0]['id'], 'method' => 'cash']);
+    $cashDone = $app->document($vc, $cashPay['id']);
+    check($cashDone['invoice_export']['status'] === 'done' && $cashDone['invoice_export']['path'] === 'Rechnungen/2026/03/TEST_2026-03-15_RE2026-0077_15,00EUR_Bar.pdf', 'Barzahlung nicht oder falsch benannt abgelegt: ' . json_encode($cashDone['invoice_export']));
+    check(InvoiceExport::filename(['invoice_number' => 'X1', 'invoice_date' => '2026-03-15', 'amount_cents' => 1000], 'Bar') === '2026-03-15_X1_10,00EUR_Bar.pdf', 'Dateiname Bar falsch');
     // b) Jede gedruckte Rechnung, Gastzugriff.
     $cfg = exportConfig('received'); $dirs[] = $cfg->get('app', 'state_dir'); $export = new FakeExport($cfg);
     $app = new App($cfg, null, null, null, $export); $app->db->migrate();
@@ -299,7 +306,7 @@ try {
     $pending = $app->exportPending();
     check($pending['done'] === 1 && $pending['failed'] === 0, 'Nachholung der App-Rechnung fehlgeschlagen');
     $tx = $app->db->one('SELECT transaction_id FROM payments WHERE id=?', [$id])['transaction_id'];
-    $name = 'TEST_' . date('Y-m-d') . '_' . $tx . '_10,72EUR_Karte.pdf';
+    $name = 'TEST_' . (new DateTimeImmutable('now', new DateTimeZone('Europe/Berlin')))->format('Y-m-d') . '_' . $tx . '_10,72EUR_Karte.pdf';
     check(isset($export->files[$name]) && str_starts_with($export->files[$name], '%PDF-'), 'App-Rechnung nicht als PDF abgelegt: ' . implode(', ', array_keys($export->files)));
     check(in_array('mkdir "Rechnungen\\' . date('Y') . '"', $export->commands, true), 'Jahresordner nicht angelegt');
     $puts = count(array_filter($export->commands, fn($c) => str_contains($c, 'put ')));

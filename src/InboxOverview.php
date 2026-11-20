@@ -13,9 +13,10 @@ final class InboxOverview {
             $status = $pay ? ($pay['payment_status'] === 'successful' ? 'bezahlt' : 'am Terminal') : ($row['superseded_at'] ? 'ersetzt' : ($row['received_at'] < $limit ? 'abgelaufen' : 'offen'));
             $items[] = ['id' => $row['id'], 'number' => $row['invoice_number'], 'invoice_date' => $row['invoice_date'], 'amount_cents' => (int)$row['amount_cents'],
                 'received_at' => (int)$row['received_at'], 'status' => $status, 'patient' => $row['patient_name'], 'birthdate' => $row['patient_birthdate'],
-                'deletable' => !in_array($status, ['bezahlt', 'am Terminal'], true)];
+                'deletable' => !in_array($status, ['bezahlt', 'am Terminal'], true),
+                'letter' => Letterxpress::state($row), 'postable' => $status === 'offen' && $row['pdf'] !== null];
         }
-        return ['enabled' => (bool)$config->get('invoice_inbox', 'enabled', false), 'max_age_days' => $config->get('invoice_inbox', 'max_age_days', 14),
+        return ['enabled' => (bool)$config->get('invoice_inbox', 'enabled', false), 'letter_enabled' => (bool)$config->get('letterxpress', 'enabled', false), 'letter_mode' => (string)$config->get('letterxpress', 'mode', 'test'), 'max_age_days' => $config->get('invoice_inbox', 'max_age_days', 14),
             'items' => $items, 'rejected' => (new InboxLog($config->get('app', 'state_dir')))->recent(10)];
     }
 

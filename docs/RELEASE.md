@@ -1,9 +1,12 @@
-Version 1.4.1-rechnung.33 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.34 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.34: Rechnung per Post über Letterxpress (Einstellungen, Knopf auf Kasse und Rechnungseingang, Testmodus, Doppelsendeschutz).
+- Ebenfalls rechnung.34: Die Aktualisierung steht wieder unter Einstellungen → Einrichtung (Block „Aktualisierung“); die Glocke
+  rechts in der Reiterleiste bleibt und öffnet ihn. Bar bezahlte Rechnungen werden mit „_Bar“ statt „_Karte“ im Netzwerkordner abgelegt.
 - Neu in rechnung.33: Offene T2med-Rechnung mit „Bar bezahlt“ (sofort erfasst, Akteneintrag, Liste/Excel mit
   Zahlungsart) und „Später (Überweisung)“; Quittung für Barzahlung auf dem Bondrucker, automatisch einstellbar
   (`printing.cash_receipt_auto`); neue Rechnungen erscheinen ohne Neuladen. Einstellungsseite aufgeräumt:

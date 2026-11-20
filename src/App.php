@@ -10,6 +10,7 @@ final class App {
     private ReceiptPrinter $printer;
     private InvoiceExport $export;
     private OfficePrinter $office;
+    private Letterxpress $letter;
     public function __construct(public readonly Config $config, ?HttpClient $http = null, ?ReceiptMailer $mailer = null, ?ReceiptPrinter $printer = null, ?InvoiceExport $export = null, ?OfficePrinter $office = null) {
         umask(0077);
         $this->db = new Database($config->get('app', 'state_dir'));
@@ -20,6 +21,7 @@ final class App {
         $this->printer = $printer ?? new ReceiptPrinter($config);
         $this->export = $export ?? new InvoiceExport($config);
         $this->office = $office ?? new OfficePrinter($config);
+        $this->letter = new Letterxpress($config, $http, $this->db);
     }
     public static function id(): string { return bin2hex(random_bytes(16)); }
     public static function string(array $input, string $key, int $max = 200, bool $required = true): string {
@@ -131,6 +133,7 @@ final class App {
             'printing_enabled' => $this->config->get('printing', 'enabled', false),
             'mock_document_fail' => (bool)$visit['mock_document_fail'],
             'invoices' => $this->openInvoices($visit),
+            'letter' => ['enabled' => $this->letter->enabled(), 'mode' => $this->letter->mode()],
             'print' => $this->printSettings(),
             'max_amount_cents' => $this->config->get('app', 'max_amount_cents')];
     }
@@ -287,8 +290,8 @@ final class App {
     /** Gelesene Rechnung speichern (getrennt vom PDF-Lesen, damit testbar). */
     public function storeInvoice(array $invoice, ?string $pdf = null): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);
-        // Die Original-PDF nur aufbewahren, wenn sie in den Netzwerkordner kopiert werden soll.
-        $keep = ($this->export->enabled() || $this->office->enabled()) && $pdf !== null ? $pdf : null;
+        // Die Original-PDF nur aufbewahren, wenn sie in den Netzwerkordner, zum Praxisdrucker oder per Post (Letterxpress) gehen soll.
+        $keep = ($this->export->enabled() || $this->office->enabled() || $this->letter->enabled()) && $pdf !== null ? $pdf : null;
         $result = $this->db->transaction(function () use ($invoice, $keep): array {
             $this->purgeInbox();
             $number = $invoice['number'];
@@ -321,7 +324,9 @@ final class App {
             if ($row['export_status'] === 'done') return ['status' => 'done', 'error' => '', 'path' => $row['export_path']];
             if ($row['pdf'] === null) return ['status' => 'failed', 'error' => 'Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut drucken.', 'path' => ''];
             try {
-                $path = $this->export->export($row, $row['pdf'], $this->export->when() === 'paid');
+                // Bei „nach Zahlung“ trägt der Dateiname die Zahlungsart (Karte oder Bar).
+                $method = $this->db->one("SELECT payment_method FROM payments WHERE inbox_id=? AND payment_status='successful' ORDER BY paid_at DESC LIMIT 1", [$inboxId])['payment_method'] ?? 'card';
+                $path = $this->export->export($row, $row['pdf'], $this->export->when() === 'paid' ? ($method === 'cash' ? 'Bar' : true) : false);
                 // Nach erfolgreicher Ablage keine Kopie der PDF auf dem Anwendungsserver behalten.
                 $this->db->query("UPDATE invoice_inbox SET export_status='done',export_error='',export_path=? WHERE id=?", [$path, $inboxId]);
                 $this->releaseInboxPdf($inboxId);
@@ -363,7 +368,7 @@ final class App {
                 // Dieselbe Belegvariante wie PDF-Download, E-Mail und Direktdruck.
                 $pdf = ReceiptPdf::convert($this->receiptSource($payment));
                 $path = $this->export->export(['invoice_number' => (string)$payment['transaction_id'], 'invoice_date' => $paid->format('Y-m-d'),
-                    'amount_cents' => $payment['amount_cents']], $pdf, true);
+                    'amount_cents' => $payment['amount_cents']], $pdf, ($payment['payment_method'] ?? 'card') === 'cash' ? 'Bar' : true);
                 $this->db->query("UPDATE payments SET export_status='done',export_error='',export_path=? WHERE id=?", [$path, $paymentId]);
             } catch (Problem $e) {
                 error_log('kienzle-sumup: Rechnungsablage: ' . $e->getMessage());
@@ -397,13 +402,13 @@ final class App {
     private function openInvoices(array $visit): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false) || $visit['patient_birthdate'] === '') return [];
         $limit = time() - $this->config->get('invoice_inbox', 'max_age_days', 14) * 86400;
-        $rows = $this->db->query("SELECT i.id,i.invoice_number,i.invoice_date,i.amount_cents,i.patient_name,i.patient_birthdate FROM invoice_inbox i WHERE i.superseded_at IS NULL AND i.received_at >= ? AND i.patient_birthdate=?
+        $rows = $this->db->query("SELECT i.id,i.invoice_number,i.invoice_date,i.amount_cents,i.patient_name,i.patient_birthdate,i.lxp_status,i.lxp_sent_at,i.lxp_mode,i.lxp_job_id,i.lxp_error,(i.pdf IS NOT NULL) AS has_pdf FROM invoice_inbox i WHERE i.superseded_at IS NULL AND i.received_at >= ? AND i.patient_birthdate=?
             AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.t2med_invoice=i.invoice_number AND p.payment_status IN ('starting','pending','unknown','cancel_requested','successful'))
             ORDER BY i.received_at DESC", [$limit, $visit['patient_birthdate']])->fetchAll();
         $result = [];
         foreach ($rows as $row) {
             if (!T2medInvoice::matches($row, $visit['patient_name'], $visit['patient_birthdate'])) continue;
-            $result[] = ['id' => $row['id'], 'number' => $row['invoice_number'], 'invoice_date' => $row['invoice_date'], 'amount_cents' => $row['amount_cents']];
+            $result[] = ['id' => $row['id'], 'number' => $row['invoice_number'], 'invoice_date' => $row['invoice_date'], 'amount_cents' => $row['amount_cents'], 'letter' => Letterxpress::state($row) + ['postable' => (bool)$row['has_pdf']]];
         }
         return $result;
     }
@@ -458,6 +463,17 @@ final class App {
             }
             return $result;
         });
+    }
+    /** Offene T2med-Rechnung dieses Patienten per Post über Letterxpress versenden (nach Bestätigung an der Kasse). */
+    public function invoiceLetter(array $visit, array $input): array {
+        if (!$this->letter->enabled()) throw new Problem('Der Versand per Post ist nicht eingeschaltet (Einstellungen → Letterxpress).', 409);
+        $invoiceId = self::string($input, 'invoice_id', 32);
+        if (!preg_match('/^[a-f0-9]{32}$/D', $invoiceId)) throw new Problem('Ungültige Rechnung.');
+        $fresh = $this->db->one('SELECT * FROM visits WHERE id=?', [$visit['id']]);
+        $this->editable($fresh);
+        $open = array_column($this->openInvoices($fresh), null, 'id');
+        if (!isset($open[$invoiceId])) throw new Problem('Diese Rechnung ist nicht mehr offen oder gehört nicht zu diesem Patienten. Bitte Seite neu laden.', 409);
+        return $this->letter->send($invoiceId, ($input['again'] ?? false) === true);
     }
     private function payment(array $visit, string $id): array {
         return $this->db->one('SELECT * FROM payments WHERE id=? AND visit_id=?', [$id, $visit['id']]) ?? throw new Problem('Zahlung nicht gefunden.', 404);

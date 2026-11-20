@@ -25,6 +25,7 @@ jobs:
       - run: php tests/reader-cancel.php
       - run: php tests/invoice.php
       - run: php tests/t2med-invoice.php
+      - run: php tests/letterxpress.php
       - run: php tests/auto-print.php
       - run: php tests/settings.php
       - run: php tests/printer-admin.php
