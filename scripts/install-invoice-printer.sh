@@ -53,7 +53,7 @@ if lpstat -v "$queue" >/dev/null 2>&1 && ! lpstat -v "$queue" | grep -q 'kienzle
 fi
 
 umask 077
-install -d -m 700 -o root -g root /etc/kienzle-sumup-printer
+install -d -m 755 -o root -g root /etc/kienzle-sumup-printer
 install -m 600 -o root -g root "$setup/invoice-printer.json" /etc/kienzle-sumup-printer/printer.json
 install -m 644 -o root -g root "$setup/server.crt" /etc/kienzle-sumup-printer/server.crt
 # 0700 root: CUPS startet das Backend als root; es liest Schlüssel/Spooldatei und arbeitet dann als lp.

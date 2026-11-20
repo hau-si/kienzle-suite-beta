@@ -53,11 +53,11 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <div id="client-downloads" class="row-buttons"></div>
 <div id="client-steps" class="steps"></div>
 <p class="muted small">Die Pakete enthalten den Starter-Schlüssel der Praxis: nicht per E-Mail verschicken, nach der Einrichtung löschen.</p></section>
-<section class="card settings-card" id="invoice-printer-help" hidden><h2>Drucker „SumUp-Rechnung“ einrichten</h2>
-<p>Auf dem Server, auf dem T2med-Rechnungen gedruckt werden sollen (meist dieser Server), im Projektordner ausführen:</p>
-<pre class="code">sudo bash scripts/install-invoice-printer.sh</pre>
-<p class="muted small">Läuft der Druckserver auf einem anderen Rechner: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
-<button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></section>
+<section class="card settings-card" id="invoice-printer-help" hidden><h2>Drucker „SumUp-Rechnung“</h2>
+<div id="invoice-printer-status"></div>
+<details class="tz-how"><summary>Drucker auf einem anderen Druckserver (z. B. kienzlebox)</summary>
+<p class="muted small">Nur nötig, wenn T2med auf einem anderen Rechner druckt als diesem: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und dort im Projektordner <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
+<button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></details></section>
 <section class="card settings-card" id="s-password"><h2>Admin-Passwort ändern</h2>
 <form id="password-form"><label>Bisheriges Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
 <label>Neues Passwort (mind. 10 Zeichen)<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>

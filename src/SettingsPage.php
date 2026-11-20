@@ -64,15 +64,27 @@ final class SettingsPage {
             'base_url' => $config->get('app', 'base_url'), 'version' => trim((string)@file_get_contents(dirname(__DIR__) . '/VERSION')),
             'mode' => $config->get('sumup', 'mode'), 'fhir_mode' => $config->get('fhir', 'mode'),
             'warning' => $broken ? 'Gespeicherte Einstellungen passen nicht zur aktuellen Version und werden ignoriert. Bitte die Bereiche prüfen und neu speichern.' : null,
-            'invoice_printer' => (bool)$config->get('invoice_inbox', 'enabled', false), 'clients' => $this->clients(),
+            'invoice_printer' => InvoicePrinter::status($this->printers, $config), 'clients' => $this->clients(),
             'export_years' => (new TaxExport($this->db, $config))->years(),
             'terminzettel' => ['installed' => Terminzettel::installed(), 'target' => Terminzettel::target($config),
                 'printer_url' => 'http://' . (parse_url((string)$config->get('app', 'base_url'), PHP_URL_HOST) ?: 'server') . ':631/printers/Terminzettel']];
     }
 
     private function save(string $section, array $values): array {
-        Settings::save($this->db, $this->base, $section, $values);
-        return $this->view() + ['message' => 'Gespeichert. Gilt ab sofort für alle Arbeitsplätze.'];
+        $config = Settings::save($this->db, $this->base, $section, $values);
+        $message = 'Gespeichert. Gilt ab sofort für alle Arbeitsplätze.';
+        if ($section === 'invoice_inbox') {
+            // Drucker „SumUp-Rechnung“ gleich mit anlegen bzw. entfernen – ohne Terminal.
+            try {
+                $state = InvoicePrinter::apply($this->printers, (bool)$config->get('invoice_inbox', 'enabled', false));
+                if ($state === true) $message .= ' Drucker „SumUp-Rechnung“ ist eingerichtet.';
+                elseif ($state === false) $message .= ' Drucker „SumUp-Rechnung“ ist entfernt.';
+                else $message .= ' Hinweis: Der Drucker „SumUp-Rechnung“ braucht einmal den aktuellen Server-Installer.';
+            } catch (Problem $e) {
+                $message .= ' Drucker „SumUp-Rechnung“: ' . $e->getMessage();
+            }
+        }
+        return $this->view() + ['message' => $message];
     }
 
     private function test(string $kind): string {

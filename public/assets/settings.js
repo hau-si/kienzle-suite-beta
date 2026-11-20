@@ -79,7 +79,7 @@ function render(data) {
   $('mode').textContent = data.mode === 'live' ? (data.fhir_mode === 'live' ? 'LIVE' : 'LIVE · T2MED TESTMODUS') : 'TESTMODUS';
   $('mode').classList.toggle('live', data.mode === 'live');
   $('warning').hidden = !data.warning; $('warning').textContent = data.warning || '';
-  $('invoice-printer-help').hidden = !data.invoice_printer;
+  renderInvoicePrinter(data.invoice_printer || {});
   if (data.clients) renderClients(data.clients);
   if (data.export_years) renderExport(data.export_years, data.mode);
   if (data.export_years) t2medPaidSetup(data.export_years, data.mode);
@@ -149,6 +149,26 @@ function render(data) {
   layoutTabs(data);
 }
 
+// ---- Drucker „SumUp-Rechnung“ (wird beim Einschalten automatisch angelegt) ---------------
+function renderInvoicePrinter(info) {
+  $('invoice-printer-help').hidden = !info.enabled;
+  const box = $('invoice-printer-status'); box.replaceChildren();
+  if (!info.enabled) return;
+  if (!info.installed) { box.append(el('p', 'Der Druckdienst für „SumUp-Rechnung“ fehlt auf diesem Server. Bitte einmal den aktuellen Server-Installer ausführen; danach genügt hier „Speichern“.', 'inline-error')); return; }
+  if (!info.queue) {
+    const p = el('p', 'Der Drucker ist noch nicht angelegt. ', 'inline-error');
+    const button = el('button', 'Jetzt einrichten', 'secondary', {type: 'button'});
+    button.onclick = () => busy(button, async () => { const r = await api('save', {section: 'invoice_inbox', values: {enabled: true}}); render(r); message(r.message); });
+    p.append(button); box.append(p); return;
+  }
+  if (!info.queue.ours) { box.append(el('p', 'Ein anderer Drucker heißt bereits „SumUp-Rechnung“. Bitte diesen umbenennen oder entfernen.', 'inline-error')); return; }
+  box.append(el('p', 'Eingerichtet (' + info.queue.state + '). In T2med die Rechnung auf diesen Drucker drucken – sie erscheint dann beim Patienten zum Kassieren.', 'notice'));
+  const ol = el('ol', null, 'steps');
+  ol.append(el('li', 'Windows: Drucker hinzufügen → „Freigegebenen Drucker über den Namen auswählen“: ' + info.url + ' – Treiber „Microsoft IPP Class Driver“, Papier A4.'));
+  const mac = el('li'); mac.append(document.createTextNode('Mac: „SumUp-Rechnung“ hinzufügen, als Treiber die Datei '), el('a', 'SumUp-Rechnung-PDF.ppd', null, {href: '/assets/SumUp-Rechnung-PDF.ppd', download: 'SumUp-Rechnung-PDF.ppd'}), document.createTextNode(' wählen.'));
+  ol.append(mac); box.append(ol);
+}
+
 // ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
 const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-t2med-paid', 's-export']},
@@ -207,7 +227,7 @@ function renderChecklist(data) {
     {done: !!value('printing', 'enabled'), optional: true, label: 'Bondrucker eingerichtet', card: 's-printers'},
     {done: !!value('office_printing', 'enabled'), optional: true, label: 'Praxisdrucker (A4) eingerichtet', card: 's-printers'},
     {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
-    {done: !!value('invoice_inbox', 'enabled'), optional: true, label: 'T2med-Rechnungen über „SumUp-Rechnung“ übernehmen', card: 's-invoice_inbox'},
+    {done: !!(data.invoice_printer && data.invoice_printer.queue && data.invoice_printer.queue.ours), optional: true, label: 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen', card: 's-invoice_inbox'},
     {info: true, label: 'Arbeitsplätze: Starter-Paket auf jedem Kassen-PC einmal installieren', card: 's-clients'},
   ];
   const list = $('checklist'); list.replaceChildren();
@@ -302,6 +322,8 @@ function renderPrinters(data) {
     const text = el('span'); text.append(el('strong', q.name), document.createTextNode(' · ' + q.address + (q.state ? ' · ' + q.state : '')));
     if (q.role) text.append(el('em', '  – verwendet als ' + printerRole(q), 'role'));
     row.append(text);
+    // Virtuelle Drucker für T2med (Rechnungseingang, Terminzettel) werden über ihre eigenen Bereiche verwaltet.
+    if (/^(kienzle-sumup|terminzettel):/.test(q.uri)) { text.append(el('em', '  – virtueller Drucker für T2med', 'role')); list.append(row); continue; }
     const kind = el('select', null, 'compact', {'aria-label': 'Verwenden als'});
     for (const [id, k] of Object.entries(printerKinds)) kind.append(el('option', 'als ' + k.label.replace(' im Netzwerk (IPP / AirPrint)', ''), null, {value: id}));
     kind.value = q.role === 'office' ? 'office' : (/m30/i.test(q.name + q.description) ? 'tm-m30iii' : (q.role === 'receipt' || /tm|bon/i.test(q.name) ? 'tm-m10' : 'office'));

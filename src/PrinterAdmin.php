@@ -116,6 +116,7 @@ class PrinterAdmin {
     /** Lesbare Adresse für die Anzeige, z. B. „192.168.1.80“ oder „USB“. */
     public static function address(string $uri): string {
         if (str_starts_with($uri, 'usb:')) return 'USB';
+        if (preg_match('/^(kienzle-sumup|terminzettel):/', $uri)) return 'auf diesem Server';
         if (str_starts_with($uri, 'dnssd:')) return 'Netzwerk (automatisch gefunden)';
         $host = parse_url($uri, PHP_URL_HOST);
         return is_string($host) ? trim($host, '[]') : $uri;
@@ -125,6 +126,9 @@ class PrinterAdmin {
         if (str_starts_with($uri, 'usb://')) return trim(str_replace('/', ' ', rawurldecode(explode('?', substr($uri, 6))[0])));
         return 'Gerät unter ' . self::address($uri);
     }
+
+    /** lpadmin-Aufruf für eigene virtuelle Drucker (Fehler im Klartext). */
+    public function command(array $args): string { return $this->call($args, 60); }
 
     private function call(array $args, int $timeout, bool $allowEmpty = false): string {
         $result = ($this->run)($args, $timeout);

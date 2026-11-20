@@ -216,6 +216,7 @@ final class Settings {
         $db->query('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at',
             [self::ROW, self::encrypt($overrides, $base), time()]);
         Terminzettel::sync($config, $overrides['terminzettel'] ?? []);
+        if ($section === 'invoice_inbox') InvoicePrinter::sync($config);
         return $config;
     }
 

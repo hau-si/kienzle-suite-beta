@@ -83,7 +83,7 @@ final class SettingsHelp {
             'options' => ['small' => 'ca. 2 cm', 'medium' => 'ca. 3 cm (Standard)', 'large' => 'ca. 4 cm']],
         'terminzettel.qr_summary' => ['tip' => 'Steht im Kalender vor der Terminart. Leer = nur die Terminart.', 'example' => 'Praxis Musterfrau'],
         'terminzettel.cut' => ['tip' => 'Bon nach dem Druck abschneiden (Teilschnitt).'],
-        'invoice_inbox.enabled' => ['tip' => 'In T2med die Rechnung auf den Drucker „SumUp-Rechnung“ drucken; sie erscheint dann auf der Kartenzahlungsseite zum Kassieren.'],
+        'invoice_inbox.enabled' => ['tip' => 'Beim Speichern legt die Seite den Drucker „SumUp-Rechnung“ auf diesem Server an (Ausschalten entfernt ihn). In T2med die Rechnung darauf drucken; sie erscheint dann auf der Kartenzahlungsseite zum Kassieren.'],
         'invoice_inbox.max_age_days' => ['tip' => 'Wie lange eine gedruckte, noch unbezahlte Rechnung angeboten wird.', 'example' => '14'],
         'invoice_export.enabled' => ['tip' => 'Legt die Rechnungs-PDF zusätzlich in einem Netzwerkordner ab, z. B. für die Steuerberatung.'],
         'invoice_export.share' => ['tip' => 'Nur Rechner und Freigabe, ohne Unterordner. Unter Windows sieht das so aus: \\\\nas\\steuerberater.', 'example' => '//nas/steuerberater'],

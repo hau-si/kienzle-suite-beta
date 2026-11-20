@@ -41,6 +41,7 @@ jobs:
       - run: php tests/mail-mime.php
       - run: python3 tests/tls-pin.py
       - run: python3 -m py_compile scripts/invoice-printer/kienzle-sumup-backend.py
+      - run: python3 -B tests/invoice-backend.py
       - run: php -l scripts/export-invoices.php
       - run: find src public scripts -name '*.php' -exec php -l {} \;
       - run: bash -n scripts/install-server.sh scripts/install-invoice-printer.sh client/install-linux.sh client/install-macos.command
@@ -91,6 +92,10 @@ jobs:
           sudo php -r 'require "/opt/kienzle-sumup/src/bootstrap.php"; $c=ks_app()->config; exit($c->get("printing","queue") === "CI-Bon" && $c->get("printing","width_dots") === 576 ? 0 : 1);'
           curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"printer_remove","name":"CI-Bon"}' "https://$host/settings-api.php" | grep -q 'entfernt'
           ! lpstat -v CI-Bon 2>/dev/null
+          # Drucker „SumUp-Rechnung“ ohne sudo: Einschalten im Browser legt ihn an, Ausschalten entfernt ihn.
+          curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"save","section":"invoice_inbox","values":{"enabled":true}}' "https://$host/settings-api.php" | grep -q 'ist eingerichtet'
+          lpstat -v SumUp-Rechnung | grep -q 'kienzle-sumup:/'
+          sudo test -s /etc/kienzle-sumup-printer/web/printer.json
           # Terminzettel: virtueller Drucker vorhanden, Layout und Bondrucker kommen aus dem Webinterface.
           lpstat -v Terminzettel | grep -q 'terminzettel:/'
           curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"printer_add","kind":"tm-m30iii","name":"CI-Bon2","address":"socket://127.0.0.1:9100"}' "https://$host/settings-api.php" | grep -q 'eingerichtet'

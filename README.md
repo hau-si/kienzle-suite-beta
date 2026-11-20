@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.11**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.12**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -171,16 +171,16 @@ Netzwerkordner (auch nur für App-Rechnungen) steht unter **Einstellungen → Ab
 Netzwerkordner**; „Schreibzugriff prüfen“ legt dort kurz eine Testdatei an und löscht sie wieder.
 Der stündliche Timer für fehlgeschlagene Ablagen ist immer eingerichtet.
 
-**Druckserver:** Läuft der Druckserver auf demselben Rechner wie Kienzle-SumUp, genügt im
-Projektverzeichnis:
+**Druckserver:** Läuft T2med-Druck über diesen Server, ist nichts weiter zu tun: Beim Speichern von
+„T2med-Rechnungen übernehmen“ legt die Einstellungsseite den Drucker **„SumUp-Rechnung“** selbst an
+(Ausschalten entfernt ihn wieder) – ohne Terminal und ohne `sudo`. Der Server-Installer hat dafür
+einmalig das CUPS-Backend und die PPD abgelegt; Adresse, Schlüssel und Zertifikat schreibt die
+Anwendung nach `/etc/kienzle-sumup-printer/web/`. Die Karte „Drucker „SumUp-Rechnung““ im Reiter
+„Einrichtung“ zeigt den Zustand und die Adresse für Windows.
 
-```bash
-sudo bash scripts/install-invoice-printer.sh
-```
-
-Für einen anderen Druckserver (z. B. kienzlebox) auf der Einstellungsseite
-**„Einrichtungsdatei herunterladen“** wählen, die Datei `kienzle-sumup-drucker.json` geschützt
-dorthin kopieren und angeben:
+Nur für einen **anderen** Druckserver (z. B. kienzlebox) auf der Einstellungsseite
+**„Einrichtungsdatei herunterladen“** wählen, die Datei `kienzle-sumup-drucker.json` geschützt dorthin
+kopieren und dort ausführen:
 
 ```bash
 sudo bash scripts/install-invoice-printer.sh /pfad/zu/kienzle-sumup-drucker.json
@@ -623,7 +623,8 @@ meldet Fehler im Klartext. Vorhandene Warteschlangen (z. B. von Hand angelegt) k
 Webmenü des Druckers „Sicherer Druck“ ausschalten. Ein Bondrucker per Bluetooth an einem
 anderen Rechner bleibt eine Samba-Freigabe (Einstellungen → Bondrucker → Verbindung).
 
-Dafür installiert der Server-Installer den Druckdienst `cups` und nimmt den Dienstbenutzer
+Damit sind alle Drucker – Bondrucker, A4-Drucker, „SumUp-Rechnung“ und der Terminzettel – ohne `sudo`
+einzurichten. Dafür installiert der Server-Installer einmalig den Druckdienst `cups` und nimmt den Dienstbenutzer
 `kienzle-sumup` in die Gruppe `lpadmin` auf (Verwaltung des lokalen Druckdienstes).
 
 Admin-Passwort vergessen: `sudo bash scripts/install-server.sh --admin-reset` gibt einen neuen

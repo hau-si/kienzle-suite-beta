@@ -19,6 +19,8 @@ import urllib.request
 
 CONFIG = "/etc/kienzle-sumup-printer/printer.json"
 CERT = "/etc/kienzle-sumup-printer/server.crt"
+# Vom Webinterface auf demselben Server geschrieben (Einstellungen → T2med-Rechnungen übernehmen).
+WEB_DIR = "/etc/kienzle-sumup-printer/web"
 MAX_INPUT = 5 * 1024 * 1024
 LABEL = "SumUp-Rechnung"
 
@@ -27,14 +29,30 @@ class Failure(Exception):
     """Feste, vom Programm vorgegebene Fehlertexte."""
 
 
-def load_config():
+def read_plain(path, limit=65536):
+    """Nur eine echte Datei lesen (kein symbolischer Link, keine Gerätedatei), höchstens limit Bytes.
+
+    Das Backend läuft hier noch als root; der Web-Ordner gehört dem Dienstbenutzer der Anwendung.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not (info.st_mode & 0o170000 == 0o100000) or info.st_size > limit:
+            raise OSError("not a small regular file")
+        return stream.read(limit + 1).decode("utf-8")
+
+
+def load_config(config=CONFIG, cert_path=CERT, web_dir=WEB_DIR):
+    # Webinterface hat Vorrang (aktueller Schlüssel); sonst die per Skript eingerichtete Datei.
+    web = (os.path.join(web_dir, "printer.json"), os.path.join(web_dir, "server.crt"))
+    paths = web if os.path.lexists(web[0]) else (config, cert_path)
     try:
-        with open(CONFIG, encoding="utf-8") as stream:
-            cfg = json.load(stream)
-        with open(CERT, encoding="ascii") as stream:
-            cert = stream.read()
-    except (OSError, ValueError):
-        raise Failure("Konfiguration fehlt. Bitte scripts/install-invoice-printer.sh ausführen.")
+        cfg = json.loads(read_plain(paths[0]))
+        cert = read_plain(paths[1])
+        if not isinstance(cfg, dict):
+            raise ValueError
+    except (OSError, ValueError, UnicodeError):
+        raise Failure("Konfiguration fehlt. Bitte in den Einstellungen „T2med-Rechnungen übernehmen“ einschalten.")
     url = cfg.get("server_url", "")
     key = cfg.get("inbox_key", "")
     if not isinstance(url, str) or not url.startswith("https://") or any(c in url for c in "?#@ \t\r\n"):

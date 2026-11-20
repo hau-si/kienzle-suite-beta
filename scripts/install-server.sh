@@ -18,7 +18,7 @@ for arg in "$@"; do
   esac
 done
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups ghostscript
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
 if ! id kienzle-sumup >/dev/null 2>&1; then useradd --system --home-dir /var/lib/kienzle-sumup --shell /usr/sbin/nologin kienzle-sumup; fi
 install -d -m 750 -o root -g kienzle-sumup /etc/kienzle-sumup
@@ -26,6 +26,13 @@ install -d -m 700 -o kienzle-sumup -g kienzle-sumup /var/lib/kienzle-sumup
 # Drucker im Browser einrichten: CUPS-Verwaltung über die Gruppe lpadmin (nur lokaler Druckdienst).
 usermod -aG lpadmin kienzle-sumup
 systemctl enable --now cups.service >/dev/null 2>&1 || true
+# Drucker „SumUp-Rechnung“: Backend und PPD einmalig als root ablegen; anlegen/entfernen danach im Browser
+# (Einstellungen → T2med-Rechnungen übernehmen). Verbindungsdaten schreibt die Anwendung nach …/web.
+install -d -m 755 -o root -g root /etc/kienzle-sumup-printer
+install -d -m 700 -o kienzle-sumup -g kienzle-sumup /etc/kienzle-sumup-printer/web
+install -m 700 -o root -g root "$source_dir/scripts/invoice-printer/kienzle-sumup-backend.py" /usr/lib/cups/backend/kienzle-sumup
+install -d -m 755 /usr/share/ppd/kienzle-sumup
+install -m 644 "$source_dir/scripts/invoice-printer/sumup-rechnung.ppd" /usr/share/ppd/kienzle-sumup/sumup-rechnung.ppd
 # T2med-Terminzettel (Ordner terminzettel/): virtueller Drucker „Terminzettel“ → Bon auf dem Bondrucker.
 # Ohne Rückfragen; Layout und Zielbondrucker kommen aus dem Webinterface. Bei Fehlern bleibt
 # Kienzle-SumUp lauffähig, der Terminzettel-Installer nimmt seine Änderungen selbst zurück.
@@ -175,7 +182,7 @@ Restart=on-failure
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup /run/kienzle-sumup-php -/etc/terminzettel/web
+ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup /run/kienzle-sumup-php -/etc/terminzettel/web /etc/kienzle-sumup-printer/web
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -268,6 +275,8 @@ if [ "$export_timer" = 1 ]; then systemctl enable --now kienzle-sumup-export.tim
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
 echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'
+# Drucker „SumUp-Rechnung“ an die gespeicherten Einstellungen angleichen (bei eingeschaltetem Rechnungseingang).
+runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/invoice-printer-sync.php || echo 'Warnung: Drucker „SumUp-Rechnung“ nicht abgeglichen (Einstellungen → Speichern wiederholt es).'
 if [ "$terminzettel_ok" = 1 ]; then
   # Zielbondrucker und gespeichertes Layout an den Terminzettel übergeben.
   runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/terminzettel-sync.php || echo 'Warnung: Terminzettel-Einstellungen nicht übertragen.'

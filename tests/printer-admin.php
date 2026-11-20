@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // Drucker im Browser einrichten (CUPS simuliert) und Arbeitsplatz-Pakete (ZIP).
 require dirname(__DIR__) . '/src/bootstrap.php';
-use KienzleSumup\{Admin, ClientPackage, Config, Database, PrinterAdmin, Problem, Settings, SettingsPage};
+use KienzleSumup\{Admin, ClientPackage, Config, Database, InvoicePrinter, PrinterAdmin, Problem, Settings, SettingsPage};
 
 function check(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 function problem(callable $fn, string $message, int $http): Problem {
@@ -106,6 +106,32 @@ try {
     // Vorhandene (nicht hier angelegte) Warteschlange als TM-m10 verwenden: Breite passt sich an.
     $page->handle('printer_use', ['name' => 'TMm10', 'kind' => 'tm-m10'], $session, $login['csrf']);
     check(Settings::effective($base)->get('printing', 'width_dots') === 420, 'Breite beim Modellwechsel nicht angepasst');
+
+    // Drucker „SumUp-Rechnung“ ohne Terminal: Einschalten legt ihn an, Ausschalten entfernt ihn.
+    $files = $state . '/invoice-printer'; mkdir($files . '/web', 0700, true);
+    InvoicePrinter::$dir = $files . '/web'; InvoicePrinter::$backend = $files . '/backend'; InvoicePrinter::$ppd = $files . '/sumup-rechnung.ppd';
+    InvoicePrinter::$certificate = $files . '/server.crt';
+    file_put_contents(InvoicePrinter::$backend, '#!/bin/sh'); file_put_contents(InvoicePrinter::$ppd, '*PPD-Adobe: "4.3"');
+    file_put_contents(InvoicePrinter::$certificate, "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n");
+    $r = $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true, 'max_age_days' => '14']], $session, $login['csrf']);
+    check(str_contains($r['message'], 'Drucker „SumUp-Rechnung“ ist eingerichtet'), 'Rechnungsdrucker nicht angelegt: ' . $r['message']);
+    $call = array_values(array_filter($cups->calls, fn($c) => basename($c[0]) === 'lpadmin' && in_array('SumUp-Rechnung', $c, true)))[0] ?? [];
+    check(($cups->queues['SumUp-Rechnung']['uri'] ?? '') === 'kienzle-sumup:/' && in_array('printer-is-shared=true', $call, true) && in_array(InvoicePrinter::$ppd, $call, true), 'lpadmin für SumUp-Rechnung falsch: ' . implode(' ', $call));
+    $cfg = json_decode((string)file_get_contents($files . '/web/printer.json'), true);
+    check($cfg['inbox_key'] === Settings::effective($base)->get('invoice_inbox', 'key') && str_starts_with($cfg['server_url'], 'https://'), 'Verbindungsdaten falsch');
+    check((fileperms($files . '/web/printer.json') & 0777) === 0600 && is_file($files . '/web/server.crt'), 'Verbindungsdaten nicht geschützt');
+    check($r['invoice_printer']['queue']['ours'] === true, 'Status zeigt den Drucker nicht');
+    $before = count($cups->calls);
+    $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true]], $session, $login['csrf']);
+    check(!array_filter(array_slice($cups->calls, $before), fn($c) => basename($c[0]) === 'lpadmin'), 'Vorhandener Drucker erneut angelegt');
+    $r = $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => false]], $session, $login['csrf']);
+    check(!isset($cups->queues['SumUp-Rechnung']) && !is_file($files . '/web/printer.json') && str_contains($r['message'], 'entfernt'), 'Ausschalten entfernt den Drucker nicht');
+    $cups->queues['SumUp-Rechnung'] = ['uri' => 'ipp://fremd/', 'desc' => 'Fremd'];
+    $r = $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true]], $session, $login['csrf']);
+    check(str_contains($r['message'], 'anderen Drucker') && $cups->queues['SumUp-Rechnung']['uri'] === 'ipp://fremd/', 'Fremder Drucker überschrieben');
+    unset($cups->queues['SumUp-Rechnung']);
+    unlink(InvoicePrinter::$backend);
+    check(str_contains($page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true]], $session, $login['csrf'])['message'], 'Server-Installer'), 'Fehlendes Backend nicht gemeldet');
 
     // Arbeitsplatz-Pakete: echtes ZIP mit Konfiguration, Zertifikat, Skript und Rechten.
     $cert = $state . '/server.crt';
