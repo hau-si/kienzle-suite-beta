@@ -303,7 +303,7 @@ function renderChecklist(data) {
     {title: 'In T2med', hint: 'Einstellungen in der Praxissoftware', items: [
       {done: data.fhir_mode === 'live', label: data.fhir_mode === 'live' ? 'FHIR-Schnittstelle eingerichtet (T2med-Anbindung live)' : 'FHIR-Schnittstelle einrichten: T2med-Anbindung noch im Testmodus', card: 's-fhir'},
       {info: true, label: 'Drittanbieter-Zugriff „Kienzle-SumUp“ mit Menüleisten-Button anlegen (Aufruf-Adresse steht bei der T2med-Anbindung)', card: 's-fhir'},
-      {info: true, label: 'Terminlisten-Plugin: In T2med unter Einstellungen den Drucker „Terminliste (DIN A6)“ wählen', card: 's-terminzettel', detail: tz.printer_url || ''},
+      {info: true, label: 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen', card: 's-terminzettel', detail: tz.printer_url || ''},
       {done: invoiceQueue, optional: true, label: 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen (in T2med dorthin drucken)', card: 's-invoice_inbox'},
     ]},
   ];
@@ -365,7 +365,7 @@ function terminzettelCard(card, form, section, info) {
   const how = el('details', null, 'tz-how'); how.append(el('summary', 'Drucker „Terminzettel“ auf den Arbeitsplätzen hinzufügen'));
   const ol = el('ol');
   ol.append(el('li', 'Windows: Einstellungen → Drucker → Drucker hinzufügen → „Der gewünschte Drucker ist nicht aufgeführt“ → „Freigegebenen Drucker über den Namen auswählen“: ' + info.printer_url + ' – Treiber „Microsoft IPP Class Driver“.'));
-  ol.append(el('li', 'In T2med beim Terminlisten-Plugin den Drucker „Terminliste (DIN A6)“ wählen.'));
+  ol.append(el('li', 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen.'));
   const mac = el('li'); mac.append(document.createTextNode('Mac: „Terminzettel“ unter Drucker hinzufügen wählen, als Treiber '), el('a', 'Terminzettel-PDF.ppd', null, {href: '/assets/Terminzettel-PDF.ppd', download: 'Terminzettel-PDF.ppd'}), document.createTextNode(' (Verwenden → Andere …).')); ol.append(mac);
   how.append(ol);
   const grid = el('div', null, 'tz-grid'); const left = el('div'); const right = el('aside', null, 'tz-preview');
