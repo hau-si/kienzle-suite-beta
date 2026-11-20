@@ -1,9 +1,10 @@
-Version 1.4.1-rechnung.35 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.36 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.36: Letterxpress: PDF wird ohne Objektströme neu geschrieben; bei Ablehnung nennt die Meldung Version, Seitenformat, Drehung und Verschlüsselung des gesendeten PDFs.
 - Neu in rechnung.35: Letterxpress: PDFs mit Rechteschutz werden vor dem Senden mit qpdf entfernt (qpdf kommt mit dem Server-Installer); verständliche Meldungen bei fehlender Anschrift bzw. verschlüsseltem PDF.
 - Neu in rechnung.34: Rechnung per Post über Letterxpress (Einstellungen, Knopf auf Kasse und Rechnungseingang, Testmodus, Doppelsendeschutz).
 - Ebenfalls rechnung.34: Die Aktualisierung steht wieder unter Einstellungen → Einrichtung (Block „Aktualisierung“); die Glocke

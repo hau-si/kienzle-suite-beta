@@ -30,10 +30,22 @@ final class Letterxpress {
         try {
             chmod($file, 0600);
             if (file_put_contents($file, $pdf) !== strlen($pdf)) return $pdf;
-            $result = Command::run([$binary, '--decrypt', '--warning-exit-0', $file, '-'], '', 30);
+            $result = Command::run([$binary, '--decrypt', '--object-streams=disable', '--warning-exit-0', $file, '-'], '', 30);
             return $result['code'] === 0 && str_starts_with($result['output'], '%PDF-') ? $result['output'] : $pdf;
         } catch (\Throwable) { return $pdf; }
         finally { @unlink($file); }
+    }
+
+    /** Kurzbeschreibung des PDFs für Fehlermeldungen: Version, Seiten, Format, Drehung, Verschlüsselung. */
+    public static function describe(string $pdf): string {
+        $version = preg_match('/^%PDF-(\d\.\d)/', $pdf, $m) ? $m[1] : '?';
+        $pages = preg_match_all('#/Type\s*/Page(?![a-z])#', $pdf);
+        $sizes = [];
+        if (preg_match_all('#/MediaBox\s*\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', $pdf, $boxes, PREG_SET_ORDER))
+            foreach ($boxes as $b) $sizes[round($b[3] - $b[1]) . '×' . round($b[4] - $b[2])] = true;
+        $rotate = preg_match('#/Rotate\s+(-?\d+)#', $pdf, $r) ? $r[1] : '0';
+        return 'Version ' . $version . ', ' . ($pages ?: '?') . ' Seite(n), Format ' . ($sizes ? implode('/', array_keys($sizes)) : 'unbekannt') . ' pt (A4 hoch = 595×842), Drehung ' . $rotate
+            . ', ' . (str_contains($pdf, '/Encrypt') ? 'verschlüsselt' : 'unverschlüsselt');
     }
 
     private function reason(array $response): string {
@@ -92,7 +104,7 @@ final class Letterxpress {
                 $this->db->query("UPDATE invoice_inbox SET lxp_status='unknown',lxp_mode=?,lxp_error=? WHERE id=?", [$this->mode(), 'Antwort blieb aus', $inboxId]);
                 throw new Problem('Letterxpress hat nicht rechtzeitig geantwortet. Ob der Brief angenommen wurde, ist unklar: bitte den Postausgang bei Letterxpress prüfen und nicht erneut senden.', 502);
             }
-            if ($response['status'] !== 200) throw new Problem($this->reason($response), 502);
+            if ($response['status'] !== 200) throw new Problem($this->reason($response) . ' PDF: ' . self::describe(base64_decode($file, true) ?: '') . '.', 502);
             $id = $response['body']['data']['id'] ?? '';
             $job = is_scalar($id) ? preg_replace('/[^0-9A-Za-z_-]/', '', (string)$id) : '';
             $this->db->query("UPDATE invoice_inbox SET lxp_status='sent',lxp_job_id=?,lxp_sent_at=?,lxp_mode=?,lxp_error='' WHERE id=?", [$job, time(), $this->mode(), $inboxId]);
