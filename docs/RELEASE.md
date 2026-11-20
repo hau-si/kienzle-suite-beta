@@ -4,6 +4,7 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.30: README mit Funktionsübersicht und aktuellen Screenshots (Testdaten, `docs/screenshots/`).
 - Neu in rechnung.29: Rechnungseingang zeigt Name und Geburtsdatum und erlaubt das Löschen nicht bezahlter Rechnungen.
   Bezahlte T2med-Rechnungen lassen sich nachträglich stornieren oder im Betrag korrigieren (Statistik und Excel;
   Original bleibt erhalten, Datenbank Version 13).

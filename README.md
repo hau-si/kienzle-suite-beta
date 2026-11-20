@@ -2,12 +2,63 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.19**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.30**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
 > [T2med-Rechnung kassieren](#t2med-rechnung-kassieren). Die Starter für die Arbeitsplätze
 > sind unverändert und kommen weiterhin aus dem Original-Release `v1.4.1`.
+
+## Funktionen im Überblick
+
+Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
+
+**Kassieren aus T2med**
+- Leistungen und Kombinationen auswählen, Betrag am SumUp Solo kassieren (Karte) oder bar buchen,
+  danach bewusst in der Patientenakte dokumentieren (FHIR, Aktenkürzel einstellbar).
+- **GOÄ-Angaben und GOÄ-Rechner:** Der Faktor wird so berechnet (bis zu vier Nachkommastellen), dass der
+  gewünschte Euro-Betrag genau getroffen wird; Begründung ab dem Schwellenwert.
+- Eigener Beleg als PDF (Rechnung oder Leistungsbeleg, Mehrwertsteuer je Leistung oder Kleinunternehmer),
+  per E-Mail versendbar, auf Wunsch direkt auf dem Epson-Bondrucker (TM-m10 oder TM-m30III) oder dem
+  Praxisdrucker gedruckt.
+- Schutz vor Doppelzahlungen, Terminalsperre, Statusabgleich bei verlorenen Antworten.
+
+<p align="center"><img src="docs/screenshots/01-kasse-t2med-rechnung.png" width="420" alt="Kasse mit offener T2med-Rechnung"> <img src="docs/screenshots/03-goae-rechner.png" width="420" alt="GOÄ-Rechner"></p>
+
+**T2med-Rechnungen kassieren** (virtueller Drucker „SumUp-Rechnung“)
+- Eine in T2med erstellte Rechnung wird auf den Drucker „SumUp-Rechnung“ gedruckt, vom Server gelesen
+  (Textebene, zweiter Leseversuch in Lesereihenfolge, bei Bild-PDFs Texterkennung) und beim passenden Patienten
+  zum Kassieren angeboten. Die Zuordnung erfolgt über **Name und Geburtsdatum**.
+- Robuste Erkennung auch für andere Rechnungsvorlagen: eigene **Textschnipsel** vor Nummer, Datum, Gesamtsumme,
+  Überweisungsbetrag und Patient lassen sich einstellen. Abweichende Beträge werden abgelehnt.
+- Karte **Rechnungseingang**: alle eingegangenen Rechnungen mit Status, Löschen nicht bezahlter Rechnungen und
+  abgelehnte Drucke mit Grund und maskierter Zeilenübersicht für die Fehlersuche.
+- Liste der bezahlten Rechnungen zum **Abhaken in T2med**, mit **nachträglicher Korrektur** (stornieren oder
+  Betrag ändern, Original bleibt erhalten) und Excel-Export.
+
+<p align="center"><img src="docs/screenshots/04-rechnungseingang.png" width="420" alt="Rechnungseingang"> <img src="docs/screenshots/05-bezahlte-rechnungen-korrektur.png" width="420" alt="Bezahlte Rechnungen mit Korrektur"></p>
+
+**Buchhaltung und Drucken**
+- Excel-Export für die Steuerberatung (Jahr oder Monat, Brutto/Netto/MwSt., Barzahlungen gekennzeichnet),
+  Rechnungs-PDFs automatisch in einen Netzwerkordner (SMB) ablegen.
+- **Terminzettel:** Der virtuelle Drucker „Terminzettel“ druckt Terminlisten aus T2med als Bon mit
+  Kalender-QR auf dem Bondrucker.
+
+<p align="center"><img src="docs/screenshots/11-export-steuerberatung.png" width="420" alt="Export für die Steuerberatung"> <img src="docs/screenshots/10-terminzettel.png" width="420" alt="Terminzettel-Einstellungen"></p>
+
+**Einrichtung und Betrieb im Browser**
+- **Einrichtungs-Überblick** in drei Teilen: „In diesem Webfenster“, „Auf den Client-PCs“, „In T2med“.
+- Drucker am Server einrichten, Arbeitsplatz-Pakete (Windows, macOS, Linux) laden, Anleitungen für die
+  Druckerinstallation am Arbeitsplatz einschließlich PowerShell-Befehlen und der erkannten Server-Adressen.
+- **Aktualisieren per Klick** mit Sicherung und automatischem Zurücksetzen bei Fehlern.
+- **Netzwerk & Firewall:** Der Server erkennt sein Netz, schlägt die erlaubten Netze vor und richtet die
+  Firewall ein (nur private Netze, Dienste der Kienzle-Projekte vorbereitet, 2-Minuten-Bestätigung mit
+  automatischem Zurücksetzen).
+- **Sicherheit:** Sperre nach Fehlversuchen, Sitzungsablauf, Sicherheitsprotokoll, gehärtete Dienste und
+  Webserver, Absicherung gegen Fremdzugriffe (siehe [Sicherheit](#sicherheit)).
+
+<p align="center"><img src="docs/screenshots/06-einrichtungs-ueberblick.png" width="420" alt="Einrichtungs-Überblick"> <img src="docs/screenshots/08-firewall.png" width="420" alt="Netzwerk und Firewall"></p>
+<p align="center"><img src="docs/screenshots/07-update.png" width="420" alt="Aktualisierung"> <img src="docs/screenshots/09-sicherheitsprotokoll.png" width="420" alt="Sicherheitsprotokoll"></p>
 
 ## Video: Sumup in T2med anbinden
 
