@@ -366,6 +366,8 @@ function terminzettelCard(card, form, section, info) {
   const ol = el('ol');
   ol.append(el('li', 'Windows: Einstellungen → Drucker → Drucker hinzufügen → „Der gewünschte Drucker ist nicht aufgeführt“ → „Freigegebenen Drucker über den Namen auswählen“: ' + info.printer_url + ' – Treiber „Microsoft IPP Class Driver“.'));
   ol.append(el('li', 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen.'));
+  ol.append(el('li', 'Anderes Netz (z. B. VPN): Der Drucker erscheint dort nicht von selbst. Windows 11: Einstellungen → Bluetooth & Geräte → Drucker & Scanner → Gerät hinzufügen → „Manuell hinzufügen“. Löst sich der Servername im VPN nicht auf, statt des Namens die IP-Adresse des Servers eintragen (am Server: hostname -I), also http://<IP-Adresse>:631/printers/Terminzettel.'));
+  ol.append(el('li', 'Keine Verbindung? Das VPN-Netz muss unter „Netzwerk & Firewall“ erlaubt und „Druckfreigabe (Port 631 …)“ angehakt sein. Test in der Windows-PowerShell: Test-NetConnection <Adresse> -Port 631. Bei „Zugriff verweigert“ (403) lässt CUPS nur das lokale Netz zu: am Server sudo cupsctl --remote-any ausführen und die Firewall dabei eingeschaltet lassen.'));
   const mac = el('li'); mac.append(document.createTextNode('Mac: „Terminzettel“ unter Drucker hinzufügen wählen, als Treiber '), el('a', 'Terminzettel-PDF.ppd', null, {href: '/assets/Terminzettel-PDF.ppd', download: 'Terminzettel-PDF.ppd'}), document.createTextNode(' (Verwenden → Andere …).')); ol.append(mac);
   how.append(ol);
   const grid = el('div', null, 'tz-grid'); const left = el('div'); const right = el('aside', null, 'tz-preview');
