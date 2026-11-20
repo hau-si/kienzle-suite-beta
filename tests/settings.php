@@ -101,6 +101,12 @@ try {
     $overview = $page->handle('inbox_overview', [], $session, null);
     check($overview['enabled'] === true && $overview['items'] === [] && $overview['rejected'] === [], 'Eingangsübersicht falsch');
     problem(fn() => $page->handle('inbox_overview', [], null, null), 'Eingangsübersicht ohne Anmeldung', 401);
+    problem(fn() => $page->handle('inbox_delete', ['id' => str_repeat('a', 32)], $session, 'falsch'), 'Löschen ohne CSRF-Token', 403);
+    problem(fn() => $page->handle('inbox_delete', ['id' => 'x'], $session, $login['csrf']), 'Ungültige ID beim Löschen', 422);
+    problem(fn() => $page->handle('inbox_delete', ['id' => str_repeat('a', 32)], $session, $login['csrf']), 'Unbekannte Rechnung gelöscht', 404);
+    problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'void'], $session, 'falsch'), 'Korrektur ohne CSRF-Token', 403);
+    problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'amount', 'amount' => 'abc'], $session, $login['csrf']), 'Ungültiger Betrag bei Korrektur', 400);
+    problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'void'], $session, $login['csrf']), 'Unbekannte Zahlung storniert', 404);
 
     for ($i = 0; $i < 5; $i++) { try { $admin->login('falsch'); } catch (Problem) {} }
     problem(fn() => $admin->login('ein-langes-passwort'), 'Keine Sperre nach Fehlversuchen', 429);

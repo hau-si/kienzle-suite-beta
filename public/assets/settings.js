@@ -549,24 +549,50 @@ function t2medPaidSetup(years, mode) {
 }
 function renderT2medPaid(data) {
   const table = $('t2med-table'); table.replaceChildren();
-  const sum = data.rows.reduce((t, r) => t + r.amount_cents, 0);
   const euro = c => (c / 100).toLocaleString('de-DE', {style: 'currency', currency: 'EUR'});
   const date = d => d ? d.split('-').reverse().join('.') : '';
+  const sum = data.rows.reduce((t, r) => t + r.amount_cents, 0);
+  const voided = data.rows.filter(r => r.voided).length;
   badge('abrechnung', data.open_total);
-  $('t2med-summary').textContent = data.rows.length ? data.rows.length + ' Rechnungen, zusammen ' + euro(sum) + '. Noch nicht abgehakt insgesamt: ' + data.open_total + '.' : 'Keine Rechnungen für diese Auswahl.' + (data.open_total ? '' : ' Alles abgehakt.');
+  $('t2med-summary').textContent = data.rows.length ? (data.rows.length - voided) + ' Rechnungen, zusammen ' + euro(sum) + (voided ? ' (' + voided + ' storniert, nicht mitgezählt)' : '') + '. Noch nicht abgehakt insgesamt: ' + data.open_total + '.' : 'Keine Rechnungen für diese Auswahl.' + (data.open_total ? '' : ' Alles abgehakt.');
   if (!data.rows.length) return;
   const t = el('table'); const head = el('tr');
   const all = el('input', null, null, {type: 'checkbox', 'aria-label': 'Alle auswählen'}); const th = el('th'); th.append(all); head.append(th);
-  for (const h of ['Re.-Nr.', 'Re.-Datum', 'Patient', 'Geb.', 'Betrag', 'Bezahlt', 'Abgehakt']) head.append(el('th', h));
+  for (const h of ['Re.-Nr.', 'Re.-Datum', 'Patient', 'Geb.', 'Betrag', 'Bezahlt', 'Abgehakt', '']) head.append(el('th', h));
   t.append(head);
   for (const r of data.rows) {
-    const tr = el('tr', null, r.done_date ? 'done' : ''); const td = el('td'); const c = el('input', null, null, {type: 'checkbox', value: r.id, 'aria-label': 'Rechnung ' + r.number}); td.append(c); tr.append(td);
-    for (const v of [r.number + (r.test ? ' (Test)' : ''), date(r.invoice_date), r.patient, date(r.birthdate), euro(r.amount_cents), date(r.paid_date) + ' ' + r.paid_time, date(r.done_date) || '–']) tr.append(el('td', v));
-    tr.onclick = e => { if (e.target !== c) c.checked = !c.checked; };
+    const tr = el('tr', null, (r.done_date ? 'done ' : '') + (r.voided ? 'voided' : '')); const td = el('td'); const c = el('input', null, null, {type: 'checkbox', value: r.id, 'aria-label': 'Rechnung ' + r.number}); td.append(c); tr.append(td);
+    const amount = r.voided ? 'storniert' : euro(r.amount_cents) + (r.corrected ? ' (bezahlt: ' + euro(r.original_cents) + ')' : '');
+    for (const v of [r.number + (r.test ? ' (Test)' : ''), date(r.invoice_date), r.patient, date(r.birthdate), amount, date(r.paid_date) + ' ' + r.paid_time, date(r.done_date) || '–']) tr.append(el('td', v));
+    const fix = el('button', 'Korrigieren', 'secondary small-button', {type: 'button'});
+    fix.onclick = e => { e.stopPropagation(); correctionPanel(r, table, euro); };
+    const last = el('td'); last.append(fix); tr.append(last);
+    tr.onclick = e => { if (e.target === c || e.target === fix) return; c.checked = !c.checked; };
     t.append(tr);
   }
   all.onchange = () => t.querySelectorAll('td input').forEach(c => { c.checked = all.checked; });
   table.append(t);
+}
+// Nachträgliche Korrektur einer bezahlten Rechnung (nur Statistik und Excel; keine Erstattung bei SumUp).
+function correctionPanel(r, table, euro) {
+  const old = table.querySelector('.t2med-correct'); if (old) old.remove();
+  const box = el('div', null, 't2med-correct');
+  box.append(el('h3', 'Korrektur: Rechnung ' + r.number + (r.patient ? ' – ' + r.patient : '')));
+  box.append(el('p', 'Per Karte bezahlt: ' + euro(r.original_cents) + '. Die Korrektur ändert nur die Statistik und die Excel-Liste. Eine Erstattung an den Patienten erfolgt nicht automatisch, sie muss im SumUp-Konto vorgenommen werden. Das Original bleibt gespeichert.', 'muted small'));
+  const f1 = el('div', null, 'field'); f1.append(el('label', 'Richtiger Betrag in Euro'));
+  const amount = el('input', null, null, {type: 'text', inputmode: 'decimal', value: ((r.voided ? r.original_cents : r.amount_cents) / 100).toFixed(2).replace('.', ',')}); f1.append(amount);
+  const f2 = el('div', null, 'field'); f2.append(el('label', 'Notiz (optional, z. B. Grund)'));
+  const note = el('input', null, null, {type: 'text', maxlength: '200', value: r.note || ''}); f2.append(note);
+  const buttons = el('div', null, 'row-buttons');
+  const send = (change, button, confirmText) => { if (confirmText && !confirm(confirmText)) return; busy(button, async () => {
+    const result = await api('t2med_correct', {id: r.id, change, amount: amount.value, note: note.value, filter: t2medFilter}); renderT2medPaid(result); message(result.message); }); };
+  const save = el('button', 'Betrag ändern', 'primary', {type: 'button'}); save.onclick = () => send('amount', save);
+  const cancel = el('button', 'Zahlung stornieren', 'secondary', {type: 'button'}); cancel.onclick = () => send('void', cancel, 'Zahlung für Rechnung ' + r.number + ' stornieren? Sie zählt dann nicht mehr in der Statistik. Das Geld wird dadurch NICHT erstattet.');
+  buttons.append(save, cancel);
+  if (r.voided || r.corrected) { const undo = el('button', 'Korrektur zurücknehmen', 'secondary', {type: 'button'}); undo.onclick = () => send('restore', undo); buttons.append(undo); }
+  const close = el('button', 'Schließen', 'secondary', {type: 'button'}); close.onclick = () => box.remove(); buttons.append(close);
+  box.append(f1, f2, buttons);
+  table.append(box); box.scrollIntoView({block: 'nearest'});
 }
 
 // ---- Arbeitsplätze ---------------------------------------------------------------------
@@ -629,12 +655,19 @@ function renderInbox(data) {
   if (!data.items.length) box.append(el('p', 'Noch keine Rechnung eingegangen.', 'muted'));
   else {
     const table = el('table', null, 'fw-table'), head = el('tr');
-    for (const h of ['Eingang', 'Nummer', 'Betrag', 'Patient', 'Status']) head.append(el('th', h));
+    for (const h of ['Eingang', 'Nummer', 'Betrag', 'Patient', 'Geb.', 'Status', '']) head.append(el('th', h));
     table.append(head);
     for (const r of data.items) {
       const tr = el('tr');
-      for (const v of [when(r.received_at), r.number, euro(r.amount_cents), r.initials + (r.birth_year ? ' (' + r.birth_year + ')' : ''), inboxState[r.status] || r.status]) tr.append(el('td', v));
-      table.append(tr);
+      const born = r.birthdate ? r.birthdate.split('-').reverse().join('.') : '';
+      for (const v of [when(r.received_at), r.number, euro(r.amount_cents), r.patient, born, inboxState[r.status] || r.status]) tr.append(el('td', v));
+      const last = el('td');
+      if (r.deletable) {
+        const del = el('button', 'Löschen', 'secondary small-button', {type: 'button', 'aria-label': 'Rechnung ' + r.number + ' löschen'});
+        del.onclick = () => { if (!confirm('Rechnung ' + r.number + ' (' + r.patient + ', ' + euro(r.amount_cents) + ') aus dem Eingang löschen?')) return; busy(del, async () => { const res = await api('inbox_delete', {id: r.id}); renderInbox(res); message(res.message); }); };
+        last.append(del);
+      }
+      tr.append(last); table.append(tr);
     }
     box.append(table);
   }

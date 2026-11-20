@@ -13,21 +13,21 @@ final class Database {
     }
     public function migrate(): void {
         $version = (int)$this->pdo->query('PRAGMA user_version')->fetchColumn();
-        if ($version > 12) throw new \RuntimeException('Datenbank ist neuer als die Anwendung.');
-        if ($version === 12) return;
+        if ($version > 13) throw new \RuntimeException('Datenbank ist neuer als die Anwendung.');
+        if ($version === 13) return;
         $this->transaction(function (): void {
             $this->pdo->exec((string)file_get_contents(__DIR__ . '/schema.sql'));
             foreach (['services' => ['goae_code' => "TEXT NOT NULL DEFAULT ''", 'factor' => "TEXT NOT NULL DEFAULT ''", 'fee_type' => "TEXT NOT NULL DEFAULT 'standard'", 'on_request' => 'INTEGER NOT NULL DEFAULT 0', 'vat' => 'INTEGER NOT NULL DEFAULT 0', 'base_cents' => 'INTEGER NOT NULL DEFAULT 0'],
                 'visits' => ['patient_address' => "TEXT NOT NULL DEFAULT '[]'"], 'payments' => ['invoice_json' => 'TEXT', 'inbox_id' => 'TEXT', 't2med_invoice' => 'TEXT',
                     'export_status' => "TEXT NOT NULL DEFAULT ''", 'export_error' => "TEXT NOT NULL DEFAULT ''", 'export_path' => "TEXT NOT NULL DEFAULT ''",
-                    'auto_print' => 'INTEGER NOT NULL DEFAULT 0', 'print_status' => "TEXT NOT NULL DEFAULT ''", 'print_error' => "TEXT NOT NULL DEFAULT ''", 'print_info' => "TEXT NOT NULL DEFAULT ''", 't2med_done_at' => 'INTEGER', 'payment_method' => "TEXT NOT NULL DEFAULT 'card'"],
+                    'auto_print' => 'INTEGER NOT NULL DEFAULT 0', 'print_status' => "TEXT NOT NULL DEFAULT ''", 'print_error' => "TEXT NOT NULL DEFAULT ''", 'print_info' => "TEXT NOT NULL DEFAULT ''", 't2med_done_at' => 'INTEGER', 'payment_method' => "TEXT NOT NULL DEFAULT 'card'", 'corrected_cents' => 'INTEGER', 'voided_at' => 'INTEGER', 'correction_note' => "TEXT NOT NULL DEFAULT ''"],
                 'invoice_inbox' => ['pdf' => 'BLOB', 'export_status' => "TEXT NOT NULL DEFAULT ''", 'export_error' => "TEXT NOT NULL DEFAULT ''", 'export_path' => "TEXT NOT NULL DEFAULT ''"]] as $table => $columns) {
                 $existing = array_column($this->pdo->query('PRAGMA table_info(' . $table . ')')->fetchAll(), 'name');
                 foreach ($columns as $name => $type) if (!in_array($name, $existing, true)) $this->pdo->exec("ALTER TABLE $table ADD COLUMN $name $type");
             }
             // Erst nach dem Ergänzen der Spalten: Index für bereits kassierte T2med-Rechnungen.
             $this->pdo->exec('CREATE INDEX IF NOT EXISTS payment_t2med_invoice ON payments(t2med_invoice)');
-            $this->pdo->exec('PRAGMA user_version=12');
+            $this->pdo->exec('PRAGMA user_version=13');
         });
     }
     public function query(string $sql, array $params = []): \PDOStatement {

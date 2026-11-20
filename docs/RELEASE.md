@@ -4,6 +4,9 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.29: Rechnungseingang zeigt Name und Geburtsdatum und erlaubt das Löschen nicht bezahlter Rechnungen.
+  Bezahlte T2med-Rechnungen lassen sich nachträglich stornieren oder im Betrag korrigieren (Statistik und Excel;
+  Original bleibt erhalten, Datenbank Version 13).
 - Neu in rechnung.28: Einrichtungs-Überblick: Der Drucker „SumUp-Rechnung“ wird unter „Auf den Client-PCs“ installiert; in T2med folgt erst danach die Auswahl bzw. das Drucken auf den installierten Drucker.
 - Neu in rechnung.27: Druckeranleitungen zeigen die erkannten IP-Adressen des Servers; die PowerShell-Befehle sind damit sofort kopierbar (z. B. für Zugriffe aus dem VPN).
 - Neu in rechnung.26: PowerShell-Anleitung: bereits vorhandener Druckeranschluss ist kein Fehler mehr.

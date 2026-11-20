@@ -60,7 +60,7 @@ final class TaxExport {
     public function t2medPaid(string $status = 'open', int $year = 0, int $month = 0, bool $includeTest = false): array {
         if (!in_array($status, ['open', 'all'], true) || ($year !== 0 && ($year < 2000 || $year > 2100)) || $month < 0 || $month > 12 || ($month && !$year)) throw new Problem('Ungültige Auswahl.', 422);
         $where = ["p.payment_status='successful'", 'p.t2med_invoice IS NOT NULL']; $params = [];
-        if ($status === 'open') $where[] = 'p.t2med_done_at IS NULL';
+        if ($status === 'open') array_push($where, 'p.t2med_done_at IS NULL', 'p.voided_at IS NULL');
         if ($year) {
             $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
             $from = new \DateTimeImmutable(sprintf('%04d-%02d-01 00:00:00', $year, $month ?: 1), $zone);
@@ -69,15 +69,53 @@ final class TaxExport {
         }
         if (!$includeTest) $where[] = "p.reader_id<>'mock-reader'";
         $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
-        $rows = $this->db->query('SELECT p.id,p.t2med_invoice,p.amount_cents,p.paid_at,p.transaction_id,p.reader_id,p.t2med_done_at,i.invoice_date,i.patient_name,i.patient_birthdate
+        $rows = $this->db->query('SELECT p.id,p.t2med_invoice,p.amount_cents,p.paid_at,p.transaction_id,p.reader_id,p.t2med_done_at,p.corrected_cents,p.voided_at,p.correction_note,i.invoice_date,i.patient_name,i.patient_birthdate
             FROM payments p LEFT JOIN invoice_inbox i ON i.id=p.inbox_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.t2med_invoice', $params)->fetchAll();
         $date = static fn(?int $t): string => $t ? (new \DateTimeImmutable('@' . $t))->setTimezone($zone)->format('Y-m-d') : '';
         usort($rows, static fn($a, $b) => strnatcasecmp($a['t2med_invoice'], $b['t2med_invoice']));
-        return array_map(static fn($r) => ['id' => $r['id'], 'number' => $r['t2med_invoice'], 'invoice_date' => (string)($r['invoice_date'] ?? ''),
-            'patient' => (string)($r['patient_name'] ?? ''), 'birthdate' => (string)($r['patient_birthdate'] ?? ''), 'amount_cents' => (int)$r['amount_cents'],
-            'paid_date' => $date((int)$r['paid_at']), 'paid_time' => (new \DateTimeImmutable('@' . $r['paid_at']))->setTimezone($zone)->format('H:i'),
-            'transaction_id' => (string)$r['transaction_id'], 'done_date' => $date($r['t2med_done_at'] !== null ? (int)$r['t2med_done_at'] : null),
-            'test' => $r['reader_id'] === 'mock-reader'], $rows);
+        return array_map(static function ($r) use ($date, $zone) {
+            $voided = $r['voided_at'] !== null;
+            $corrected = $r['corrected_cents'] !== null;
+            return ['id' => $r['id'], 'number' => $r['t2med_invoice'], 'invoice_date' => (string)($r['invoice_date'] ?? ''),
+                'patient' => (string)($r['patient_name'] ?? ''), 'birthdate' => (string)($r['patient_birthdate'] ?? ''),
+                // Wirksamer Betrag für Statistik und Excel; das Original bleibt als SumUp-Betrag erhalten.
+                'amount_cents' => $voided ? 0 : ($corrected ? (int)$r['corrected_cents'] : (int)$r['amount_cents']), 'original_cents' => (int)$r['amount_cents'],
+                'voided' => $voided, 'corrected' => $corrected && !$voided, 'note' => (string)$r['correction_note'],
+                'paid_date' => $date((int)$r['paid_at']), 'paid_time' => (new \DateTimeImmutable('@' . $r['paid_at']))->setTimezone($zone)->format('H:i'),
+                'transaction_id' => (string)$r['transaction_id'], 'done_date' => $date($r['t2med_done_at'] !== null ? (int)$r['t2med_done_at'] : null),
+                'test' => $r['reader_id'] === 'mock-reader'];
+        }, $rows);
+    }
+
+    /**
+     * Nachträgliche Korrektur einer bezahlten T2med-Rechnung für Statistik und Excel-Liste: Betrag ändern,
+     * stornieren oder zurücksetzen. Die SumUp-Zahlung selbst (Originalbetrag, Transaktion) bleibt unverändert;
+     * eine Erstattung muss im SumUp-Konto erfolgen.
+     * $change: ['action' => 'amount'|'void'|'restore', 'amount_cents' => int, 'note' => string]
+     */
+    public function correctT2medPayment(string $id, array $change, int $maxCents): array {
+        if (!preg_match('/^[a-f0-9]{32}$/D', $id)) throw new Problem('Ungültige Auswahl.', 422);
+        $row = $this->db->one("SELECT id,amount_cents FROM payments WHERE id=? AND t2med_invoice IS NOT NULL AND payment_status='successful'", [$id]);
+        if (!$row) throw new Problem('Diese bezahlte Rechnung gibt es nicht.', 404);
+        $note = trim(preg_replace('/\s+/u', ' ', (string)($change['note'] ?? '')));
+        if (mb_strlen($note) > 200 || preg_match('/[\x00-\x1f]/', $note)) throw new Problem('Die Notiz darf höchstens 200 Zeichen lang sein.', 422);
+        switch ($change['action'] ?? '') {
+            case 'restore':
+                $this->db->query("UPDATE payments SET corrected_cents=NULL, voided_at=NULL, correction_note='' WHERE id=?", [$id]);
+                break;
+            case 'void':
+                $this->db->query('UPDATE payments SET voided_at=?, correction_note=? WHERE id=?', [time(), $note, $id]);
+                break;
+            case 'amount':
+                $cents = (int)($change['amount_cents'] ?? 0);
+                if ($cents < 1 || $cents > $maxCents) throw new Problem('Der Betrag liegt außerhalb des erlaubten Bereichs.', 422);
+                // Gleicher Betrag wie bezahlt: keine Korrektur.
+                $this->db->query('UPDATE payments SET corrected_cents=?, voided_at=NULL, correction_note=? WHERE id=?', [$cents === (int)$row['amount_cents'] ? null : $cents, $note, $id]);
+                break;
+            default:
+                throw new Problem('Unbekannte Korrektur.', 422);
+        }
+        return ['id' => $id];
     }
 
     /** Ausgewählte T2med-Zahlungen als „in T2med abgehakt“ markieren (oder zurücknehmen). */
@@ -101,13 +139,14 @@ final class TaxExport {
     public function t2medWorkbook(string $status, int $year, int $month, bool $includeTest = false): string {
         $rows = [];
         foreach ($this->t2medPaid($status, $year, $month, $includeTest) as $r) {
-            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], 'Kartenzahlung', $r['transaction_id'], $r['done_date'] ?: null];
+            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], 'Kartenzahlung', $r['transaction_id'], $r['done_date'] ?: null, $r['voided'] ? 'storniert' : ($r['corrected'] ? 'Betrag korrigiert (Original ' . Money::format($r['original_cents']) . ')' : ''), $r['note']];
             if ($includeTest) $row[] = $r['test'] ? 'ja' : '';
             $rows[] = $row;
         }
         $columns = [['title' => 'Rechnungsnummer', 'width' => 18], ['title' => 'Rechnungsdatum', 'type' => 'date', 'width' => 16], ['title' => 'Patient', 'width' => 28],
             ['title' => 'Geburtsdatum', 'type' => 'date', 'width' => 14], ['title' => 'Betrag', 'type' => 'money', 'width' => 12], ['title' => 'Bezahlt am', 'type' => 'date', 'width' => 13],
-            ['title' => 'Uhrzeit', 'width' => 8], ['title' => 'Zahlungsart', 'width' => 14], ['title' => 'SumUp-Transaktion', 'width' => 38], ['title' => 'In T2med abgehakt am', 'type' => 'date', 'width' => 20]];
+            ['title' => 'Uhrzeit', 'width' => 8], ['title' => 'Zahlungsart', 'width' => 14], ['title' => 'SumUp-Transaktion', 'width' => 38], ['title' => 'In T2med abgehakt am', 'type' => 'date', 'width' => 20],
+            ['title' => 'Korrektur', 'width' => 34], ['title' => 'Notiz', 'width' => 30]];
         if ($includeTest) $columns[] = ['title' => 'Testzahlung', 'width' => 12];
         $xlsx = new Xlsx();
         $xlsx->sheet('T2med bezahlt', $columns, $rows, true);

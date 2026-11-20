@@ -68,6 +68,8 @@ final class SettingsPage {
             'update_start' => $this->updater()->request(),
             't2med_paid' => $this->t2medPaid($input),
             't2med_done' => $this->t2medDone($input),
+            't2med_correct' => $this->t2medCorrect($input),
+            'inbox_delete' => $this->inboxDelete($input),
             'terminzettel_preview' => $this->terminzettelPreview(is_array($input['values'] ?? null) ? $input['values'] : []),
             'printer_discover' => ['found' => $this->printerReady()->discover()],
             'printer_add' => $this->printerAdd($input),
@@ -240,6 +242,19 @@ final class SettingsPage {
         [$status, $year, $month, $test] = $this->t2medFilter($input);
         $export = new TaxExport($this->db, $this->config());
         return ['rows' => $export->t2medPaid($status, $year, $month, $test), 'open_total' => count($export->t2medPaid('open', 0, 0, $test))];
+    }
+    private function t2medCorrect(array $input): array {
+        $action = App::string($input, 'change', 10);
+        $max = (int)$this->config()->get('app', 'max_amount_cents');
+        $change = ['action' => $action, 'note' => App::string($input, 'note', 200, false)];
+        if ($action === 'amount') $change['amount_cents'] = Money::cents($input['amount'] ?? null, $max);
+        (new TaxExport($this->db, $this->config()))->correctT2medPayment(App::string($input, 'id', 32), $change, $max);
+        $text = ['amount' => 'Betrag korrigiert.', 'void' => 'Zahlung storniert. Eine Erstattung an den Patienten erfolgt nicht automatisch, bitte im SumUp-Konto vornehmen.', 'restore' => 'Korrektur zurückgenommen.'][$action];
+        return $this->t2medPaid($input['filter'] ?? []) + ['message' => $text];
+    }
+    private function inboxDelete(array $input): array {
+        InboxOverview::delete($this->db, App::string($input, 'id', 32));
+        return InboxOverview::build($this->db, $this->config()) + ['message' => 'Rechnung aus dem Eingang gelöscht.'];
     }
     private function t2medDone(array $input): array {
         $done = ($input['done'] ?? true) !== false;

@@ -43,7 +43,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <form id="printer-form" class="settings-form"></form>
 </div></section>
 <section class="card settings-card" id="s-t2med-paid"><h2>T2med-Rechnungen als bezahlt abhaken</h2>
-<p>Alle über den Drucker „SumUp-Rechnung“ übernommenen und per Karte bezahlten T2med-Rechnungen, nach Rechnungsnummer sortiert. In T2med unter Rechnungen die Nummern als bezahlt markieren und hier anschließend abhaken – dann erscheinen beim nächsten Mal nur die neuen.</p>
+<p>Alle über den Drucker „SumUp-Rechnung“ übernommenen und per Karte bezahlten T2med-Rechnungen, nach Rechnungsnummer sortiert. In T2med unter Rechnungen die Nummern als bezahlt markieren und hier anschließend abhaken – dann erscheinen beim nächsten Mal nur die neuen. Mit „Korrigieren“ lässt sich eine Zahlung nachträglich stornieren oder der Betrag für Statistik und Excel ändern (keine Erstattung bei SumUp).</p>
 <div id="t2med-paid" class="settings-form"></div></section>
 <section class="card settings-card" id="s-export"><h2>Export für die Steuerberatung</h2>
 <p>Alle hier im Rechnungstool erstellten und bezahlten Rechnungen (bar und Karte, in der Spalte „Zahlungsart“ gekennzeichnet) als Excel-Tabelle – für ein ganzes Jahr oder einen Monat. T2med-Rechnungen sind nicht enthalten; sie stehen in T2med.</p>
@@ -60,7 +60,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted small">Nur nötig, wenn T2med auf einem anderen Rechner druckt als diesem: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und dort im Projektordner <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
 <button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></details></section>
 <section class="card settings-card" id="s-inbox-list"><h2>Rechnungseingang</h2>
-<p class="muted">Von T2med auf „SumUp-Rechnung“ gedruckte Rechnungen. Der Patient erscheint nur mit Initialen und Geburtsjahr. „Offen“ heißt: Wird beim passenden Patienten zum Kassieren angeboten.</p>
+<p class="muted">Von T2med auf „SumUp-Rechnung“ gedruckte Rechnungen. Mit Name und Geburtsdatum des Patienten (nur nach Anmeldung sichtbar). Nicht bezahlte Rechnungen lassen sich löschen. „Offen“ heißt: Wird beim passenden Patienten zum Kassieren angeboten.</p>
 <div class="row-buttons"><button id="inbox-load" class="secondary" type="button">Aktualisieren</button></div>
 <div id="inbox-box"><p class="muted">Wird geladen …</p></div></section>
 <section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>

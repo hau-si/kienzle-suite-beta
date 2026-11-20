@@ -114,9 +114,14 @@ try {
     rejects(fn() => $app->inboxReceive("%PDF-1.4\nkein lesbarer Inhalt"), 'Unlesbares PDF übernommen');
     $app->storeInvoice(T2medInvoice::parse(invoiceText(), 100000));
     $view = KienzleSumup\InboxOverview::build($app->db, $cfg);
-    check(count($view['items']) === 1 && $view['items'][0]['status'] === 'offen' && $view['items'][0]['initials'] === 'E. M.' && $view['items'][0]['birth_year'] === '1980', 'Eingangsübersicht falsch');
-    check(!str_contains(json_encode($view), 'Erika') && !str_contains(json_encode($view), 'Musterfrau'), 'Eingangsübersicht enthält Klartextnamen');
+    check(count($view['items']) === 1 && $view['items'][0]['status'] === 'offen' && $view['items'][0]['patient'] === 'Erika Musterfrau' && $view['items'][0]['birthdate'] === '1980-04-12' && $view['items'][0]['deletable'], 'Eingangsübersicht falsch');
     check(count($view['rejected']) === 1 && $view['rejected'][0]['reason'] !== '', 'Abgelehnter Druck nicht protokolliert');
+    // Löschen: offene Rechnung ja, bezahlte nein.
+    $openId = $view['items'][0]['id'];
+    rejects(fn() => KienzleSumup\InboxOverview::delete($app->db, 'x'), 'Ungültige ID beim Löschen akzeptiert', 422);
+    rejects(fn() => KienzleSumup\InboxOverview::delete($app->db, str_repeat('b', 32)), 'Unbekannte Rechnung gelöscht', 404);
+    KienzleSumup\InboxOverview::delete($app->db, $openId);
+    check(KienzleSumup\InboxOverview::build($app->db, $cfg)['items'] === [], 'Rechnung nach dem Löschen noch vorhanden');
 
     // 2. Patientenabgleich.
     check(T2medInvoice::matches($parsed, 'Erika Musterfrau', '1980-04-12'), 'Passender Patient abgelehnt');

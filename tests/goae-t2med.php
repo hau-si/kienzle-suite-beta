@@ -58,7 +58,7 @@ try {
     $v['sumup'] = ['mode' => 'mock']; $v['fhir'] = ['mode' => 'mock', 'entry_code' => 'ZAHLUNG'];
     $v['practice'] = ['name' => 'Praxis Beispiel', 'street' => 'Musterstraße 1', 'city' => '12345 Musterstadt'];
     $app = new App(new Config($v)); $app->db->migrate();
-    check((int)$app->db->query('PRAGMA user_version')->fetchColumn() === 12, 'Datenbank nicht auf Version 12');
+    check((int)$app->db->query('PRAGMA user_version')->fetchColumn() === 13, 'Datenbank nicht auf Version 13');
     $visit = function () use ($app): array {
         $launch = $app->launch(['context_id' => 'ctx-' . bin2hex(random_bytes(4)), 'oauth_token' => '', 'fhir_base_url' => '']);
         parse_str(parse_url($launch['url'], PHP_URL_FRAGMENT), $f); $e = $app->exchange($f['launch'], null);
@@ -102,6 +102,37 @@ try {
     check($export->markT2medDone([$b], true) === 1 && array_column($export->t2medPaid(), 'number') === ['RE2026-0010'], 'Abhaken wirkt nicht');
     check(count($export->t2medPaid('all')) === 2 && $export->t2medPaid('all')[0]['done_date'] !== '', 'Alle-Ansicht falsch');
     check($export->markT2medDone([$b], false) === 1 && count($export->t2medPaid()) === 2, 'Zurücknehmen wirkt nicht');
+    // Bezahlte Rechnungen lassen sich nicht aus dem Eingang löschen; abgebrochene schon.
+    $paidInbox = $app->db->one("SELECT inbox_id FROM payments WHERE id=?", [$a])['inbox_id'];
+    problem(fn() => KienzleSumup\InboxOverview::delete($app->db, $paidInbox), 'Bezahlte Rechnung gelöscht', 409);
+    $failedInbox = $app->db->one("SELECT id FROM invoice_inbox WHERE invoice_number='RE2026-0004'")['id'];
+    KienzleSumup\InboxOverview::delete($app->db, $failedInbox);
+    check($app->db->one('SELECT id FROM invoice_inbox WHERE id=?', [$failedInbox]) === false || $app->db->one('SELECT id FROM invoice_inbox WHERE id=?', [$failedInbox]) === null, 'Abgebrochene Rechnung nicht gelöscht');
+    // Nachträgliche Korrektur: Betrag ändern, stornieren, zurücksetzen.
+    $before = $export->t2medPaid('all');
+    $first = $before[0]['id']; $orig = $before[0]['amount_cents'];
+    $export->correctT2medPayment($first, ['action' => 'amount', 'amount_cents' => $orig + 500, 'note' => 'Betrag zu niedrig erfasst'], 100000);
+    $row = array_values(array_filter($export->t2medPaid('all'), fn($r) => $r['id'] === $first))[0];
+    check($row['amount_cents'] === $orig + 500 && $row['original_cents'] === $orig && $row['corrected'] && !$row['voided'] && $row['note'] === 'Betrag zu niedrig erfasst', 'Betragskorrektur falsch');
+    $export->correctT2medPayment($first, ['action' => 'void', 'note' => 'Erstattet'], 100000);
+    $row = array_values(array_filter($export->t2medPaid('all'), fn($r) => $r['id'] === $first))[0];
+    check($row['voided'] && $row['amount_cents'] === 0 && $row['original_cents'] === $orig, 'Stornierung falsch');
+    check(!in_array($first, array_column($export->t2medPaid('open'), 'id'), true), 'Stornierte Zahlung weiter in der offenen Liste');
+    $export->correctT2medPayment($first, ['action' => 'restore'], 100000);
+    $row = array_values(array_filter($export->t2medPaid('all'), fn($r) => $r['id'] === $first))[0];
+    check(!$row['voided'] && !$row['corrected'] && $row['amount_cents'] === $orig && $row['note'] === '', 'Zurücknehmen falsch');
+    $export->correctT2medPayment($first, ['action' => 'amount', 'amount_cents' => $orig], 100000);
+    check(!array_values(array_filter($export->t2medPaid('all'), fn($r) => $r['id'] === $first))[0]['corrected'], 'Gleicher Betrag als Korrektur gespeichert');
+    problem(fn() => $export->correctT2medPayment($first, ['action' => 'amount', 'amount_cents' => 0], 100000), 'Betrag 0 akzeptiert', 422);
+    problem(fn() => $export->correctT2medPayment($first, ['action' => 'amount', 'amount_cents' => 100001], 100000), 'Betrag über Maximum akzeptiert', 422);
+    problem(fn() => $export->correctT2medPayment($first, ['action' => 'void', 'note' => str_repeat('x', 201)], 100000), 'Zu lange Notiz akzeptiert', 422);
+    problem(fn() => $export->correctT2medPayment(str_repeat('a', 32), ['action' => 'void'], 100000), 'Unbekannte Zahlung korrigiert', 404);
+    problem(fn() => $export->correctT2medPayment('x', ['action' => 'void'], 100000), 'Ungültige ID akzeptiert', 422);
+    problem(fn() => $export->correctT2medPayment($first, ['action' => 'nope'], 100000), 'Unbekannte Korrektur akzeptiert', 422);
+    $export->correctT2medPayment($first, ['action' => 'void', 'note' => 'Test'], 100000);
+    check(str_contains((string)(new \ReflectionClass($export))->getName(), 'TaxExport') && strlen($export->t2medWorkbook('all', 0, 0)) > 1000, 'Excel mit stornierter Zahlung nicht erstellt');
+    $export->correctT2medPayment($first, ['action' => 'restore'], 100000);
+
     problem(fn() => $export->markT2medDone(['x'], true), 'Ungültige ID akzeptiert', 422);
     problem(fn() => $export->t2medPaid('open', 0, 5), 'Monat ohne Jahr akzeptiert', 422);
     $year = (int)date('Y');

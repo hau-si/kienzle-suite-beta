@@ -68,9 +68,15 @@ Ablauf und Schutz:
   „T2med-Rechnungen übernehmen“ eigene **Textschnipsel** ein (der Text unmittelbar vor Nummer, Datum,
   Gesamtsumme, Überweisungsbetrag bzw. Patient), je einer pro Zeile.
 - Karte **Rechnungseingang** (Reiter „Abrechnung“): eingegangene Rechnungen mit Status (offen, bezahlt,
-  am Terminal, ersetzt, abgelaufen); der Patient nur mit Initialen und Geburtsjahr. Abgelehnte Drucke
-  stehen dort mit Grund und einer Zeilenübersicht der erkannten Beschriftungen – Namen, Geburtsdaten
-  und das PDF werden nicht gespeichert.
+  am Terminal, ersetzt, abgelaufen), mit Name und Geburtsdatum des Patienten (nur nach Anmeldung sichtbar).
+  Nicht bezahlte Rechnungen lassen sich löschen; bezahlte oder gerade kassierte bleiben erhalten. Abgelehnte Drucke
+  stehen dort mit Grund und einer Zeilenübersicht der erkannten Beschriftungen – dafür werden weder
+  Namen noch Geburtsdaten noch das PDF gespeichert.
+- **Nachträgliche Korrektur:** In der Liste der bezahlten T2med-Rechnungen (Reiter „Abrechnung“) lässt sich
+  über „Korrigieren“ eine Zahlung stornieren oder der Betrag für Statistik und Excel-Liste ändern, jeweils
+  mit Notiz. Das Original (SumUp-Betrag, Transaktion) bleibt gespeichert und die Korrektur lässt sich
+  zurücknehmen. Eine Erstattung bei SumUp löst das nicht aus; sie erfolgt im SumUp-Konto. Stornierte
+  Zahlungen zählen nicht mehr in der Summe und erscheinen nicht mehr unter „Noch nicht abgehakt“.
 - Eine Rechnung wird nur angeboten, wenn **Name und Geburtsdatum** mit dem Patienten aus dem
   T2med-Kontext übereinstimmen. Ein vorangestellter Titel auf der Rechnung ist erlaubt.
 - An SumUp gehen nur **Betrag**, **„Rechnung RE2026-0042“** als Beschreibung in den Umsätzen und die

@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS payments (
     invoice_json TEXT, inbox_id TEXT, t2med_invoice TEXT,
     export_status TEXT NOT NULL DEFAULT '', export_error TEXT NOT NULL DEFAULT '', export_path TEXT NOT NULL DEFAULT '',
     auto_print INTEGER NOT NULL DEFAULT 0, print_status TEXT NOT NULL DEFAULT '', print_error TEXT NOT NULL DEFAULT '', print_info TEXT NOT NULL DEFAULT '',
-    t2med_done_at INTEGER, payment_method TEXT NOT NULL DEFAULT 'card'
+    t2med_done_at INTEGER, payment_method TEXT NOT NULL DEFAULT 'card',
+    corrected_cents INTEGER, voided_at INTEGER, correction_note TEXT NOT NULL DEFAULT ''
 );
 CREATE UNIQUE INDEX IF NOT EXISTS reader_busy ON payments(reader_id)
     WHERE payment_status IN ('starting','pending','unknown','cancel_requested');

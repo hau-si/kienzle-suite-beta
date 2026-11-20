@@ -26,7 +26,7 @@ try {
     $state = sys_get_temp_dir() . '/ks-cash-' . bin2hex(random_bytes(6)); $dirs[] = $state; mkdir($state, 0700);
     $app = new App(config($state), new NoNetwork());
     $app->db->migrate();
-    check((int)$app->db->query('PRAGMA user_version')->fetchColumn() === 12, 'Datenbank nicht auf Version 12');
+    check((int)$app->db->query('PRAGMA user_version')->fetchColumn() === 13, 'Datenbank nicht auf Version 13');
     $visit = function () use ($app): array {
         $launch = $app->launch(['context_id' => 'ctx-' . bin2hex(random_bytes(4)), 'oauth_token' => '', 'fhir_base_url' => '']);
         parse_str(parse_url($launch['url'], PHP_URL_FRAGMENT), $f); $e = $app->exchange($f['launch'], null);
