@@ -4,6 +4,7 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.23: Tooltexte nennen für T2med den Drucker „Terminliste (DIN A6)“ (Terminlisten-Plugin).
 - Neu in rechnung.22: Rechnungserkennung robuster: eigene Textschnipsel je Feld (Nummer, Datum, Gesamtsumme, Überweisungsbetrag, Patient),
   mehr eingebaute Bezeichnungen, zweiter Leseversuch in Lesereihenfolge. Neue Karte „Rechnungseingang“ (Abrechnung) mit Status
   der Rechnungen und abgelehnten Drucken samt maskierter Zeilenübersicht (keine Namen, Daten oder PDFs).
@@ -15,7 +16,7 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   Faktor wird mit allen Stellen gespeichert, geprüft, auf Belegen ausgegeben; Begründungspflicht über dem
   Schwellenwert gilt auch bei 2,301. Rechner im Browser und auf dem Server liefern dieselben Faktoren (Test).
 - Neu in rechnung.18: Einrichtungs-Überblick in drei Teile gegliedert: „In diesem Webfenster“, „Auf den Client-PCs“
-  und „In T2med“ (FHIR-Schnittstelle, Button „Kienzle-SumUp“, Drucker „Terminzettel“ mit Papierformat A6,
+  und „In T2med“ (FHIR-Schnittstelle, Button „Kienzle-SumUp“, Drucker „Terminliste (DIN A6)“ für das Terminlisten-Plugin,
   Drucker „SumUp-Rechnung“). Bei der T2med-Anbindung steht jetzt die Aufruf-Adresse für den Button zum Kopieren.
 - Neu in rechnung.17: Fehlerbehebung Aktualisierung: Der Installer meldete „Port 7868 ist bereits belegt“, obwohl nur
   kürzlich geschlossene Verbindungen des gestoppten Dienstes (TIME_WAIT) den Port hielten. Die Portprüfung
