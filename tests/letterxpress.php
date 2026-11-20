@@ -125,16 +125,4 @@ if (is_executable('/usr/bin/qpdf')) {
     check(str_starts_with($result, '%PDF-') && !str_contains($result, '/Encrypt'), 'Verschlüsselung des PDFs nicht entfernt');
     @unlink($in); @unlink($out);
 }
-// Hochformat in US Letter (612×792) wird auf A4 gebracht, obere linke Ecke bleibt.
-if (is_executable('/usr/bin/qpdf')) {
-    $letter = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R/Size 4>>\n%%EOF\n";
-    $method = new ReflectionMethod(KienzleSumup\Letterxpress::class, 'unprotected');
-    $result = $method->invoke(null, $letter);
-    check(str_contains(KienzleSumup\Letterxpress::describe($result), '595×842 pt') && preg_match('#/MediaBox\s*\[\s*0\s+-50\s+595\s+792\s*\]#', $result), 'Letter nicht auf A4 gebracht: ' . KienzleSumup\Letterxpress::describe($result));
-}
-// Vorabprüfung: A4 hoch passt, Querformat wird abgewiesen.
-$a4 = "%PDF-1.4\n3 0 obj<</Type/Page/MediaBox[0 0 595.28 841.89]>>endobj\n%%EOF\n";
-check(KienzleSumup\Letterxpress::formatProblem($a4) === null, 'A4 hoch fälschlich abgelehnt');
-check(KienzleSumup\Letterxpress::formatProblem(str_replace('595.28 841.89', '842 595', $a4)) !== null, 'Querformat nicht erkannt');
-check(KienzleSumup\Letterxpress::formatProblem($a4 . '/Encrypt 9 0 R') !== null, 'Verschlüsselung nicht erkannt');
 

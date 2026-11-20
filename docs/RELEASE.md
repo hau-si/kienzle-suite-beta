@@ -1,16 +1,11 @@
-Version 1.4.1-rechnung.41 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.42 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
-- Neu in rechnung.41: Letterxpress: Umwandlung auf A4 über qpdf-JSON (robust bei Objekt- und Verweisströmen, vererbten Seitenboxen), Textersatz nur noch als Rückfall.
-  Der Eingangsdrucker „SumUp-Rechnung“ bietet nur noch A4 an (kein US Letter mehr), damit Windows die Rechnung nicht auf Letter umrechnet.
-- Neu in rechnung.40: Letterxpress: fehlt qpdf auf dem Server, sagen Fehlermeldung und Verbindungstest das ausdrücklich.
-- Neu in rechnung.39: Letterxpress: Vorabprüfung des PDFs (A4 hoch, unverschlüsselt, ungedreht) nach der Umwandlung; bei Abweichung kein Versand und klare Meldung statt Ablehnung durch Letterxpress.
-- Neu in rechnung.38: Letterxpress: Hochformat-PDFs in anderer Größe (z. B. US Letter 612×792 aus dem Druckertreiber) werden auf A4 gebracht (obere linke Ecke bleibt, nichts wird skaliert).
+- Neu in rechnung.42: Letterxpress schlanker: A4-Umwandlung, Vorabprüfung und PDF-Diagnose wieder entfernt, nur das Entfernen des Rechteschutzes bleibt. Hinweis: Das Papierformat des Windows-Druckers „SumUp-Rechnung“ muss A4 sein.
 - Neu in rechnung.37: Rechnungseingang mit Auswahlkästchen: mehrere Rechnungen markieren und gesammelt per Post senden oder löschen (höchstens 50, mit Bestätigung).
-- Neu in rechnung.36: Letterxpress: PDF wird ohne Objektströme neu geschrieben; bei Ablehnung nennt die Meldung Version, Seitenformat, Drehung und Verschlüsselung des gesendeten PDFs.
 - Neu in rechnung.35: Letterxpress: PDFs mit Rechteschutz werden vor dem Senden mit qpdf entfernt (qpdf kommt mit dem Server-Installer); verständliche Meldungen bei fehlender Anschrift bzw. verschlüsseltem PDF.
 - Neu in rechnung.34: Rechnung per Post über Letterxpress (Einstellungen, Knopf auf Kasse und Rechnungseingang, Testmodus, Doppelsendeschutz).
 - Ebenfalls rechnung.34: Die Aktualisierung steht wieder unter Einstellungen → Einrichtung (Block „Aktualisierung“); die Glocke

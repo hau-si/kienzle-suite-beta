@@ -21,105 +21,26 @@ final class Letterxpress {
         return $this->http->request($method, self::BASE . $path, ['Accept: application/json', 'Content-Type: application/json'], ['auth' => $this->auth()] + $body);
     }
     /** Fehlermeldung der API ohne Zugangsdaten, kurz und ohne Steuerzeichen. */
-    private static function qpdf(): ?string {
-        foreach (['/usr/bin/qpdf', '/usr/local/bin/qpdf', '/opt/homebrew/bin/qpdf'] as $path) if (is_executable($path)) return $path;
-        return null;
-    }
-
-    /**
-     * PDF für Letterxpress aufbereiten: Rechteschutz (ohne Kennwort) entfernen und Hochformat-Seiten anderer Größe (z. B. US Letter
-     * aus dem Druckertreiber) auf A4 bringen. Der Inhalt wird nicht skaliert: die obere linke Ecke bleibt, damit das Adressfenster
-     * an seiner Stelle bleibt; rechts und unten wird beschnitten bzw. aufgefüllt.
-     */
+    /** T2med-PDFs tragen teils eine Rechte-Verschlüsselung (ohne Kennwort), die Letterxpress ablehnt: mit qpdf entfernen. */
     private static function unprotected(string $pdf): string {
-        $binary = self::qpdf();
-        if (!$binary) return $pdf;
-        $rewrite = function (string $data, array $options) use ($binary): ?string {
-            $file = tempnam(sys_get_temp_dir(), 'ks-lxp-');
-            if ($file === false) return null;
-            try {
-                chmod($file, 0600);
-                if (file_put_contents($file, $data) !== strlen($data)) return null;
-                $result = Command::run([$binary, ...$options, '--warning-exit-0', $file, '-'], '', 30);
-                return $result['code'] === 0 && str_starts_with($result['output'], '%PDF-') ? $result['output'] : null;
-            } catch (\Throwable) { return null; }
-            finally { @unlink($file); }
-        };
-        $clean = $rewrite($pdf, ['--decrypt', '--object-streams=disable']) ?? $pdf;
-        $resize = function (array $m): ?array {
-            // Neue Seitenbox für Hochformat anderer Größe: obere linke Ecke bleibt; sonst null.
-            [$x0, $y0, $x1, $y1] = array_map('floatval', $m);
-            $w = $x1 - $x0; $h = $y1 - $y0;
-            if ($h <= $w || abs($w - 595) <= 2 && abs($h - 842) <= 2 || $w < 400 || $w > 700 || $h < 600 || $h > 1000) return null;
-            return [round($x0, 2), round($y1 - 842, 2), round($x0 + 595, 2), round($y1, 2)];
-        };
-        // Bevorzugt über qpdf-JSON: unabhängig von Dateiaufbau (Objektströme, Verweisströme, vererbte Seitenboxen).
-        $viaJson = (function () use ($binary, $clean, $resize): ?string {
-            $in = tempnam(sys_get_temp_dir(), 'ks-lxp-'); $update = tempnam(sys_get_temp_dir(), 'ks-lxp-');
-            if ($in === false || $update === false) return null;
-            try {
-                chmod($in, 0600); chmod($update, 0600);
-                if (file_put_contents($in, $clean) !== strlen($clean)) return null;
-                $dump = Command::run([$binary, '--json=2', '--json-key=qpdf', '--warning-exit-0', $in], '', 30);
-                $json = $dump['code'] === 0 ? json_decode($dump['output'], true, 64) : null;
-                if (!is_array($json) || !isset($json['qpdf'][1]) || !is_array($json['qpdf'][1])) return null;
-                $changes = [];
-                foreach ($json['qpdf'][1] as $key => $object) {
-                    $value = is_array($object) ? ($object['value'] ?? null) : null;
-                    if (!is_array($value)) continue;
-                    $changed = false;
-                    foreach (['/MediaBox', '/CropBox'] as $box) {
-                        if (isset($value[$box]) && is_array($value[$box]) && count($value[$box]) === 4 && ($new = $resize($value[$box]))) { $value[$box] = $new; $changed = true; }
-                    }
-                    if ($changed) $changes[$key] = ['value' => $value];
-                }
-                if (!$changes) return null;
-                file_put_contents($update, json_encode(['version' => 2, 'qpdf' => [new \stdClass(), $changes]], JSON_UNESCAPED_SLASHES));
-                $out = Command::run([$binary, '--update-from-json=' . $update, '--object-streams=disable', '--warning-exit-0', $in, '-'], '', 30);
-                return $out['code'] === 0 && str_starts_with($out['output'], '%PDF-') ? $out['output'] : null;
-            } catch (\Throwable) { return null; }
-            finally { @unlink($in); @unlink($update); }
-        })();
-        if ($viaJson !== null) return $viaJson;
-        // Rückfall: Seitenboxen im Text ersetzen und Verweistabelle von qpdf neu aufbauen lassen.
-        $fixed = preg_replace_callback('#/(MediaBox|CropBox)(\s*)\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', function (array $m) use ($resize): string {
-            $new = $resize([$m[3], $m[4], $m[5], $m[6]]);
-            return $new ? '/' . $m[1] . $m[2] . '[' . implode(' ', $new) . ']' : $m[0];
-        }, $clean);
-        if ($fixed === null || $fixed === $clean) return $clean;
-        return $rewrite($fixed, ['--object-streams=disable']) ?? $clean;
-    }
-
-    /** Meldung, wenn das aufbereitete PDF nicht A4 hoch, unverschlüsselt und ungedreht ist; sonst null. */
-    public static function formatProblem(string $pdf): ?string {
-        if (str_contains($pdf, '/Encrypt')) return 'Das PDF ist verschlüsselt und ließ sich nicht entschlüsseln (qpdf fehlt? „sudo apt install qpdf“).';
-        if (!preg_match_all('#/MediaBox\s*\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', $pdf, $boxes, PREG_SET_ORDER))
-            return null; // Größe nicht lesbar (z. B. in Objektströmen): Letterxpress entscheidet.
-        foreach ($boxes as $b) {
-            if (abs(($b[3] - $b[1]) - 595) > 2 || abs(($b[4] - $b[2]) - 842) > 2)
-                return 'Das PDF ist nicht A4 hoch und ließ sich nicht umwandeln (Querformat oder anderes Format?). Bitte die Rechnungsvorlage in T2med bzw. das Papierformat des Druckers „SumUp-Rechnung“ auf A4 hoch stellen.';
-        }
-        if (preg_match('#/Rotate\s+(90|270|-90|-270)\b#', $pdf)) return 'Das PDF ist gedreht (Querformat). Bitte die Rechnungsvorlage in T2med auf A4 hoch stellen.';
-        return null;
-    }
-
-    /** Kurzbeschreibung des PDFs für Fehlermeldungen: Version, Seiten, Format, Drehung, Verschlüsselung. */
-    public static function describe(string $pdf): string {
-        $version = preg_match('/^%PDF-(\d\.\d)/', $pdf, $m) ? $m[1] : '?';
-        $pages = preg_match_all('#/Type\s*/Page(?![a-z])#', $pdf);
-        $sizes = [];
-        if (preg_match_all('#/MediaBox\s*\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', $pdf, $boxes, PREG_SET_ORDER))
-            foreach ($boxes as $b) $sizes[round($b[3] - $b[1]) . '×' . round($b[4] - $b[2])] = true;
-        $rotate = preg_match('#/Rotate\s+(-?\d+)#', $pdf, $r) ? $r[1] : '0';
-        return 'Version ' . $version . ', ' . ($pages ?: '?') . ' Seite(n), Format ' . ($sizes ? implode('/', array_keys($sizes)) : 'unbekannt') . ' pt (A4 hoch = 595×842), Drehung ' . $rotate
-            . ', ' . (str_contains($pdf, '/Encrypt') ? 'verschlüsselt' : 'unverschlüsselt');
+        $binary = null;
+        foreach (['/usr/bin/qpdf', '/usr/local/bin/qpdf', '/opt/homebrew/bin/qpdf'] as $path) if (is_executable($path)) { $binary = $path; break; }
+        $file = $binary ? tempnam(sys_get_temp_dir(), 'ks-lxp-') : false;
+        if (!$binary || $file === false) return $pdf;
+        try {
+            chmod($file, 0600);
+            if (file_put_contents($file, $pdf) !== strlen($pdf)) return $pdf;
+            $result = Command::run([$binary, '--decrypt', '--warning-exit-0', $file, '-'], '', 30);
+            return $result['code'] === 0 && str_starts_with($result['output'], '%PDF-') ? $result['output'] : $pdf;
+        } catch (\Throwable) { return $pdf; }
+        finally { @unlink($file); }
     }
 
     private function reason(array $response): string {
         if ($response['status'] === 401 || $response['status'] === 403) return 'Letterxpress lehnt Benutzername oder API-Key ab.';
         $message = is_array($response['body']) && is_string($response['body']['message'] ?? null) ? preg_replace('/[\x00-\x1f\x7f]/u', ' ', $response['body']['message']) : '';
         if (stripos($message, 'could not be determined') !== false) return 'Letterxpress findet im PDF keine lesbare Anschrift (Adressfenster der Rechnung) und kann Inland/Ausland nicht bestimmen. Anschrift im T2med-Rechnungsformular im Adressfenster prüfen oder unter Einstellungen die Versandart fest auf „Inland“ stellen. (HTTP ' . $response['status'] . ')';
-        if (stripos($message, 'verschl') !== false) return 'Letterxpress lehnt das PDF ab (verschlüsselt oder nicht A4-Hochformat). Die Rechnungsvorlage in T2med muss A4 hoch ohne Kennwortschutz erzeugen. (HTTP ' . $response['status'] . ')';
+        if (stripos($message, 'verschl') !== false) return 'Letterxpress lehnt das PDF ab (verschlüsselt oder nicht A4-Hochformat). Das PDF muss A4 hoch und ohne Kennwortschutz sein (Papierformat des Windows-Druckers „SumUp-Rechnung“ prüfen). (HTTP ' . $response['status'] . ')';
         return 'Letterxpress antwortet mit HTTP ' . $response['status'] . ($message !== '' ? ': ' . mb_substr($message, 0, 160) : '.');
     }
 
@@ -131,7 +52,7 @@ final class Letterxpress {
         if ($response['status'] !== 200) throw new Problem($this->reason($response), 502);
         $data = is_array($response['body']['data'] ?? null) ? $response['body']['data'] : [];
         $balance = isset($data['balance']) && is_numeric($data['balance']) ? number_format((float)$data['balance'], 2, ',', '.') . ' ' . (($data['currency'] ?? 'EUR') === 'EUR' ? '€' : preg_replace('/[^A-Za-z]/', '', (string)$data['currency'])) : 'unbekannt';
-        return 'Verbunden. Guthaben: ' . $balance . '.' . (self::qpdf() ? '' : ' Achtung: qpdf fehlt auf dem Server („sudo apt install qpdf“), PDFs anderer Größe lassen sich nicht auf A4 bringen.') . ' Betrieb: ' . ($this->mode() === 'live' ? 'Live (echter Postversand)' : 'Test (nichts wird verschickt)') . '.';
+        return 'Verbunden. Guthaben: ' . $balance . '. Betrieb: ' . ($this->mode() === 'live' ? 'Live (echter Postversand)' : 'Test (nichts wird verschickt)') . '.';
     }
 
     /** Status einer Rechnung für Anzeige: sent_at, mode, status, error. */
@@ -155,10 +76,7 @@ final class Letterxpress {
             if ($row['lxp_status'] !== '' && !$again) throw new Problem($row['lxp_status'] === 'unknown'
                 ? 'Der Versand dieser Rechnung ist unklar. Bitte zuerst den Postausgang bei Letterxpress prüfen.' : 'Diese Rechnung wurde bereits per Post gesendet.', 409);
             if ($row['pdf'] === null || !str_starts_with((string)$row['pdf'], '%PDF-')) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut auf „SumUp-Rechnung“ drucken.', 409);
-            $prepared = self::unprotected((string)$row['pdf']);
-            // Vorab prüfen statt erst von Letterxpress abgewiesen zu werden (kein Versuch, kein Guthabenverbrauch).
-            if (($problem = self::formatProblem($prepared)) !== null) throw new Problem((self::qpdf() ? '' : 'Auf dem Server fehlt das Programm qpdf zum Umwandeln: „sudo apt install qpdf“ ausführen, danach erneut senden. ') . $problem . ' PDF: ' . self::describe($prepared) . '.', 422);
-            $file = base64_encode($prepared);
+            $file = base64_encode(self::unprotected((string)$row['pdf']));
             $letter = ['base64_file' => $file, 'base64_file_checksum' => md5($file),
                 'filename_original' => 'Rechnung-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $row['invoice_number']) . '.pdf',
                 'specification' => ['color' => (string)$this->config->get('letterxpress', 'color', '1'),
@@ -174,7 +92,7 @@ final class Letterxpress {
                 $this->db->query("UPDATE invoice_inbox SET lxp_status='unknown',lxp_mode=?,lxp_error=? WHERE id=?", [$this->mode(), 'Antwort blieb aus', $inboxId]);
                 throw new Problem('Letterxpress hat nicht rechtzeitig geantwortet. Ob der Brief angenommen wurde, ist unklar: bitte den Postausgang bei Letterxpress prüfen und nicht erneut senden.', 502);
             }
-            if ($response['status'] !== 200) throw new Problem($this->reason($response) . ' PDF: ' . self::describe(base64_decode($file, true) ?: '') . '.', 502);
+            if ($response['status'] !== 200) throw new Problem($this->reason($response), 502);
             $id = $response['body']['data']['id'] ?? '';
             $job = is_scalar($id) ? preg_replace('/[^0-9A-Za-z_-]/', '', (string)$id) : '';
             $this->db->query("UPDATE invoice_inbox SET lxp_status='sent',lxp_job_id=?,lxp_sent_at=?,lxp_mode=?,lxp_error='' WHERE id=?", [$job, time(), $this->mode(), $inboxId]);
