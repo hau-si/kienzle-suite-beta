@@ -228,7 +228,7 @@ const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-t2med-paid', 's-export']},
   {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
   {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
-  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-password']},
+  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-audit', 's-password']},
 ];
 let activeTab = null;
 function tabOf(cardId) { return (TABS.find(t => t.cards.includes(cardId)) || {}).id; }
@@ -553,3 +553,13 @@ async function loadPrinters() { try { renderPrinters(await api('printers')); } c
     else show('login');
   } catch (error) { message(error.message, true); }
 })();
+
+// Sicherheitsprotokoll: letzte Vorgänge der Einstellungsseite anzeigen.
+$('audit-load').onclick = async () => {
+  try {
+    const result = await api('audit');
+    const box = $('audit-list');
+    box.textContent = result.lines.length ? result.lines.join('\n') : 'Noch keine Einträge.';
+    box.hidden = false;
+  } catch (error) { message(error.message, true); }
+};

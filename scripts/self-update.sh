@@ -48,7 +48,7 @@ proto='=https'; [ -n "${KS_UPDATE_URL:-}" ] && proto='=https,file'
 echo "Quelle: $repo ($branch)"
 
 work=$(mktemp -d "$state/work.XXXXXX"); trap 'rm -f -- "$KS_UPDATE_COPY"; rm -rf -- "$work"' EXIT
-if ! curl -fsSL --proto "$proto" --max-time 300 "$url" -o "$work/source.tar.gz"; then
+if ! curl -fsSL --proto "$proto" --max-time 300 --max-filesize 100000000 "$url" -o "$work/source.tar.gz"; then
   echo 'Download fehlgeschlagen.'; write_status failed 'Download von GitHub fehlgeschlagen. Internetverbindung prüfen.'; exit 1
 fi
 mkdir "$work/src"

@@ -60,6 +60,10 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted small">Nur nötig, wenn T2med auf einem anderen Rechner druckt als diesem: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und dort im Projektordner <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
 <button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></details></section>
 <section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>
+<section class="card settings-card" id="s-audit"><h2>Sicherheitsprotokoll</h2>
+<p class="muted">Anmeldungen, Fehlversuche und Änderungen an dieser Einstellungsseite mit Zeit und Adresse des Geräts – nie mit Passwörtern. Viele „fehlgeschlagen“-Zeilen von unbekannten Adressen deuten auf einen Angriffsversuch hin; der betroffene Absender wird dann automatisch gesperrt.</p>
+<div class="row-buttons"><button id="audit-load" class="secondary" type="button">Letzte Vorgänge anzeigen</button></div>
+<pre id="audit-list" class="audit-list" hidden></pre></section>
 <section class="card settings-card" id="s-password"><h2>Admin-Passwort ändern</h2>
 <form id="password-form"><label>Bisheriges Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
 <label>Neues Passwort (mind. 10 Zeichen)<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>

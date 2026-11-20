@@ -36,9 +36,14 @@ final class SettingsPage {
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
-        if (!in_array($action, ['get', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        // Alles, was etwas verändert, im Protokoll festhalten (ohne Werte).
+        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
+            $this->admin->audit->write($action, $action === 'save' ? App::string($input, 'section', 40) : '');
+        }
         return match ($action) {
             'get' => $this->view(),
+            'audit' => ['lines' => $this->admin->audit->recent(40)],
             'save' => $this->save(App::string($input, 'section', 40), is_array($input['values'] ?? null) ? $input['values'] : []),
             'test' => ['message' => $this->test(App::string($input, 'kind', 40))],
             'password' => $this->password($input),
@@ -191,6 +196,7 @@ final class SettingsPage {
     /** Einrichtungspaket für Arbeitsplätze als Download; nur mit Admin-Sitzung. */
     public function clientDownload(?string $sessionToken, string $system, callable $header, callable $write, string $certificate = '/etc/kienzle-sumup/server.crt'): void {
         if (!$this->admin->session($sessionToken)) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        $this->admin->audit->write('arbeitsplatz-paket', $system);
         $package = new ClientPackage($this->config(), dirname(__DIR__), $certificate);
         $files = $package->files($system);
         $size = ClientPackage::zip($files, fn() => null);   // Größe vorab für Content-Length
@@ -220,6 +226,7 @@ final class SettingsPage {
     /** Excel-Listen (Steuerberatung bzw. bezahlte T2med-Rechnungen); nur mit Admin-Sitzung. */
     public function taxExport(?string $sessionToken, array $query, callable $header, callable $write): void {
         if (!$this->admin->session($sessionToken)) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        $this->admin->audit->write('export', (string)($query['kind'] ?? 'steuer'));
         $export = new TaxExport($this->db, $this->config());
         if (($query['kind'] ?? '') === 't2med') {
             [$status, $year, $month, $test] = $this->t2medFilter($query);

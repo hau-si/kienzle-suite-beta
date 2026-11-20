@@ -10,6 +10,7 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new Problem('POST erforderlich.', 405);
+    ks_require_same_site();
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 65536) throw new Problem('Anfrage zu groß.', 413);
     if (!str_starts_with(strtolower($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) throw new Problem('JSON erforderlich.', 415);
     $raw = file_get_contents('php://input', false, null, 0, 65537);

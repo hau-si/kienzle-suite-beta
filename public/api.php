@@ -10,6 +10,7 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new Problem('POST erforderlich.', 405);
+    ks_require_same_site();
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 32768) throw new Problem('Anfrage zu groß.', 413);
     if (!str_starts_with(strtolower($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) throw new Problem('JSON erforderlich.', 415);
     $raw = file_get_contents('php://input', false, null, 0, 32769);
@@ -23,7 +24,13 @@ try {
     if ($origin !== '' && $origin !== rtrim($app->config->get('app', 'base_url'), '/')) throw new Problem('Unzulässiger Ursprung.', 403);
     if ($action === 'launch') {
         $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-        if (!hash_equals('Bearer ' . $app->config->get('app', 'launcher_key'), $auth)) throw new Problem('Starter nicht autorisiert.', 401);
+        $throttle = new KienzleSumup\Throttle($app->db);
+        $throttle->check('launcher');
+        if (!hash_equals('Bearer ' . $app->config->get('app', 'launcher_key'), $auth)) {
+            $throttle->fail('launcher', 10, 600);
+            usleep(500000);
+            throw new Problem('Starter nicht autorisiert.', 401);
+        }
         $result = $app->launch($input);
     } elseif ($action === 'demo') {
         if (!$app->config->get('app', 'development', false)) throw new Problem('Demo-Start deaktiviert.', 403);

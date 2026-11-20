@@ -38,6 +38,7 @@ jobs:
       - run: php tests/goae-t2med.php
       - run: php tests/cash.php
       - run: php tests/updater.php
+      - run: php tests/security.php
       - run: sudo bash tests/self-update.sh
       - run: php tests/print-format.php
       - run: php tests/mail-mime.php

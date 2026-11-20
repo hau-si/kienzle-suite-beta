@@ -1,9 +1,14 @@
-Version 1.4.1-rechnung.13 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.14 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.14: Härtung: Sperre bei Fehlversuchen je Absender statt für alle, Gesamtbremse, Sitzungen
+  höchstens 12 Stunden, schwache Passwörter abgelehnt, Drosselung falscher Starter- und Druckserver-Schlüssel,
+  Sicherheitsprotokoll in den Einstellungen, Anfragen anderer Websites abgewiesen, zusätzliche Schutz-Header,
+  Webserver gegen langsame Verbindungen, strengere TLS-Verfahren, Systemd-Sandbox für Webserver und PHP,
+  gefährliche PHP-Funktionen abgeschaltet, Größenbegrenzung beim Update-Download.
 - Neu in rechnung.13: Aktualisierung im Webinterface: neue Version auf GitHub erkennen (Hinweis oben,
   Neuerungen aus RELEASE.md), mit einem Klick installieren. Ein root-Dienst lädt den eingestellten
   Zweig, sichert Programm und Datenbank, führt den Installer aus und stellt bei Fehlern den vorherigen

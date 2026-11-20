@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.13**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.14**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -874,6 +874,36 @@ Start entfernt. Browser erhalten nur eine Sitzung, keine SumUp-/FHIR-Schlüssel.
 Starttickets laufen nach 90 Sekunden ab und werden aus der Adresszeile entfernt.
 Die App ist für eine Praxis mit einem Terminal gedacht; keine komplexe Benutzerverwaltung.
 Alle berechtigten Starter-Benutzer können Leistungen verwalten.
+
+## Sicherheit
+
+Das Programm ist für den Betrieb im Praxisnetz gedacht und nicht für das offene Internet. Der Server-Installer
+sichert es trotzdem mehrfach ab:
+
+- **Anmeldung:** Das Admin-Passwort (mind. 10 Zeichen, offensichtliche wie „passwort123“ werden abgelehnt) ist mit
+  Argon2id gespeichert. Nach 5 falschen Versuchen wird nur das **absendende Gerät** gesperrt (5 Minuten, bei
+  Wiederholung bis zu 1 Stunde); die Praxis kann sich weiter anmelden. Eine Gesamtbremse pausiert Anmeldungen kurz,
+  falls ein Angriff aus vielen Adressen kommt. Sitzungen laufen nach 30 Minuten Leerlauf und spätestens nach 12 Stunden
+  ab. Gegen Seitenangriffe schützen `SameSite=Strict`, ein CSRF-Schlüssel je Sitzung und die Prüfung, dass Anfragen
+  von dieser Seite selbst kommen (`Sec-Fetch-Site`, `Origin`).
+- **Schlüssel:** Falsche Starter- oder Rechnungseingangs-Schlüssel werden je Absender gedrosselt (10 Fehler → 10 Minuten).
+- **Protokoll:** Unter Einstellungen → Einrichtung → Sicherheitsprotokoll stehen Anmeldungen, Fehlversuche und
+  Änderungen mit Zeit und Geräteadresse – nie mit Passwörtern oder Patientendaten (Datei
+  `/var/lib/kienzle-sumup/admin-audit.log`, auf 256 KB begrenzt).
+- **Webserver:** nur TLS 1.2/1.3 mit starken Verfahren, Schutz vor langsamen Verbindungen und überlangen Anfragen,
+  nur GET/POST/HEAD, keine versteckten Dateien, Sicherungen oder Konfigurationen, Header gegen Einbettung in fremde Seiten
+  (`X-Frame-Options`, CSP `frame-ancestors`), Browser-Funktionen wie Kamera und Mikrofon gesperrt.
+  Bewusst **kein HSTS**: Das Zertifikat ist selbst ausgestellt, HSTS würde die Seite bei einem Zertifikatswechsel sperren.
+- **Dienste:** Webserver und PHP laufen als eigener Benutzer ohne Rechte, in einer Systemd-Sandbox
+  (keine neuen Rechte, kein Zugriff auf Home, Kernel und Geräte, nur Netzwerk- und Unix-Sockets). PHP darf keine
+  Shell-Befehle absetzen (nur der Druckaufruf ohne Shell), keine URLs per `fopen` laden.
+- **Daten:** Kassendaten, Schlüssel und Einstellungen liegen verschlüsselt bzw. nur für den Dienstbenutzer lesbar;
+  es gibt kein Zugriffsprotokoll des Webservers.
+
+Empfehlungen für die Praxis: Den Server nicht aus dem Internet erreichbar machen (kein Port 443 am Router weiterleiten),
+den Zugang nur im Praxisnetz erlauben (z. B. `sudo ufw allow from 192.168.0.0/24 to any port 443`, Adresse anpassen),
+Passwort nur im Passwortmanager aufbewahren, das Arbeitsplatz-Paket nach der Einrichtung löschen und Aktualisierungen
+einspielen. Ein Sicherheitsproblem bitte nicht öffentlich melden, sondern per E-Mail an die Praxis des Betreibers.
 
 ## Aktualisieren im Webinterface
 

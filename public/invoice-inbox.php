@@ -12,7 +12,13 @@ try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new Problem('POST erforderlich.', 405);
     $app = ks_app();
     if (!$app->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);
-    if (!hash_equals('Bearer ' . $app->config->get('invoice_inbox', 'key'), $_SERVER['HTTP_AUTHORIZATION'] ?? '')) throw new Problem('Druckserver nicht autorisiert.', 401);
+    $throttle = new KienzleSumup\Throttle($app->db);
+    $throttle->check('inbox');
+    if (!hash_equals('Bearer ' . $app->config->get('invoice_inbox', 'key'), $_SERVER['HTTP_AUTHORIZATION'] ?? '')) {
+        $throttle->fail('inbox', 10, 600);
+        usleep(500000);
+        throw new Problem('Druckserver nicht autorisiert.', 401);
+    }
     if (strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0])) !== 'application/pdf') throw new Problem('PDF erforderlich.', 415);
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > T2medInvoice::MAX_PDF) throw new Problem('Die Rechnung ist zu groß.', 413);
     $pdf = file_get_contents('php://input', false, null, 0, T2medInvoice::MAX_PDF + 1);

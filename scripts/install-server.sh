@@ -100,7 +100,14 @@ security.limit_extensions = .php
 php_admin_flag[display_errors] = off
 php_admin_flag[log_errors] = on
 php_admin_flag[expose_php] = off
+php_admin_flag[allow_url_fopen] = off
+php_admin_flag[allow_url_include] = off
+php_admin_flag[session.use_strict_mode] = on
+php_admin_value[disable_functions] = exec,shell_exec,system,passthru,popen,pcntl_exec,pcntl_fork,pcntl_signal,dl,show_source,highlight_file,symlink,link,proc_nice,posix_kill,posix_setuid,posix_setgid,putenv,mail
 php_admin_value[memory_limit] = 64M
+php_admin_value[max_execution_time] = 60
+php_admin_value[upload_max_filesize] = 6M
+php_admin_value[max_input_vars] = 500
 php_admin_value[post_max_size] = 8M
 php_admin_value[error_log] = /var/log/kienzle-sumup/php.log
 EOF
@@ -132,6 +139,11 @@ ProxyTimeout 80
 KeepAlive On
 MaxKeepAliveRequests 50
 KeepAliveTimeout 3
+# Schutz vor langsamen Verbindungen (Slowloris) und überlangen Anfragen
+RequestReadTimeout handshake=10 header=20-40,MinRate=500 body=20,MinRate=500
+LimitRequestFields 50
+LimitRequestFieldSize 8190
+LimitRequestLine 4096
 StartServers 1
 ServerLimit 2
 ThreadsPerChild 16
@@ -148,6 +160,10 @@ SSLSessionCache shmcb:/run/kienzle-sumup-apache/sslcache(512000)
 <VirtualHost *:$port>
     SSLEngine on
     SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLCipherSuite ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!MD5
+    SSLHonorCipherOrder off
+    SSLSessionTickets off
+    SSLCompression off
     SSLCertificateFile /etc/kienzle-sumup/server.crt
     SSLCertificateKeyFile /etc/kienzle-sumup/server.key
     DocumentRoot /opt/kienzle-sumup/public
@@ -155,10 +171,22 @@ SSLSessionCache shmcb:/run/kienzle-sumup-apache/sslcache(512000)
     LimitRequestBody 32768
     Header always set X-Content-Type-Options nosniff
     Header always set Referrer-Policy no-referrer
+    Header always set X-Frame-Options DENY
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Header always set Cross-Origin-Opener-Policy same-origin
+    Header always set Cross-Origin-Resource-Policy same-origin
+    # Bewusst kein HSTS: Das Zertifikat ist selbst ausgestellt; HSTS würde bei einem Zertifikatswechsel die Seite komplett sperren.
+    # Versteckte Dateien (.git, .env …) und Sicherungen nie ausliefern
+    <FilesMatch "^\.|~$|\.(bak|orig|sqlite|log|toml|sh|md|sql)$">
+        Require all denied
+    </FilesMatch>
     <Directory /opt/kienzle-sumup/public>
-        Options -Indexes -ExecCGI -Includes
+        Options -Indexes -ExecCGI -Includes -FollowSymLinks
         AllowOverride None
         Require all granted
+        <LimitExcept GET POST HEAD>
+            Require all denied
+        </LimitExcept>
         <FilesMatch "\\.php$">
             SetHandler "proxy:unix:/run/kienzle-sumup-php/php.sock|fcgi://localhost"
         </FilesMatch>
@@ -185,6 +213,19 @@ Restart=on-failure
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup /run/kienzle-sumup-php -/etc/terminzettel/web /etc/kienzle-sumup-printer/web
 [Install]
 WantedBy=multi-user.target
@@ -205,6 +246,19 @@ Restart=on-failure
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadWritePaths=/var/log/kienzle-sumup /run/kienzle-sumup-apache
 [Install]
 WantedBy=multi-user.target
