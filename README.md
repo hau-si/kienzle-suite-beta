@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.36**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.37**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -209,6 +209,7 @@ Betrieb (Test oder Live), Schwarz-Weiß/Farbe, beidseitig, Versandart und Einsch
   gespeichertem PDF. Vor dem Senden fragt ein Dialog nach; im Testbetrieb landet der Brief nur im Postausgang bei Letterxpress.
 - Die Anschrift liest Letterxpress aus dem Adressfenster der T2med-Rechnung. Eine zweite Sendung ist nur nach Bestätigung möglich;
   nach einem unklaren Zeitüberschreitungsfehler wird nicht automatisch erneut gesendet.
+- Im Rechnungseingang lassen sich mehrere Rechnungen über Auswahlkästchen markieren und gesammelt per Post senden oder löschen (höchstens 50, mit Bestätigung; bereits gesendete werden nicht erneut gesendet).
 - Datenschutz: Die Rechnung mit Patientendaten geht an Letterxpress. Einen Auftragsverarbeitungsvertrag muss die Praxis selbst abschließen.
 - Nicht in der Testumgebung geprüft: die echte Letterxpress-API.
 

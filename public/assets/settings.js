@@ -814,10 +814,44 @@ function renderInbox(data) {
   if (!data.items.length) box.append(el('p', 'Noch keine Rechnung eingegangen.', 'muted'));
   else {
     const table = el('table', null, 'fw-table'), head = el('tr');
+    const selected = new Set();
+    const bar = el('div', null, 'row-buttons');
+    const countText = el('span', '', 'muted');
+    const toggleAll = el('input', null, null, {type: 'checkbox', 'aria-label': 'Alle auswählbaren Rechnungen markieren'});
+    const boxes = [];
+    const refresh = () => {
+      for (const b of bar.querySelectorAll('button')) b.disabled = selected.size === 0 || b.dataset.busy === '1';
+      countText.textContent = selected.size ? selected.size + ' ausgewählt' : 'Nichts ausgewählt';
+      toggleAll.checked = boxes.length > 0 && boxes.every(b => b.checked);
+    };
+    toggleAll.onchange = () => { for (const b of boxes) { b.checked = toggleAll.checked; b.onchange(); } };
+    const selectedRows = () => data.items.filter(r => selected.has(r.id));
+    const bulk = (label, action, ask, filter) => {
+      const b = el('button', label, 'secondary', {type: 'button'});
+      b.onclick = () => {
+        const rows = selectedRows().filter(filter);
+        if (!rows.length) { message('Für diese Aktion ist keine der markierten Rechnungen geeignet.'); return; }
+        if (!confirm(ask(rows))) return;
+        busy(b, async () => { const res = await api(action, {ids: rows.map(r => r.id)}); renderInbox(res); message(res.message); });
+      };
+      return b;
+    };
+    if (data.letter_enabled) bar.append(bulk('Auswahl per Post senden', 'inbox_letter_many',
+      rows => rows.length + ' Rechnung(en) (' + euro(rows.reduce((a, r) => a + r.amount_cents, 0)) + ') ' + (data.letter_mode === 'live' ? 'jetzt per Post verschicken' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)') + '?\n\nDabei gehen die Rechnungen mit Patientendaten an Letterxpress. Bereits gesendete Rechnungen werden nicht erneut gesendet.',
+      r => r.postable && !(r.letter || {}).status));
+    bar.append(bulk('Auswahl löschen', 'inbox_delete_many', rows => rows.length + ' Rechnung(en) aus dem Eingang löschen?', r => r.deletable), countText);
+    box.append(bar);
+    const first = el('th'); first.append(toggleAll); head.append(first);
     for (const h of ['Eingang', 'Nummer', 'Betrag', 'Patient', 'Geb.', 'Status', ...(data.letter_enabled ? ['Post'] : []), '']) head.append(el('th', h));
     table.append(head);
     for (const r of data.items) {
       const tr = el('tr');
+      const pick = el('td'), check = el('input', null, null, {type: 'checkbox', 'aria-label': 'Rechnung ' + r.number + ' auswählen'});
+      check.disabled = !(r.deletable || (data.letter_enabled && r.postable));
+      check.checked = false;
+      check.onchange = () => { if (check.checked) selected.add(r.id); else selected.delete(r.id); refresh(); };
+      if (!check.disabled) boxes.push(check);
+      pick.append(check); tr.append(pick);
       const born = r.birthdate ? r.birthdate.split('-').reverse().join('.') : '';
       for (const v of [when(r.received_at), r.number, euro(r.amount_cents), r.patient, born, inboxState[r.status] || r.status]) tr.append(el('td', v));
       if (data.letter_enabled) {
@@ -844,6 +878,7 @@ function renderInbox(data) {
       tr.append(last); table.append(tr);
     }
     box.append(table);
+    refresh();
   }
   if (data.rejected.length) {
     box.append(el('h3', 'Abgelehnte Drucke'));

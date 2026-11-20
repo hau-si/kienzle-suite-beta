@@ -71,6 +71,8 @@ final class SettingsPage {
             't2med_correct' => $this->t2medCorrect($input),
             'inbox_delete' => $this->inboxDelete($input),
             'inbox_letter' => $this->inboxLetter($input),
+            'inbox_letter_many' => $this->inboxMany($input, 'letter'),
+            'inbox_delete_many' => $this->inboxMany($input, 'delete'),
             'catalog' => $this->catalog()->overview(),
             'catalog_service_save' => $this->catalogChange(fn(Catalog $c) => $c->saveService($input), 'Leistung gespeichert.'),
             'catalog_service_delete' => $this->catalogChange(fn(Catalog $c) => $c->deleteService(App::string($input, 'id', 32)), 'Leistung gelöscht. Frühere Zahlungen behalten ihre Angaben.'),
@@ -271,6 +273,26 @@ final class SettingsPage {
         $config = $this->config();
         $result = (new Letterxpress($config, $this->http ?? new HttpClient(), $this->db))->send(App::string($input, 'id', 32), ($input['again'] ?? false) === true);
         return InboxOverview::build($this->db, $config) + ['message' => $result['message']];
+    }
+    /** Mehrere Rechnungen auf einmal senden oder löschen; jede einzeln, Fehler werden gezählt statt abzubrechen. */
+    private function inboxMany(array $input, string $what): array {
+        $ids = is_array($input['ids'] ?? null) ? array_values(array_unique(array_filter($input['ids'], 'is_string'))) : [];
+        if (!$ids) throw new Problem('Keine Rechnung ausgewählt.', 422);
+        if (count($ids) > 50) throw new Problem('Bitte höchstens 50 Rechnungen auf einmal auswählen.', 422);
+        $config = $this->config();
+        $letter = $what === 'letter' ? new Letterxpress($config, $this->http ?? new HttpClient(), $this->db) : null;
+        $done = 0; $errors = [];
+        foreach ($ids as $id) {
+            try {
+                if ($letter) $letter->send(App::string(['id' => $id], 'id', 32)); else InboxOverview::delete($this->db, App::string(['id' => $id], 'id', 32));
+                $done++;
+            } catch (Problem $e) { $errors[] = $e->getMessage(); }
+        }
+        $errors = array_values(array_unique($errors));
+        $verb = $letter ? ($config->get('letterxpress', 'mode', 'test') === 'live' ? 'an Letterxpress übergeben' : 'als Testbrief an Letterxpress übergeben') : 'gelöscht';
+        $message = $done . ($done === 1 ? ' Rechnung ' : ' Rechnungen ') . $verb . '.';
+        if ($errors) $message .= ' Nicht ausgeführt: ' . (count($ids) - $done) . ' (' . mb_substr(implode(' ', $errors), 0, 300) . ')';
+        return InboxOverview::build($this->db, $config) + ['message' => $message];
     }
     private function inboxDelete(array $input): array {
         InboxOverview::delete($this->db, App::string($input, 'id', 32));

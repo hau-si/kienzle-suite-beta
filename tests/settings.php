@@ -122,6 +122,12 @@ try {
     problem(fn() => $page->handle('inbox_delete', ['id' => str_repeat('a', 32)], $session, 'falsch'), 'Löschen ohne CSRF-Token', 403);
     problem(fn() => $page->handle('inbox_delete', ['id' => 'x'], $session, $login['csrf']), 'Ungültige ID beim Löschen', 422);
     problem(fn() => $page->handle('inbox_delete', ['id' => str_repeat('a', 32)], $session, $login['csrf']), 'Unbekannte Rechnung gelöscht', 404);
+    problem(fn() => $page->handle('inbox_delete_many', ['ids' => [str_repeat('a', 32)]], $session, 'falsch'), 'Sammellöschen ohne CSRF-Token', 403);
+    problem(fn() => $page->handle('inbox_delete_many', ['ids' => []], $session, $login['csrf']), 'Sammellöschen ohne Auswahl', 422);
+    problem(fn() => $page->handle('inbox_letter_many', ['ids' => [str_repeat('a', 32)]], $session, 'falsch'), 'Sammelversand ohne CSRF-Token', 403);
+    problem(fn() => $page->handle('inbox_letter_many', ['ids' => array_map(fn($i) => sprintf('%032d', $i), range(1, 51))], $session, $login['csrf']), 'Mehr als 50 Rechnungen', 422);
+    $many = $page->handle('inbox_delete_many', ['ids' => [str_repeat('a', 32)]], $session, $login['csrf']);
+    check(str_contains($many['message'], '0 Rechnungen gelöscht') && str_contains($many['message'], 'Nicht ausgeführt: 1'), 'Sammellöschen meldet Fehler nicht');
     problem(fn() => $page->handle('inbox_letter', ['id' => str_repeat('a', 32)], $session, 'falsch'), 'Postversand ohne CSRF-Token', 403);
     problem(fn() => $page->handle('inbox_letter', ['id' => str_repeat('a', 32)], $session, $login['csrf']), 'Postversand bei ausgeschaltetem Letterxpress', 409);
     check(in_array('letterxpress', array_column($page->handle('get', [], $session, $login['csrf'])['sections'], 'id'), true), 'Letterxpress-Abschnitt fehlt in den Einstellungen');
