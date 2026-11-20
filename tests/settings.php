@@ -86,6 +86,14 @@ try {
     $setup = $page->handle('printer_setup', [], $session, null);
     check($setup['inbox_key'] === Settings::effective($base)->get('invoice_inbox', 'key'), 'Druckereinrichtung mit falschem Schlüssel');
 
+    // Server-IP-Adressen für Druckeradressen aus anderen Netzen (VPN).
+    $page->network = new KienzleSumup\Network(fn(array $c) => ($c[2] ?? '') === 'addr' ? json_encode([
+        ['ifname' => 'lo', 'addr_info' => [['family' => 'inet', 'local' => '127.0.0.1', 'prefixlen' => 8, 'scope' => 'host']]],
+        ['ifname' => 'eth0', 'operstate' => 'UP', 'addr_info' => [['family' => 'inet', 'local' => '192.168.111.115', 'prefixlen' => 24, 'scope' => 'global'], ['family' => 'inet', 'local' => '8.8.8.8', 'prefixlen' => 32, 'scope' => 'global']]]]) : null);
+    $withIps = $page->handle('get', [], $session, null);
+    check($withIps['terminzettel']['ips'] === [['name' => 'eth0', 'ip' => '192.168.111.115']] && $withIps['invoice_printer']['ips'] === [['name' => 'eth0', 'ip' => '192.168.111.115']], 'Server-IP für Druckeradressen fehlt oder enthält öffentliche Adresse');
+    $page->network = null;
+
     // Textschnipsel für die Rechnungserkennung und Eingangsübersicht.
     $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true, 'max_age_days' => 14, 'label_number' => "Beleg-Nr.\nBeleg Nummer", 'label_total' => 'Endsumme']], $session, $login['csrf']);
     check(Settings::effective($base)->get('invoice_inbox', 'label_number') === ['Beleg-Nr.', 'Beleg Nummer'], 'Textschnipsel nicht gespeichert');

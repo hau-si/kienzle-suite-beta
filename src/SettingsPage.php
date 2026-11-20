@@ -79,6 +79,17 @@ final class SettingsPage {
 
     private function config(): Config { return Settings::effective($this->base); }
 
+    /** Private IPv4-Adressen dieses Servers (für Druckeradressen aus anderen Netzen, z. B. VPN). */
+    private function serverAddresses(): array {
+        $found = [];
+        try {
+            foreach (($this->network ?? new Network())->detect()['interfaces'] as $interface) {
+                foreach ($interface['addresses'] as $a) if ($a['family'] === 4 && $a['private']) $found[] = ['name' => $interface['name'], 'ip' => $a['ip']];
+            }
+        } catch (\Throwable) {}
+        return array_slice($found, 0, 8);
+    }
+
     private function view(): array {
         $config = $this->config();
         $tools = [];
@@ -88,9 +99,9 @@ final class SettingsPage {
             'base_url' => $config->get('app', 'base_url'), 'version' => trim((string)@file_get_contents(dirname(__DIR__) . '/VERSION')),
             'mode' => $config->get('sumup', 'mode'), 'fhir_mode' => $config->get('fhir', 'mode'),
             'warning' => $broken ? 'Gespeicherte Einstellungen passen nicht zur aktuellen Version und werden ignoriert. Bitte die Bereiche prüfen und neu speichern.' : null,
-            'invoice_printer' => InvoicePrinter::status($this->printers, $config), 'clients' => $this->clients(),
+            'invoice_printer' => InvoicePrinter::status($this->printers, $config) + ['ips' => $this->serverAddresses()], 'clients' => $this->clients(),
             'export_years' => (new TaxExport($this->db, $config))->years(),
-            'terminzettel' => ['installed' => Terminzettel::installed(), 'target' => Terminzettel::target($config),
+            'terminzettel' => ['installed' => Terminzettel::installed(), 'target' => Terminzettel::target($config), 'ips' => $this->serverAddresses(),
                 'printer_url' => 'http://' . (parse_url((string)$config->get('app', 'base_url'), PHP_URL_HOST) ?: 'server') . ':631/printers/Terminzettel']];
     }
 

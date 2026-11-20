@@ -165,9 +165,9 @@ function renderInvoicePrinter(info) {
   if (!info.queue.ours) { box.append(el('p', 'Ein anderer Drucker heißt bereits „SumUp-Rechnung“. Bitte diesen umbenennen oder entfernen.', 'inline-error')); return; }
   box.append(el('p', 'Eingerichtet (' + info.queue.state + '). In T2med die Rechnung auf diesen Drucker drucken – sie erscheint dann beim Patienten zum Kassieren.', 'notice'));
   const ol = el('ol', null, 'steps');
-  ol.append(el('li', 'Windows: Drucker hinzufügen → „Freigegebenen Drucker über den Namen auswählen“: ' + info.url + ' – Treiber „Microsoft IPP Class Driver“, Papier A4.'));
-  const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, PowerShell als Administrator öffnen und ausführen (aus einem anderen Netz/VPN statt des Servernamens die IP-Adresse des Servers verwenden):');
-  driver.append(el('pre', 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\nAdd-PrinterPort -Name "' + info.url + '" -ErrorAction SilentlyContinue\nAdd-Printer -Name "SumUp-Rechnung" -DriverName "Microsoft IPP Class Driver" -PortName "' + info.url + '"', 'audit-list'));
+  ol.append(el('li', 'Windows: Drucker hinzufügen → „Freigegebenen Drucker über den Namen auswählen“: ' + info.url + ' – Treiber „Microsoft IPP Class Driver“, Papier A4. ' + ippIpNote(info.url, info.ips)));
+  const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, PowerShell als Administrator öffnen und ausführen:');
+  driver.append(el('pre', ippPowerShell('SumUp-Rechnung', info.url, info.ips), 'audit-list'));
   ol.append(driver);
   const mac = el('li'); mac.append(document.createTextNode('Mac: „SumUp-Rechnung“ hinzufügen, als Treiber die Datei '), el('a', 'SumUp-Rechnung-PDF.ppd', null, {href: '/assets/SumUp-Rechnung-PDF.ppd', download: 'SumUp-Rechnung-PDF.ppd'}), document.createTextNode(' wählen.'));
   ol.append(mac); box.append(ol);
@@ -360,6 +360,20 @@ $('printer-setup').onclick = () => busy($('printer-setup'), async () => {
 
 // ---- Terminzettel: Hinweise und Live-Vorschau -------------------------------------------
 let previewTimer = null, previewSeq = 0;
+// Druckeradresse (http://Name:631/printers/X) zusätzlich mit den IP-Adressen des Servers, z. B. für Zugriffe aus dem VPN.
+function ippByIp(url, ips) {
+  const path = String(url).replace(/^http:\/\/[^/]+/, '');
+  return (ips || []).map(i => ({name: i.name, ip: i.ip, url: 'http://' + i.ip + ':631' + path}));
+}
+function ippPowerShell(queue, url, ips) {
+  const byIp = ippByIp(url, ips), use = byIp.length ? byIp[0].url : url;
+  return 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\n$url = "' + use + '"\nAdd-PrinterPort -Name $url -ErrorAction SilentlyContinue\nAdd-Printer -Name "' + queue + '" -DriverName "Microsoft IPP Class Driver" -PortName $url';
+}
+function ippIpNote(url, ips) {
+  const byIp = ippByIp(url, ips);
+  return byIp.length ? 'Per IP-Adresse (z. B. aus dem VPN): ' + byIp.map(i => i.url + ' (' + i.name + ')').join(' oder ') + '. ' : '';
+}
+
 function terminzettelCard(card, form, section, info) {
   const status = el('div', null, 'tz-status');
   if (!info.installed) status.append(el('p', 'Der Terminzettel-Druckdienst ist auf diesem Server noch nicht installiert. Bitte einmal „sudo bash scripts/install-server.sh“ ausführen.', 'inline-error'));
@@ -367,9 +381,9 @@ function terminzettelCard(card, form, section, info) {
   else status.append(el('p', 'Druckt auf den Bondrucker „' + info.target.queue + '“ (' + (info.target.model === 'tm-m30iii' ? 'Epson TM-m30III, 80 mm' : 'Epson TM-m10, 58 mm') + ').', 'notice'));
   const how = el('details', null, 'tz-how'); how.append(el('summary', 'Drucker „Terminzettel“ auf den Arbeitsplätzen hinzufügen'));
   const ol = el('ol');
-  ol.append(el('li', 'Windows: Einstellungen → Drucker → Drucker hinzufügen → „Der gewünschte Drucker ist nicht aufgeführt“ → „Freigegebenen Drucker über den Namen auswählen“: ' + info.printer_url + ' – Treiber „Microsoft IPP Class Driver“. Aus einem anderen Netz (VPN) statt des Servernamens die IP-Adresse des Servers eintragen (am Server: hostname -I).'));
-  const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, ist der Internet-Druckclient nicht aktiviert. PowerShell als Administrator öffnen und ausführen (dann ist der Drucker gleich fertig eingerichtet):');
-  driver.append(el('pre', 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\nAdd-PrinterPort -Name "' + info.printer_url + '" -ErrorAction SilentlyContinue\nAdd-Printer -Name "Terminzettel" -DriverName "Microsoft IPP Class Driver" -PortName "' + info.printer_url + '"', 'audit-list'));
+  ol.append(el('li', 'Windows: Einstellungen → Drucker → Drucker hinzufügen → „Der gewünschte Drucker ist nicht aufgeführt“ → „Freigegebenen Drucker über den Namen auswählen“: ' + info.printer_url + ' – Treiber „Microsoft IPP Class Driver“. ' + ippIpNote(info.printer_url, info.ips) + 'Aus einem anderen Netz (VPN) die IP-Adresse statt des Servernamens verwenden.'));
+  const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, PowerShell als Administrator öffnen und ausführen (dann ist der Drucker gleich fertig eingerichtet):');
+  driver.append(el('pre', ippPowerShell('Terminzettel', info.printer_url, info.ips), 'audit-list'));
   driver.append(el('span', 'Meldet die erste Zeile, dass ein Neustart nötig ist, Windows neu starten und die Befehle ab Zeile 2 wiederholen.', 'muted small'));
   ol.append(driver);
   ol.append(el('li', 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen.'));
