@@ -21,19 +21,36 @@ final class Letterxpress {
         return $this->http->request($method, self::BASE . $path, ['Accept: application/json', 'Content-Type: application/json'], ['auth' => $this->auth()] + $body);
     }
     /** Fehlermeldung der API ohne Zugangsdaten, kurz und ohne Steuerzeichen. */
-    /** T2med-PDFs tragen teils eine Rechte-Verschlüsselung (ohne Kennwort), die Letterxpress ablehnt: mit qpdf entfernen. */
+    /**
+     * PDF für Letterxpress aufbereiten: Rechteschutz (ohne Kennwort) entfernen und Hochformat-Seiten anderer Größe (z. B. US Letter
+     * aus dem Druckertreiber) auf A4 bringen. Der Inhalt wird nicht skaliert: die obere linke Ecke bleibt, damit das Adressfenster
+     * an seiner Stelle bleibt; rechts und unten wird beschnitten bzw. aufgefüllt.
+     */
     private static function unprotected(string $pdf): string {
         $binary = null;
         foreach (['/usr/bin/qpdf', '/usr/local/bin/qpdf', '/opt/homebrew/bin/qpdf'] as $path) if (is_executable($path)) { $binary = $path; break; }
-        $file = $binary ? tempnam(sys_get_temp_dir(), 'ks-lxp-') : false;
-        if (!$binary || $file === false) return $pdf;
-        try {
-            chmod($file, 0600);
-            if (file_put_contents($file, $pdf) !== strlen($pdf)) return $pdf;
-            $result = Command::run([$binary, '--decrypt', '--object-streams=disable', '--warning-exit-0', $file, '-'], '', 30);
-            return $result['code'] === 0 && str_starts_with($result['output'], '%PDF-') ? $result['output'] : $pdf;
-        } catch (\Throwable) { return $pdf; }
-        finally { @unlink($file); }
+        if (!$binary) return $pdf;
+        $rewrite = function (string $data, array $options) use ($binary): ?string {
+            $file = tempnam(sys_get_temp_dir(), 'ks-lxp-');
+            if ($file === false) return null;
+            try {
+                chmod($file, 0600);
+                if (file_put_contents($file, $data) !== strlen($data)) return null;
+                $result = Command::run([$binary, ...$options, '--warning-exit-0', $file, '-'], '', 30);
+                return $result['code'] === 0 && str_starts_with($result['output'], '%PDF-') ? $result['output'] : null;
+            } catch (\Throwable) { return null; }
+            finally { @unlink($file); }
+        };
+        $clean = $rewrite($pdf, ['--decrypt', '--object-streams=disable']) ?? $pdf;
+        $fixed = preg_replace_callback('#/(MediaBox|CropBox)(\s*)\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', function (array $m): string {
+            [$x0, $y0, $x1, $y1] = [(float)$m[3], (float)$m[4], (float)$m[5], (float)$m[6]];
+            $w = $x1 - $x0; $h = $y1 - $y0;
+            if ($h <= $w || abs($w - 595) <= 2 && abs($h - 842) <= 2 || $w < 400 || $w > 700 || $h < 600 || $h > 1000) return $m[0];
+            return '/' . $m[1] . $m[2] . '[' . round($x0, 2) . ' ' . round($y1 - 842, 2) . ' ' . round($x0 + 595, 2) . ' ' . round($y1, 2) . ']';
+        }, $clean);
+        if ($fixed === null || $fixed === $clean) return $clean;
+        // Beschriebene Seitengrößen ändern die Dateilängen: qpdf baut Verweistabelle neu auf.
+        return $rewrite($fixed, ['--object-streams=disable']) ?? $clean;
     }
 
     /** Kurzbeschreibung des PDFs für Fehlermeldungen: Version, Seiten, Format, Drehung, Verschlüsselung. */
