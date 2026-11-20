@@ -67,6 +67,23 @@ final class Settings {
             'media' => ['type' => 'choice', 'label' => 'Papier', 'choices' => ['A4' => 'A4', 'Letter' => 'Letter']],
             'duplex' => ['type' => 'bool', 'label' => 'Beidseitig drucken'],
         ]],
+        'terminzettel' => ['label' => 'Terminzettel', 'fields' => [
+            'enabled' => ['type' => 'bool', 'label' => 'Terminzettel aus T2med auf dem Bondrucker drucken', 'default' => true],
+            'header_text' => ['type' => 'text', 'label' => 'Starttext (Praxiskopf, leer = keiner)', 'default' => ''],
+            'header_size' => ['type' => 'choice', 'label' => 'Schriftgröße Starttext', 'choices' => ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => '2x2'],
+            'header_bold' => ['type' => 'bool', 'label' => 'Starttext fett', 'default' => true],
+            'heading' => ['type' => 'string', 'label' => 'Überschrift', 'default' => 'IHRE TERMINE', 'optional' => true],
+            'heading_size' => ['type' => 'choice', 'label' => 'Schriftgröße Überschrift', 'choices' => ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => '2x2'],
+            'show_patient' => ['type' => 'bool', 'label' => 'Patientennamen drucken', 'default' => true],
+            'appointment_size' => ['type' => 'choice', 'label' => 'Schriftgröße Termine', 'choices' => ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => '2x2'],
+            'footer_text' => ['type' => 'text', 'label' => 'Endtext (leer = keiner)', 'default' => 'Können Sie einen Termin nicht wahrnehmen, sagen Sie bitte unbedingt Bescheid.'],
+            'footer_size' => ['type' => 'choice', 'label' => 'Schriftgröße Endtext', 'choices' => ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => '2x2'],
+            'qr_enabled' => ['type' => 'bool', 'label' => 'Kalender-QR je Termin drucken', 'default' => true],
+            'qr_position' => ['type' => 'choice', 'label' => 'Position des QR-Codes', 'choices' => ['right' => 'Rechts neben dem Termin', 'left' => 'Links neben dem Termin', 'below' => 'Unter dem Termin (mittig)'], 'default' => 'right'],
+            'qr_size' => ['type' => 'choice', 'label' => 'Größe des QR-Codes', 'choices' => ['small' => 'Klein', 'medium' => 'Mittel', 'large' => 'Groß'], 'default' => 'medium'],
+            'qr_summary' => ['type' => 'string', 'label' => 'Kalender-Titel (Präfix)', 'default' => 'Termin Arztpraxis', 'optional' => true],
+            'cut' => ['type' => 'bool', 'label' => 'Bon abschneiden', 'default' => true],
+        ]],
         'invoice_inbox' => ['label' => 'T2med-Rechnungen übernehmen', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Rechnungen über den Drucker „SumUp-Rechnung“ übernehmen'],
             'max_age_days' => ['type' => 'int', 'label' => 'Offene Rechnungen anbieten für (Tage)', 'default' => 14],
@@ -124,7 +141,7 @@ final class Settings {
         foreach (self::SCHEMA as $section => $definition) {
             $fields = [];
             foreach ($definition['fields'] as $key => $field) {
-                $value = $config->get($section, $key, $field['default'] ?? null);
+                $value = $config->get($section, $key, $section === 'terminzettel' ? (Terminzettel::existing()[$key] ?? $field['default'] ?? null) : ($field['default'] ?? null));
                 if ($field['type'] === 'secret') $value = ['set' => is_string($value) && $value !== ''];
                 elseif ($field['type'] === 'pem') $value = ['set' => is_string($config->get('fhir', 'ca_file', '')) && $config->get('fhir', 'ca_file', '') !== ''];
                 elseif ($field['type'] === 'money') $value = intdiv((int)$value, 100);
@@ -153,6 +170,7 @@ final class Settings {
                 'list' => array_values(array_filter(array_map(fn($line) => rtrim(trim($line), '/'), preg_split('/[\r\n,]+/', (string)$raw)))),
                 'secret' => trim((string)$raw) === '' ? $current->get($section, $key, '') : trim((string)$raw),
                 'pem' => self::pem($base, (string)$raw),
+                'text' => self::text($field['label'], $raw),
                 default => trim((string)$raw),
             };
             if ($values[$key] === null) unset($values[$key]);
@@ -187,7 +205,17 @@ final class Settings {
         }
         $db->query('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at',
             [self::ROW, self::encrypt($overrides, $base), time()]);
+        Terminzettel::sync($config, $overrides['terminzettel'] ?? []);
         return $config;
+    }
+
+    /** Mehrzeiliger Freitext (Terminzettel): höchstens 1000 Zeichen, keine Steuerzeichen. */
+    private static function text(string $label, mixed $raw): string {
+        $text = trim(str_replace(["\r\n", "\r", "\t"], ["\n", "\n", ' '], (string)$raw), "\n ");
+        if (mb_strlen($text) > 1000 || preg_match('/[\x00-\x09\x0b-\x1f\x7f-\x9f]/u', $text) || !mb_check_encoding($text, 'UTF-8')) {
+            throw new Problem($label . ': höchstens 1000 Zeichen, nur normaler Text.', 422);
+        }
+        return $text;
     }
 
     /** PEM-Zertifikat prüfen und im Datenverzeichnis ablegen; leer = unverändert, „-“ = entfernen. */

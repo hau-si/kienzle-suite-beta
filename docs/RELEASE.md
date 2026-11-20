@@ -1,9 +1,16 @@
-Version 1.4.1-rechnung.6 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.7 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.7: T2med-Terminzettel integriert (aus thomaskien/t2med-terminzettel 1.3.1,
+  Ordner `terminzettel/`), vom Server-Installer ohne Rückfragen eingerichtet. Einstellungsbereich
+  „Terminzettel“: Schriftgröße getrennt für Starttext, Überschrift, Termine und Endtext, Position
+  (rechts/links/unter dem Termin) und Größe des Kalender-QR, Live-Vorschau des Bons aus denselben
+  ESC/POS-Daten, Testdruck. Bondrucker und Breite (TM-m10 420, TM-m30III 576 Punkte) kommen
+  automatisch aus den Druckereinstellungen. Ohne Webeinstellungen druckt der Terminzettel
+  byte-identisch wie bisher.
 - Neu in rechnung.6: Info-Symbol mit Erklärung und Beispielwert zu jeder Einstellung und jeder
   Auswahlmöglichkeit. „Drucker einrichten“ im Browser: TM-m10, TM-m30III und A4-Netzwerkdrucker
   (IPP Everywhere) suchen, als CUPS-Warteschlange anlegen, automatisch übernehmen, testen und

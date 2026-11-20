@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.6**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.7**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -469,6 +469,7 @@ weiterhin ohne Passwort.
 | Praxisdaten | Rechnungsaussteller und Anschrift |
 | E-Mail-Versand | SMTP-Server und Absender |
 | Bondrucker / Praxisdrucker (A4) | Modell, Verbindung, Warteschlange; Testdruck |
+| Terminzettel | Starttext, Überschrift, Termine, Endtext mit eigener Schriftgröße; Kalender-QR (Position, Größe); Live-Vorschau; Testdruck |
 | Drucker einrichten | TM-m10, TM-m30III und A4-Netzwerkdrucker suchen, anlegen, übernehmen, entfernen |
 | Arbeitsplätze einrichten | Installationspaket für Windows, macOS und Linux herunterladen |
 | T2med-Rechnungen übernehmen | virtueller Drucker „SumUp-Rechnung“, Einrichtungsdatei für den Druckserver |
@@ -482,6 +483,34 @@ Angaben werden mit Klartext abgelehnt, nichts wird halb gespeichert. Gespeichert
 Schlüssel und Passwörter werden nie wieder angezeigt; ein leeres Feld behält den Wert.
 Die Werte liegen verschlüsselt (mit dem Verschlüsselungsschlüssel aus der TOML-Datei) in der
 Datenbank und haben Vorrang vor der TOML-Datei; diese bleibt die Grundlage.
+
+#### T2med-Terminzettel
+
+Der [T2med-Terminzettel](terminzettel/README.md) (übernommen aus
+[thomaskien/t2med-terminzettel](https://github.com/thomaskien/t2med-terminzettel)) gehört jetzt dazu: In T2med
+den Drucker **„Terminzettel“** wählen, dann kommt das Terminblatt als Bon aus dem Bondrucker, auf Wunsch
+mit einem Kalender-QR je Termin. Der Server-Installer richtet ihn **ohne Rückfragen** mit ein (überspringen:
+`--ohne-terminzettel`).
+
+Unter **Einstellungen → Terminzettel**:
+
+- Starttext (Praxiskopf), Überschrift, Termine und Endtext jeweils mit eigener **Schriftgröße**
+  (Normal 1×1 bis Riesig 4×4; Starttext zusätzlich fett/normal).
+- **Kalender-QR:** an/aus, **Position** rechts, links oder unter dem Termin, Größe klein/mittel/groß,
+  Kalender-Titel.
+- **Vorschau** rechts neben dem Formular: Sie zeigt mit Beispieldaten genau die Druckdaten, die auch an den
+  Bondrucker gehen, und aktualisiert sich bei jeder Änderung, schon vor dem Speichern.
+  „Beispiel-Terminzettel drucken“ gibt denselben Bon aus.
+- Bondrucker und Papierbreite übernimmt der Terminzettel automatisch aus „Drucker einrichten“ bzw.
+  „Bondrucker“ (TM-m10 58 mm, TM-m30III 80 mm). Ohne gespeicherte Angaben gilt eine vorhandene
+  `/etc/terminzettel/config.toml` unverändert.
+
+Arbeitsplätze: Windows über den IPP-Drucker `http://<server>:631/printers/Terminzettel` mit dem Treiber
+„Microsoft IPP Class Driver“ (Papier A6), Mac mit dem PDF-Treiber, den die Einstellungsseite zum
+Herunterladen anbietet. Der Installer gibt dafür CUPS-Drucker im Netz frei (`cupsctl --share-printers`;
+sichtbar sind nur als freigegeben markierte Drucker). Außerdem legt der Terminzettel-Installer eine
+Samba-Druckerfreigabe „Terminzettel“ an und stellt die Zwischendaten von CUPS und Samba auf RAM um
+(Details in [terminzettel/README.md](terminzettel/README.md)).
 
 #### Drucker im Browser einrichten
 

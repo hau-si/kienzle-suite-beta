@@ -28,6 +28,12 @@ jobs:
       - run: php tests/auto-print.php
       - run: php tests/settings.php
       - run: php tests/printer-admin.php
+      - name: Terminzettel (Python)
+        run: |
+          sudo apt-get install -y ghostscript libgxps-utils tesseract-ocr tesseract-ocr-deu python3-pil python3-qrcode fonts-dejavu-core
+          python3 -m pip install --user --break-system-packages -r terminzettel/requirements-dev.txt
+          python3 -B -m unittest discover -s terminzettel/tests -v
+      - run: php tests/terminzettel.php
       - run: php tests/print-format.php
       - run: php tests/mail-mime.php
       - run: python3 tests/tls-pin.py
@@ -82,6 +88,15 @@ jobs:
           sudo php -r 'require "/opt/kienzle-sumup/src/bootstrap.php"; $c=ks_app()->config; exit($c->get("printing","queue") === "CI-Bon" && $c->get("printing","width_dots") === 576 ? 0 : 1);'
           curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"printer_remove","name":"CI-Bon"}' "https://$host/settings-api.php" | grep -q 'entfernt'
           ! lpstat -v CI-Bon 2>/dev/null
+          # Terminzettel: virtueller Drucker vorhanden, Layout und Bondrucker kommen aus dem Webinterface.
+          lpstat -v Terminzettel | grep -q 'terminzettel:/'
+          curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"printer_add","kind":"tm-m30iii","name":"CI-Bon2","address":"socket://127.0.0.1:9100"}' "https://$host/settings-api.php" | grep -q 'eingerichtet'
+          sudo grep -q '"queue": "CI-Bon2"' /etc/terminzettel/web/layout.json
+          curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"save","section":"terminzettel","values":{"enabled":true,"appointment_size":"1x2","qr_position":"below"}}' "https://$host/settings-api.php" | grep -q 'Gespeichert'
+          sudo grep -q '"position": "below"' /etc/terminzettel/web/layout.json
+          curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"terminzettel_preview","values":{"appointment_size":"3x3"}}' "https://$host/settings-api.php" | grep -q 'data:image/png;base64'
+          # Selbsttest des installierten Terminzettels als Dienstbenutzer.
+          sudo -u terminzettel python3 -B /usr/local/lib/terminzettel/terminzettel.py --self-test
           # Arbeitsplatz-Paket nur mit Anmeldung
           curl --fail --silent --noproxy '*' --cacert /etc/kienzle-sumup/server.crt --resolve "$host:127.0.0.1" -b /tmp/jar -o /tmp/win.zip "https://$host/client-download.php?os=windows"
           unzip -l /tmp/win.zip | grep -q install-windows.cmd

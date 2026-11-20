@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 let csrf = '';
 const TESTS = {sumup: ['sumup', 'Verbindung zu SumUp prüfen'], printing: ['receipt_printer', 'Testbon drucken'],
-  office_printing: ['office_printer', 'Testseite drucken'], invoice_export: ['export', 'Schreibzugriff prüfen']};
+  office_printing: ['office_printer', 'Testseite drucken'], terminzettel: ['terminzettel', 'Beispiel-Terminzettel drucken'], invoice_export: ['export', 'Schreibzugriff prüfen']};
 // Felder, die nur bei bestimmten Werten sichtbar sind.
 const SHOW = {
   'sumup.api_key': v => v.mode === 'live', 'sumup.affiliate_key': v => v.mode === 'live', 'sumup.app_id': v => v.mode === 'live',
@@ -10,6 +10,9 @@ const SHOW = {
   'fhir.base_url': v => v.mode === 'live', 'fhir.launch_urls': v => v.mode === 'live', 'fhir.api_key': v => v.mode === 'live',
   'fhir.entry_code': v => v.mode === 'live', 'fhir.ca_pem': v => v.mode === 'live', 'fhir.pin_certificate': v => v.mode === 'live',
   'printing.queue': v => v.transport === 'cups', 'printing.cups_server': v => v.transport === 'cups', 'printing.share': v => v.transport === 'samba',
+  'terminzettel.header_size': v => !!(v.header_text || '').trim(), 'terminzettel.header_bold': v => !!(v.header_text || '').trim(),
+  'terminzettel.heading_size': v => !!(v.heading || '').trim(), 'terminzettel.footer_size': v => !!(v.footer_text || '').trim(),
+  'terminzettel.qr_position': v => v.qr_enabled, 'terminzettel.qr_size': v => v.qr_enabled, 'terminzettel.qr_summary': v => v.qr_enabled,
   'mail.password': v => !!v.username, 'invoice_export.password': v => !!v.username, 'invoice_export.domain': v => !!v.username,
 };
 
@@ -98,9 +101,9 @@ function render(data) {
         if (field.type === 'choice') {
           input = el('select', null, null, {id, name: field.key});
           for (const [value, label] of Object.entries(field.choices)) { const o = el('option', label, null, {value}); if (value === field.value) o.selected = true; input.append(o); }
-        } else if (field.type === 'list' || field.type === 'pem') {
-          input = el('textarea', null, null, {id, name: field.key, rows: field.type === 'pem' ? '6' : '3', spellcheck: 'false'});
-          if (field.type === 'list') input.value = field.value || '';
+        } else if (field.type === 'list' || field.type === 'pem' || field.type === 'text') {
+          input = el('textarea', null, field.type === 'text' ? 'plain' : null, {id, name: field.key, rows: field.type === 'pem' ? '6' : '3', spellcheck: field.type === 'text' ? 'true' : 'false'});
+          if (field.type !== 'pem') input.value = field.value || '';
           else input.placeholder = field.value.set ? 'Zertifikat gespeichert – leer lassen zum Behalten, „-“ zum Entfernen' : '-----BEGIN CERTIFICATE----- …';
         } else {
           input = el('input', null, null, {id, name: field.key, type: field.type === 'secret' ? 'password' : (field.type === 'int' || field.type === 'money' ? 'number' : 'text'), autocomplete: 'off', spellcheck: 'false'});
@@ -108,7 +111,7 @@ function render(data) {
           else input.value = field.value ?? '';
           if (field.type === 'money') { input.min = '1'; input.step = '1'; }
         }
-        if (field.example && field.type !== 'secret' && field.type !== 'pem' && field.type !== 'choice') input.placeholder = 'z. B. ' + field.example;
+        if (field.example && field.type !== 'secret' && field.type !== 'pem' && field.type !== 'choice') input.placeholder = 'z. B. ' + field.example.replace(/\n/g, ' · ');
         row.append(input);
         if (field.type === 'choice' && field.options) {
           // Erklärung der gerade gewählten Möglichkeit direkt unter der Auswahl.
@@ -139,6 +142,7 @@ function render(data) {
     }); };
     card.append(form); root.append(card);
     applyVisibility(form, section);
+    if (section.id === 'terminzettel') terminzettelCard(card, form, section, data.terminzettel || {});
   }
 }
 async function busy(button, action) {
@@ -168,6 +172,37 @@ $('printer-setup').onclick = () => busy($('printer-setup'), async () => {
   document.body.append(link); link.click(); link.remove();
   message('Einrichtungsdatei heruntergeladen. Sie enthält den Rechnungseingangs-Schlüssel – nur auf den Druckserver kopieren und danach löschen.');
 });
+
+// ---- Terminzettel: Hinweise und Live-Vorschau -------------------------------------------
+let previewTimer = null, previewSeq = 0;
+function terminzettelCard(card, form, section, info) {
+  const status = el('div', null, 'tz-status');
+  if (!info.installed) status.append(el('p', 'Der Terminzettel-Druckdienst ist auf diesem Server noch nicht installiert. Bitte einmal „sudo bash scripts/install-server.sh“ ausführen.', 'inline-error'));
+  else if (!info.target) { const p = el('p', null, 'inline-error'); p.append(document.createTextNode('Noch kein Bondrucker an diesem Server. '), el('a', 'Jetzt unter „Drucker einrichten“ anlegen', null, {href: '#s-printers'}), document.createTextNode(' – der Terminzettel druckt dann automatisch dort.')); status.append(p); }
+  else status.append(el('p', 'Druckt auf den Bondrucker „' + info.target.queue + '“ (' + (info.target.model === 'tm-m30iii' ? 'Epson TM-m30III, 80 mm' : 'Epson TM-m10, 58 mm') + ').', 'notice'));
+  const how = el('details', null, 'tz-how'); how.append(el('summary', 'Drucker „Terminzettel“ auf den Arbeitsplätzen hinzufügen'));
+  const ol = el('ol');
+  ol.append(el('li', 'Windows: Einstellungen → Drucker → Drucker hinzufügen → „Der gewünschte Drucker ist nicht aufgeführt“ → „Freigegebenen Drucker über den Namen auswählen“: ' + info.printer_url + ' – Treiber „Microsoft IPP Class Driver“.'));
+  ol.append(el('li', 'In T2med beim Terminzettel diesen Drucker wählen, Papierformat A6 (A5/A4 gehen auch).'));
+  const mac = el('li'); mac.append(document.createTextNode('Mac: „Terminzettel“ unter Drucker hinzufügen wählen, als Treiber '), el('a', 'Terminzettel-PDF.ppd', null, {href: '/assets/Terminzettel-PDF.ppd', download: 'Terminzettel-PDF.ppd'}), document.createTextNode(' (Verwenden → Andere …).')); ol.append(mac);
+  how.append(ol);
+  const grid = el('div', null, 'tz-grid'); const left = el('div'); const right = el('aside', null, 'tz-preview');
+  right.append(el('div', 'Vorschau (Beispieldaten)', 'tz-preview-title'));
+  const img = el('img', null, null, {alt: 'Vorschau des Terminbons', id: 'tz-image'}); const note = el('p', null, 'muted small', {id: 'tz-note'});
+  right.append(img, note);
+  card.insertBefore(status, form); left.append(form, how); grid.append(left, right); card.append(grid);
+  const refresh = () => { clearTimeout(previewTimer); previewTimer = setTimeout(async () => {
+    const seq = ++previewSeq; right.classList.add('loading');
+    try {
+      const result = await api('terminzettel_preview', {values: values(form, section)});
+      if (seq !== previewSeq) return;
+      img.src = result.image; note.textContent = (result.notes || []).join(' ') || 'Zeigt den Bon so, wie er gedruckt wird (Breite ' + ((info.target || {}).model === 'tm-m30iii' ? '80' : '58') + ' mm).';
+      note.classList.remove('inline-error');
+    } catch (error) { if (seq === previewSeq) { note.textContent = error.message; note.classList.add('inline-error'); } }
+    finally { if (seq === previewSeq) right.classList.remove('loading'); }
+  }, 450); };
+  form.addEventListener('input', refresh); form.addEventListener('change', refresh); refresh();
+}
 
 // ---- Drucker einrichten ---------------------------------------------------------------
 const PRINTER_FIELDS = {

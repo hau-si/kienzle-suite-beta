@@ -42,6 +42,7 @@ final class SettingsPage {
             'logout' => $this->logout($sessionToken),
             'printer_setup' => $this->printerSetup(),
             'printers' => $this->printerList(),
+            'terminzettel_preview' => $this->terminzettelPreview(is_array($input['values'] ?? null) ? $input['values'] : []),
             'printer_discover' => ['found' => $this->printerReady()->discover()],
             'printer_add' => $this->printerAdd($input),
             'printer_use' => $this->printerUse(App::string($input, 'name', 41), App::string($input, 'kind', 20)),
@@ -61,7 +62,9 @@ final class SettingsPage {
             'base_url' => $config->get('app', 'base_url'), 'version' => trim((string)@file_get_contents(dirname(__DIR__) . '/VERSION')),
             'mode' => $config->get('sumup', 'mode'), 'fhir_mode' => $config->get('fhir', 'mode'),
             'warning' => $broken ? 'Gespeicherte Einstellungen passen nicht zur aktuellen Version und werden ignoriert. Bitte die Bereiche prüfen und neu speichern.' : null,
-            'invoice_printer' => (bool)$config->get('invoice_inbox', 'enabled', false), 'clients' => $this->clients()];
+            'invoice_printer' => (bool)$config->get('invoice_inbox', 'enabled', false), 'clients' => $this->clients(),
+            'terminzettel' => ['installed' => Terminzettel::installed(), 'target' => Terminzettel::target($config),
+                'printer_url' => 'http://' . (parse_url((string)$config->get('app', 'base_url'), PHP_URL_HOST) ?: 'server') . ':631/printers/Terminzettel']];
     }
 
     private function save(string $section, array $values): array {
@@ -80,6 +83,11 @@ final class SettingsPage {
                 // ESC/POS-Text: Initialisieren, Text, Vorschub, Schnitt.
                 (new ReceiptPrinter($config))->send("\x1b@Kienzle-SumUp Testdruck\n" . date('d.m.Y H:i') . "\n\n\n\n\x1dVB\x00");
                 return 'Testbon an den Bondrucker übergeben.';
+            case 'terminzettel':
+                if (!Terminzettel::target($config)) throw new Problem('Zuerst unter „Drucker einrichten“ einen Bondrucker an diesem Server einrichten.', 409);
+                $bytes = Terminzettel::sample($this->terminzettelValues([]), 'escpos')['data'];
+                (new ReceiptPrinter($config))->send($bytes);
+                return 'Beispiel-Terminzettel an den Bondrucker übergeben.';
             case 'office_printer':
                 $office = new OfficePrinter($config);
                 if (!$office->enabled()) throw new Problem('Praxisdrucker ist nicht aktiviert.', 409);
@@ -104,6 +112,21 @@ final class SettingsPage {
         $this->admin->logout($token);
         $this->cookie = Admin::cookie('', 0);
         return ['logged_in' => false];
+    }
+
+    /** Gespeicherte Terminzettel-Werte, überlagert von noch nicht gespeicherten Formularwerten. */
+    private function terminzettelValues(array $form): array {
+        $values = (Settings::read($this->base)['terminzettel'] ?? []);
+        foreach (Settings::SCHEMA['terminzettel']['fields'] as $key => $field) {
+            if (!array_key_exists($key, $form)) continue;
+            $value = $form[$key];
+            $values[$key] = $field['type'] === 'bool' ? $value === true : (is_scalar($value) ? (string)$value : '');
+        }
+        return Terminzettel::overlay($this->config(), $values);
+    }
+    private function terminzettelPreview(array $form): array {
+        $result = Terminzettel::sample($this->terminzettelValues($form));
+        return ['image' => 'data:image/png;base64,' . base64_encode($result['data']), 'notes' => $result['notes']];
     }
 
     private function printerReady(): PrinterAdmin {

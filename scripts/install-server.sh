@@ -6,13 +6,15 @@ if [ "$EUID" -ne 0 ]; then echo 'Bitte mit sudo ausführen: sudo bash scripts/in
 if [ ! -f /etc/debian_version ]; then echo 'Dieser Installer unterstützt Debian, Ubuntu und Raspberry Pi OS.'; exit 1; fi
 if ! command -v systemctl >/dev/null; then echo 'systemd wird benötigt.'; exit 1; fi
 umask 077
-# Optionen: --fragen (Einstellungen wie früher im Terminal abfragen), --admin-reset (neuer Einrichtungslink).
-ask_flag=""; admin_reset=""
+# Optionen: --fragen (Einstellungen wie früher im Terminal abfragen), --admin-reset (neuer Einrichtungslink),
+#           --ohne-terminzettel (virtuellen Drucker „Terminzettel“ nicht einrichten).
+ask_flag=""; admin_reset=""; with_terminzettel=1
 for arg in "$@"; do
   case "$arg" in
     --fragen) ask_flag="--fragen" ;;
     --admin-reset) admin_reset="--reset" ;;
-    *) echo "Unbekannte Option: $arg (erlaubt: --fragen, --admin-reset)"; exit 2 ;;
+    --ohne-terminzettel) with_terminzettel=0 ;;
+    *) echo "Unbekannte Option: $arg (erlaubt: --fragen, --admin-reset, --ohne-terminzettel)"; exit 2 ;;
   esac
 done
 apt-get update
@@ -24,6 +26,24 @@ install -d -m 700 -o kienzle-sumup -g kienzle-sumup /var/lib/kienzle-sumup
 # Drucker im Browser einrichten: CUPS-Verwaltung über die Gruppe lpadmin (nur lokaler Druckdienst).
 usermod -aG lpadmin kienzle-sumup
 systemctl enable --now cups.service >/dev/null 2>&1 || true
+# T2med-Terminzettel (Ordner terminzettel/): virtueller Drucker „Terminzettel“ → Bon auf dem Bondrucker.
+# Ohne Rückfragen; Layout und Zielbondrucker kommen aus dem Webinterface. Bei Fehlern bleibt
+# Kienzle-SumUp lauffähig, der Terminzettel-Installer nimmt seine Änderungen selbst zurück.
+terminzettel_ok=0
+if [ "$with_terminzettel" = 1 ]; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y python3-tomli python3-cups python3-qrcode python3-pil tzdata samba avahi-daemon ghostscript libgxps-utils tesseract-ocr tesseract-ocr-deu fonts-dejavu-core
+  if ! cupsctl 2>/dev/null | grep -q '^_share_printers=1'; then
+    # Arbeitsplätze drucken per IPP auf „Terminzettel“; nur als freigegeben markierte Drucker sind sichtbar.
+    cupsctl --share-printers && sleep 2
+  fi
+  if /usr/bin/python3 -B "$source_dir/terminzettel/install.py" < /dev/null; then
+    terminzettel_ok=1
+    usermod -aG terminzettel kienzle-sumup
+    install -d -m 2750 -o kienzle-sumup -g terminzettel /etc/terminzettel/web
+  else
+    echo 'Warnung: Terminzettel konnte nicht eingerichtet werden (siehe Meldung oben). Kienzle-SumUp wird trotzdem installiert.'
+  fi
+fi
 install -d -m 750 -o kienzle-sumup -g kienzle-sumup /var/log/kienzle-sumup
 python3 scripts/configure.py $ask_flag
 chown root:kienzle-sumup /etc/kienzle-sumup/kienzle-sumup.toml
@@ -38,7 +58,7 @@ chown kienzle-sumup:kienzle-sumup /var/log/kienzle-sumup/php.log
 chmod 640 /var/log/kienzle-sumup/php.log
 
 install -d -m 755 /opt/kienzle-sumup
-for item in src public scripts config client VERSION README.md; do
+for item in src public scripts config client terminzettel VERSION README.md; do
   if [ -e "$source_dir/$item" ] && [ "$source_dir" != /opt/kienzle-sumup ]; then cp -R "$source_dir/$item" /opt/kienzle-sumup/; fi
 done
 chown -R root:root /opt/kienzle-sumup
@@ -155,7 +175,7 @@ Restart=on-failure
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup /run/kienzle-sumup-php
+ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup /run/kienzle-sumup-php -/etc/terminzettel/web
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -248,6 +268,11 @@ if [ "$export_timer" = 1 ]; then systemctl enable --now kienzle-sumup-export.tim
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
 echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'
+if [ "$terminzettel_ok" = 1 ]; then
+  # Zielbondrucker und gespeichertes Layout an den Terminzettel übergeben.
+  runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/terminzettel-sync.php || echo 'Warnung: Terminzettel-Einstellungen nicht übertragen.'
+  echo "Terminzettel: Drucker http://$(hostname):631/printers/Terminzettel (Layout unter Einstellungen → Terminzettel)."
+fi
 echo
 # Einstellungen im Browser: beim ersten Mal (oder nach --admin-reset) mit einmaligem Einrichtungslink.
 setup_url=$(runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/admin-setup.php $admin_reset)
