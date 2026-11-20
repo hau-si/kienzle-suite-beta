@@ -60,6 +60,9 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted small">Nur nötig, wenn T2med auf einem anderen Rechner druckt als diesem: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und dort im Projektordner <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
 <button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></details></section>
 <section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>
+<section class="card settings-card" id="s-firewall"><h2>Netzwerk &amp; Firewall</h2>
+<p class="muted">Der Server erkennt sein Netz selbst. Wähle, aus welchen Netzen Arbeitsplätze, Drucker und der T2med-Rechner zugreifen dürfen; alle anderen werden ausgesperrt. Nach dem Anwenden bestätigst du binnen 2 Minuten, dass diese Seite noch funktioniert – sonst stellt der Server die alten Regeln selbst wieder her.</p>
+<div id="fw-box"><p class="muted">Netzwerk wird abgefragt …</p></div></section>
 <section class="card settings-card" id="s-audit"><h2>Sicherheitsprotokoll</h2>
 <p class="muted">Anmeldungen, Fehlversuche und Änderungen an dieser Einstellungsseite mit Zeit und Adresse des Geräts – nie mit Passwörtern. Viele „fehlgeschlagen“-Zeilen von unbekannten Adressen deuten auf einen Angriffsversuch hin; der betroffene Absender wird dann automatisch gesperrt.</p>
 <div class="row-buttons"><button id="audit-load" class="secondary" type="button">Letzte Vorgänge anzeigen</button></div>

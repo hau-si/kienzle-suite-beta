@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.14**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.15**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -904,6 +904,29 @@ Empfehlungen für die Praxis: Den Server nicht aus dem Internet erreichbar mache
 den Zugang nur im Praxisnetz erlauben (z. B. `sudo ufw allow from 192.168.0.0/24 to any port 443`, Adresse anpassen),
 Passwort nur im Passwortmanager aufbewahren, das Arbeitsplatz-Paket nach der Einrichtung löschen und Aktualisierungen
 einspielen. Ein Sicherheitsproblem bitte nicht öffentlich melden, sondern per E-Mail an die Praxis des Betreibers.
+
+## Netzwerk und Firewall im Webinterface
+
+Unter **Einstellungen → Einrichtung → Netzwerk & Firewall** fragt der Server sein eigenes Netz ab (`ip`, `ss`):
+Anschlüsse mit Adresse und Netz, Router, zuletzt gesehene Geräte und von außen erreichbare Ports. Das Netz, aus dem du
+gerade zugreifst, ist vorgewählt. Du kreuzt an, aus welchen Netzen zugegriffen werden darf (weitere Netze, z. B. ein
+VPN, trägst du als `192.168.2.0/24` ein), und klickst **Firewall anwenden**.
+
+- Erlaubt sind nur **private Netze** (10.x, 172.16–31.x, 192.168.x, 100.64–127.x, `fc00::/7`); `0.0.0.0/0` oder öffentliche
+  Adressen werden abgelehnt.
+- **Schutz vor Aussperren:** Das Gerät, mit dem du gerade arbeitest, muss in einem freigegebenen Netz liegen. Nach dem
+  Laden hast du **2 Minuten**, mit „Ja, alles funktioniert“ zu bestätigen. Ohne Bestätigung (z. B. weil du ausgesperrt
+  wärst) stellt der Server die vorherigen Regeln selbst wieder her. Erst bestätigte Regeln werden dauerhaft gespeichert
+  und beim Start geladen.
+- Geschützt werden die Weboberfläche, optional **SSH** (Port wird erkannt) und die **Druckfreigabe 631** (Terminzettel-Drucker
+  für T2med). Andere Dienste des Servers bleiben unverändert, außer du wählst „Alles andere von außen sperren“.
+- Arbeitsplätze, Drucker, Druckserver und der T2med-Rechner müssen in den freigegebenen Netzen liegen. Die Liste der
+  zuletzt gesehenen Geräte hilft beim Prüfen.
+- Technik: Die Anwendung legt nur eine Anfragedatei ab. Der root-Dienst `kienzle-sumup-firewall`
+  (`scripts/firewall-apply.py`) prüft sie streng und erzeugt die Regeln aus festen Vorlagen in einer eigenen
+  nftables-Tabelle `kienzle_sumup`; andere Regeln des Servers bleiben unberührt. Ausschalten: Knopf „Firewall ausschalten“
+  oder `sudo nft delete table inet kienzle_sumup` und `sudo rm /etc/kienzle-sumup/firewall.nft`. Läuft zusätzlich `ufw`,
+  gelten dessen Regeln weiter; eine Sperre dort kann diese Freigabe nicht aufheben.
 
 ## Aktualisieren im Webinterface
 

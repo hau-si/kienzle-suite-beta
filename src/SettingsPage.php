@@ -22,6 +22,12 @@ final class SettingsPage {
 
     public function cookie(): ?string { return $this->cookie; }
 
+    /** Adresse des anfragenden Geräts (für Tests setzbar). */
+    public ?string $client = null;
+    public ?Network $network = null;
+    private function firewall(): Firewall { return new Firewall($this->db, $this->network ?? new Network()); }
+    private function clientIp(): string { return $this->client ?? (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'); }
+
     public function handle(string $action, array $input, ?string $sessionToken, ?string $csrf): array {
         if ($action === 'status') {
             $session = $this->admin->session($sessionToken);
@@ -36,14 +42,19 @@ final class SettingsPage {
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
-        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
         // Alles, was etwas verändert, im Protokoll festhalten (ohne Werte).
-        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
+        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'firewall_info', 'firewall_status', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
             $this->admin->audit->write($action, $action === 'save' ? App::string($input, 'section', 40) : '');
         }
         return match ($action) {
             'get' => $this->view(),
             'audit' => ['lines' => $this->admin->audit->recent(40)],
+            'firewall_info' => $this->firewall()->overview($this->clientIp()),
+            'firewall_status' => $this->firewall()->status(),
+            'firewall_apply' => $this->firewall()->apply($input, $this->clientIp()),
+            'firewall_confirm' => $this->firewall()->confirm(),
+            'firewall_disable' => $this->firewall()->disable(),
             'save' => $this->save(App::string($input, 'section', 40), is_array($input['values'] ?? null) ? $input['values'] : []),
             'test' => ['message' => $this->test(App::string($input, 'kind', 40))],
             'password' => $this->password($input),

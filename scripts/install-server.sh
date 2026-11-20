@@ -21,7 +21,7 @@ done
 # Einmal gewählt, gilt „ohne Terminzettel“ auch für spätere Aktualisierungen aus dem Webinterface.
 if [ -f /etc/kienzle-sumup/ohne-terminzettel ]; then with_terminzettel=0; fi
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups ghostscript
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups ghostscript nftables iproute2
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
 if ! id kienzle-sumup >/dev/null 2>&1; then useradd --system --home-dir /var/lib/kienzle-sumup --shell /usr/sbin/nologin kienzle-sumup; fi
 install -d -m 750 -o root -g kienzle-sumup /etc/kienzle-sumup
@@ -225,7 +225,7 @@ RestrictSUIDSGID=true
 RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 ReadWritePaths=/var/lib/kienzle-sumup /var/log/kienzle-sumup /run/kienzle-sumup-php -/etc/terminzettel/web /etc/kienzle-sumup-printer/web
 [Install]
 WantedBy=multi-user.target
@@ -362,13 +362,50 @@ ExecStart=/usr/local/sbin/kienzle-sumup-update
 TimeoutStartSec=1800
 UNIT
 chmod 644 /etc/systemd/system/kienzle-sumup-update.path /etc/systemd/system/kienzle-sumup-update.service
+# Firewall aus dem Webinterface: root-Dienst, ausgelöst durch eine Anfragedatei; eigene nftables-Tabelle.
+install -m 755 -o root -g root scripts/firewall-apply.py /usr/local/sbin/kienzle-sumup-firewall
+install -d -m 755 -o root -g root /var/lib/kienzle-sumup-firewall
+app_uid=$(id -u kienzle-sumup)
+cat > /etc/systemd/system/kienzle-sumup-firewall.path <<'UNIT'
+[Unit]
+Description=Kienzle-SumUp Firewall-Änderung aus den Einstellungen
+[Path]
+PathExists=/var/lib/kienzle-sumup/firewall-request
+Unit=kienzle-sumup-firewall-apply.service
+[Install]
+WantedBy=multi-user.target
+UNIT
+cat > /etc/systemd/system/kienzle-sumup-firewall-apply.service <<UNIT
+[Unit]
+Description=Kienzle-SumUp Firewall anwenden
+[Service]
+Type=oneshot
+Environment=KS_FW_UID=$app_uid
+ExecStart=/usr/local/sbin/kienzle-sumup-firewall
+TimeoutStartSec=300
+UNIT
+cat > /etc/systemd/system/kienzle-sumup-firewall.service <<'UNIT'
+[Unit]
+Description=Kienzle-SumUp Firewall-Regeln beim Start laden
+Before=network-pre.target
+Wants=network-pre.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/kienzle-sumup-firewall --boot
+[Install]
+WantedBy=multi-user.target
+UNIT
+chmod 644 /etc/systemd/system/kienzle-sumup-firewall{.path,-apply.service,.service}
 systemctl daemon-reload
 systemctl enable --now kienzle-sumup-php.service kienzle-sumup-apache.service
 if [ "$export_timer" = 1 ]; then systemctl enable --now kienzle-sumup-export.timer; fi
 systemctl enable --now kienzle-sumup-update.path
+systemctl enable --now kienzle-sumup-firewall.path
+systemctl enable kienzle-sumup-firewall.service
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
-echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'
+echo 'Firewall: Einstellungen → Einrichtung → Netzwerk & Firewall (Netze werden automatisch erkannt).'
 # Drucker „SumUp-Rechnung“ an die gespeicherten Einstellungen angleichen (bei eingeschaltetem Rechnungseingang).
 runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/invoice-printer-sync.php || echo 'Warnung: Drucker „SumUp-Rechnung“ nicht abgeglichen (Einstellungen → Speichern wiederholt es).'
 if [ "$terminzettel_ok" = 1 ]; then

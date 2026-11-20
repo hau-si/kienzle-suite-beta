@@ -1,9 +1,13 @@
-Version 1.4.1-rechnung.14 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.15 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.15: Netzwerk und Firewall im Webinterface: Server erkennt Netze, Router, bekannte Geräte und
+  offene Ports, Zugriff nur aus gewählten privaten Netzen (Weboberfläche, SSH, Druckfreigabe). Schutz vor
+  Aussperren durch Prüfung des eigenen Geräts und automatisches Zurücksetzen ohne Bestätigung. Root-Dienst mit
+  eigener nftables-Tabelle; Installer ergänzt `nftables` und `iproute2`.
 - Neu in rechnung.14: Härtung: Sperre bei Fehlversuchen je Absender statt für alle, Gesamtbremse, Sitzungen
   höchstens 12 Stunden, schwache Passwörter abgelehnt, Drosselung falscher Starter- und Druckserver-Schlüssel,
   Sicherheitsprotokoll in den Einstellungen, Anfragen anderer Websites abgewiesen, zusätzliche Schutz-Header,

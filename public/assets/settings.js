@@ -228,7 +228,7 @@ const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-t2med-paid', 's-export']},
   {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
   {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
-  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-audit', 's-password']},
+  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-firewall', 's-audit', 's-password']},
 ];
 let activeTab = null;
 function tabOf(cardId) { return (TABS.find(t => t.cards.includes(cardId)) || {}).id; }
@@ -300,7 +300,7 @@ async function busy(button, action) {
   button.disabled = true;
   try { await action(); } catch (error) { message(error.message, true); } finally { button.disabled = false; }
 }
-async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); }
+async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); }
 
 $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
   if ($('setup-password').value !== $('setup-password2').value) throw new Error('Die Passwörter stimmen nicht überein.');
@@ -563,3 +563,103 @@ $('audit-load').onclick = async () => {
     box.hidden = false;
   } catch (error) { message(error.message, true); }
 };
+
+// ---- Netzwerk & Firewall ---------------------------------------------------------------
+let fwTimer = null, fwInfo = null;
+const fwStateText = {off: 'Aus', requested: 'Wird geladen …', pending: 'Wartet auf Bestätigung', active: 'Aktiv', reverted: 'Zurückgesetzt (nicht bestätigt)', failed: 'Fehler'};
+async function loadFirewall() {
+  try { fwInfo = await api('firewall_info'); renderFirewall(fwInfo); }
+  catch (error) { $('fw-box').replaceChildren(el('p', error.message, 'inline-error')); }
+}
+function fwCheck(label, checked, id, help) {
+  const wrap = el('label', null, 'check'), box = el('input', null, null, {type: 'checkbox', id});
+  box.checked = checked; wrap.append(box, document.createTextNode(' ' + label));
+  const out = el('div'); out.append(wrap); if (help) out.append(el('p', help, 'muted small'));
+  return out;
+}
+function renderFirewall(info) {
+  const box = $('fw-box'); box.replaceChildren();
+  const st = info.status, net = info.network;
+  if (!info.service) box.append(el('p', 'Der Firewall-Dienst fehlt. Bitte in den Einstellungen aktualisieren oder einmal sudo bash scripts/install-server.sh ausführen.', 'inline-error'));
+  box.append(el('p', 'Firewall: ' + (fwStateText[st.state] || st.state) + (st.state === 'active' ? ' – erlaubt: ' + st.networks.join(', ') : ''), 'notice' + (st.state === 'failed' || st.state === 'reverted' ? ' error' : '')));
+  if (st.message && ['failed', 'reverted'].includes(st.state)) box.append(el('p', st.message, 'inline-error'));
+  if (st.state === 'pending') {
+    const left = Math.max(0, st.deadline - st.now);
+    const warn = el('div', null, 'notice'); warn.append(el('strong', 'Funktioniert diese Seite noch? '), document.createTextNode('Dann jetzt bestätigen – sonst werden die Regeln in '), el('strong', left + ' Sekunden', null, {id: 'fw-left'}), document.createTextNode(' zurückgesetzt.'));
+    const ok = el('button', 'Ja, alles funktioniert – dauerhaft übernehmen', 'primary', {type: 'button'}); ok.style.marginTop = '10px';
+    ok.onclick = () => busy(ok, async () => { message((await api('firewall_confirm')).message); await loadFirewall(); });
+    warn.append(el('br'), ok); box.append(warn); watchFirewall(st);
+  } else if (st.state === 'requested') watchFirewall(st);
+
+  // Erkanntes Netz
+  box.append(el('h3', 'Erkanntes Netzwerk'));
+  if (!net.tools) box.append(el('p', 'Die Netzwerkabfrage (ip) ist auf diesem Server nicht verfügbar. Netze bitte unten von Hand eintragen.', 'muted'));
+  const table = el('table', null, 'fw-table'); table.append(el('tr')); 
+  for (const h of ['Anschluss', 'Adresse', 'Netz', 'Freigeben']) table.firstChild.append(el('th', h));
+  const allowed = new Set(info.config.cidrs); let rows = 0;
+  for (const nic of net.interfaces) for (const a of nic.addresses) {
+    const tr = el('tr'); rows++;
+    tr.append(el('td', nic.name + (nic.state === 'up' ? '' : ' (' + nic.state + ')')), el('td', a.ip), el('td', a.network));
+    const cell = el('td');
+    if (a.private) {
+      const c = el('input', null, null, {type: 'checkbox', 'data-net': a.network, 'aria-label': a.network + ' freigeben'}); c.checked = allowed.has(a.network);
+      cell.append(c);
+    } else cell.append(el('span', 'öffentlich – nicht möglich', 'muted small'));
+    tr.append(cell); table.append(tr);
+  }
+  if (rows) box.append(table);
+  const facts = [];
+  if (net.gateway) facts.push('Router: ' + net.gateway.ip);
+  facts.push('Dieses Gerät: ' + info.client.ip + (info.client.network ? ' (Netz ' + info.client.network + ')' : ''));
+  box.append(el('p', facts.join(' · '), 'muted'));
+  const known = new Set(info.config.cidrs), extra = info.config.cidrs.filter(c => !net.interfaces.some(n => n.addresses.some(a => a.network === c)));
+  const label = el('label', 'Weitere Netze (z. B. anderes Praxisnetz oder VPN), eines pro Zeile', null, {for: 'fw-extra'});
+  const area = el('textarea', null, null, {id: 'fw-extra', rows: '2', placeholder: '192.168.2.0/24'}); area.value = extra.join('\n');
+  const fieldWrap = el('div', null, 'field settings-form'); fieldWrap.append(label, area); box.append(fieldWrap);
+  if (net.neighbors.length) {
+    const d = el('details'); d.append(el('summary', 'Geräte, die der Server zuletzt gesehen hat (' + net.neighbors.length + ')'));
+    d.append(el('p', 'Zur Kontrolle: Arbeitsplätze, Drucker, Druckserver und der T2med-Rechner müssen in einem der freigegebenen Netze liegen.', 'muted small'));
+    d.append(el('p', net.neighbors.map(n => n.ip).join(', '), 'small'));
+    box.append(d);
+  }
+  // Optionen
+  const opts = el('div', null, 'settings-form');
+  opts.append(fwCheck('SSH (Fernwartung des Servers) nur aus diesen Netzen erlauben', info.config.ssh, 'fw-ssh', 'Der SSH-Port wird automatisch erkannt. Ohne Haken bleibt SSH unverändert.'));
+  opts.append(fwCheck('Druckfreigabe (Port 631, z. B. Terminzettel-Drucker für T2med) nur aus diesen Netzen erlauben', info.config.ipp, 'fw-ipp', 'Nötig, wenn T2med auf Drucker dieses Servers druckt.'));
+  opts.append(fwCheck('Alles andere von außen sperren (strenger)', info.config.strict, 'fw-strict', 'Blockiert auch alle übrigen eingehenden Verbindungen. Nur ankreuzen, wenn auf diesem Server keine weiteren Dienste für das Netz laufen (z. B. Dateifreigaben).'));
+  box.append(opts);
+  const listening = net.listening.filter(l => !l.local_only);
+  if (listening.length) {
+    const d = el('details'); d.append(el('summary', 'Von außen erreichbare Ports dieses Servers (' + listening.length + ')'));
+    d.append(el('p', listening.map(l => l.port).join(', '), 'small'));
+    d.append(el('p', 'Ports, die hier nicht verwaltet werden (nicht Weboberfläche, SSH, Druck), bleiben ohne „Alles andere sperren“ unverändert.', 'muted small'));
+    box.append(d);
+  }
+  const buttons = el('div', null, 'row-buttons');
+  const apply = el('button', 'Firewall anwenden', 'primary', {type: 'button'}), off = el('button', 'Firewall ausschalten', 'secondary', {type: 'button'}), refresh = el('button', 'Netzwerk neu abfragen', 'secondary', {type: 'button'});
+  apply.disabled = !info.service || ['pending', 'requested'].includes(st.state); off.disabled = !info.service || st.state === 'off';
+  apply.onclick = () => busy(apply, async () => {
+    const r = await api('firewall_apply', fwValues());
+    message(r.message); await loadFirewall();
+  });
+  off.onclick = () => { if (confirm('Firewall ausschalten? Danach ist der Server im Netz wieder ohne Einschränkung erreichbar.')) busy(off, async () => { message((await api('firewall_disable')).message); setTimeout(loadFirewall, 2500); }); };
+  refresh.onclick = () => busy(refresh, loadFirewall);
+  buttons.append(apply, off, refresh); box.append(buttons);
+}
+function fwValues() {
+  return {networks: [...document.querySelectorAll('#fw-box input[data-net]:checked')].map(c => c.dataset.net), extra: $('fw-extra').value,
+    ssh: $('fw-ssh').checked, ipp: $('fw-ipp').checked, strict: $('fw-strict').checked};
+}
+// Fortschritt: nach dem Anwenden alle 2 Sekunden Zustand holen; läuft der Zähler, Sekunden aktualisieren.
+function watchFirewall(st) {
+  clearInterval(fwTimer);
+  let remaining = st.state === 'pending' ? Math.max(0, st.deadline - st.now) : null;
+  fwTimer = setInterval(async () => {
+    if (remaining !== null) { remaining--; const n = $('fw-left'); if (n) n.textContent = Math.max(0, remaining) + ' Sekunden'; }
+    try {
+      const next = await api('firewall_status');
+      if (next.state !== st.state) { clearInterval(fwTimer); await loadFirewall(); }
+    } catch (error) { /* Seite kurz nicht erreichbar: weiter versuchen, bis die Zeit abläuft */ }
+    if (remaining !== null && remaining < -10) { clearInterval(fwTimer); loadFirewall().catch(() => {}); }
+  }, 1000);
+}
