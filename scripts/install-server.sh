@@ -21,7 +21,7 @@ done
 # Einmal gewählt, gilt „ohne Terminzettel“ auch für spätere Aktualisierungen aus dem Webinterface.
 if [ -f /etc/kienzle-sumup/ohne-terminzettel ]; then with_terminzettel=0; fi
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils tesseract-ocr tesseract-ocr-deu php-gd smbclient cups-client cups ghostscript nftables iproute2
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin qpdf fonts-dejavu-core libphp-phpmailer poppler-utils tesseract-ocr tesseract-ocr-deu php-gd smbclient cups-client cups ghostscript nftables iproute2
 # Automatische Sicherheitsupdates (nur Sicherheitsquelle der Distribution, kein automatischer Neustart).
 # Vorhandene Einstellungen bleiben unverändert; Kernel-Updates und Neustarts macht die Praxis selbst.
 DEBIAN_FRONTEND=noninteractive apt-get install -y unattended-upgrades

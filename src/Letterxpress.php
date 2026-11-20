@@ -21,9 +21,26 @@ final class Letterxpress {
         return $this->http->request($method, self::BASE . $path, ['Accept: application/json', 'Content-Type: application/json'], ['auth' => $this->auth()] + $body);
     }
     /** Fehlermeldung der API ohne Zugangsdaten, kurz und ohne Steuerzeichen. */
+    /** T2med-PDFs tragen teils eine Rechte-Verschlüsselung (ohne Kennwort), die Letterxpress ablehnt: mit qpdf entfernen. */
+    private static function unprotected(string $pdf): string {
+        $binary = null;
+        foreach (['/usr/bin/qpdf', '/usr/local/bin/qpdf', '/opt/homebrew/bin/qpdf'] as $path) if (is_executable($path)) { $binary = $path; break; }
+        $file = $binary ? tempnam(sys_get_temp_dir(), 'ks-lxp-') : false;
+        if (!$binary || $file === false) return $pdf;
+        try {
+            chmod($file, 0600);
+            if (file_put_contents($file, $pdf) !== strlen($pdf)) return $pdf;
+            $result = Command::run([$binary, '--decrypt', '--warning-exit-0', $file, '-'], '', 30);
+            return $result['code'] === 0 && str_starts_with($result['output'], '%PDF-') ? $result['output'] : $pdf;
+        } catch (\Throwable) { return $pdf; }
+        finally { @unlink($file); }
+    }
+
     private function reason(array $response): string {
         if ($response['status'] === 401 || $response['status'] === 403) return 'Letterxpress lehnt Benutzername oder API-Key ab.';
         $message = is_array($response['body']) && is_string($response['body']['message'] ?? null) ? preg_replace('/[\x00-\x1f\x7f]/u', ' ', $response['body']['message']) : '';
+        if (stripos($message, 'could not be determined') !== false) return 'Letterxpress findet im PDF keine lesbare Anschrift (Adressfenster der Rechnung) und kann Inland/Ausland nicht bestimmen. Anschrift im T2med-Rechnungsformular im Adressfenster prüfen oder unter Einstellungen die Versandart fest auf „Inland“ stellen. (HTTP ' . $response['status'] . ')';
+        if (stripos($message, 'verschl') !== false) return 'Letterxpress lehnt das PDF ab (verschlüsselt oder nicht A4-Hochformat). Die Rechnungsvorlage in T2med muss A4 hoch ohne Kennwortschutz erzeugen. (HTTP ' . $response['status'] . ')';
         return 'Letterxpress antwortet mit HTTP ' . $response['status'] . ($message !== '' ? ': ' . mb_substr($message, 0, 160) : '.');
     }
 
@@ -59,7 +76,7 @@ final class Letterxpress {
             if ($row['lxp_status'] !== '' && !$again) throw new Problem($row['lxp_status'] === 'unknown'
                 ? 'Der Versand dieser Rechnung ist unklar. Bitte zuerst den Postausgang bei Letterxpress prüfen.' : 'Diese Rechnung wurde bereits per Post gesendet.', 409);
             if ($row['pdf'] === null || !str_starts_with((string)$row['pdf'], '%PDF-')) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut auf „SumUp-Rechnung“ drucken.', 409);
-            $file = base64_encode((string)$row['pdf']);
+            $file = base64_encode(self::unprotected((string)$row['pdf']));
             $letter = ['base64_file' => $file, 'base64_file_checksum' => md5($file),
                 'filename_original' => 'Rechnung-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $row['invoice_number']) . '.pdf',
                 'specification' => ['color' => (string)$this->config->get('letterxpress', 'color', '1'),
