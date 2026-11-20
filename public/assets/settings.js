@@ -169,12 +169,66 @@ function renderInvoicePrinter(info) {
   ol.append(mac); box.append(ol);
 }
 
+// ---- Aktualisierung von GitHub ----------------------------------------------------------
+let updateTimer = null;
+const when = t => t ? new Date(t * 1000).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '';
+async function loadUpdate(force) {
+  try { renderUpdate(await api('update_check', {force})); }
+  catch (error) { $('update-box').replaceChildren(el('p', error.message, 'inline-error')); }
+}
+function renderUpdate(info) {
+  const box = $('update-box'); box.replaceChildren();
+  const banner = $('update-banner');
+  const running = ['running', 'requested'].includes(info.status?.state);
+  banner.hidden = !(info.available && !running);
+  if (!banner.hidden) { banner.replaceChildren(document.createTextNode('Neue Version ' + info.remote + ' verfügbar. '), el('a', 'Ansehen und aktualisieren', null, {href: '#s-update'})); }
+  if (running) { updateProgress(info.status); return; }
+  const facts = el('dl', null, 'update-facts');
+  const add = (k, v) => { facts.append(el('dt', k), el('dd', v)); };
+  add('Installiert', info.current || '?');
+  if (info.configured) add('Quelle', info.source.repo + ' (Zweig ' + info.source.branch + ')');
+  if (info.configured) add('Auf GitHub', info.remote ? info.remote + ' · geprüft ' + when(info.checked_at) : '–');
+  box.append(facts);
+  if (!info.configured) { box.append(el('p', 'Keine Aktualisierungsquelle eingerichtet. Bitte einmal den aktuellen Server-Installer ausführen.', 'inline-error')); return; }
+  if (info.error) box.append(el('p', info.error, 'inline-error'));
+  if (info.status?.state === 'failed') box.append(el('p', info.status.message, 'inline-error'));
+  if (info.status?.state === 'done' && !info.available && info.status.to === info.current) box.append(el('p', 'Zuletzt aktualisiert am ' + when(info.status.finished) + ' (' + info.status.from + ' → ' + info.status.to + ').', 'muted small'));
+  const buttons = el('div', null, 'row-buttons');
+  if (info.available) {
+    box.append(el('p', 'Version ' + info.remote + ' ist verfügbar.', 'notice'));
+    if (info.notes.length) { const ul = el('ul', null, 'update-notes'); for (const n of info.notes) ul.append(el('li', n)); box.append(ul); }
+    if (!info.service) box.append(el('p', 'Der Aktualisierungsdienst fehlt noch. Bitte einmal den aktuellen Server-Installer ausführen.', 'inline-error'));
+    const go = el('button', 'Jetzt auf ' + info.remote + ' aktualisieren', 'primary', {type: 'button'}); go.disabled = !info.service;
+    go.onclick = () => busy(go, async () => { const r = await api('update_start'); message(r.message); updateProgress({state: 'requested', log: []}); });
+    buttons.append(go);
+    box.append(el('p', 'Dauert einige Minuten. Kartenzahlung und diese Seite sind dabei kurz nicht erreichbar – am besten außerhalb der Sprechzeit. Schlägt etwas fehl, wird der vorherige Stand automatisch wiederhergestellt.', 'muted small'));
+  } else if (info.remote) box.append(el('p', 'Die installierte Version ist aktuell.', 'muted'));
+  const again = el('button', 'Jetzt auf neue Version prüfen', 'secondary', {type: 'button'});
+  again.onclick = () => busy(again, () => loadUpdate(true));
+  buttons.append(again); box.append(buttons);
+  if (info.status?.log?.length && info.status.state === 'failed') box.append(updateLog(info.status.log));
+}
+function updateLog(lines) { const d = el('details', null, 'tz-how'); d.append(el('summary', 'Protokoll der letzten Aktualisierung'), el('pre', lines.join('\n'), 'code update-log')); return d; }
+function updateProgress(status) {
+  const box = $('update-box'); box.replaceChildren(el('p', status.state === 'requested' ? 'Aktualisierung angefordert – startet gleich …' : 'Aktualisierung läuft. Bitte dieses Fenster offen lassen.', 'notice'));
+  if (status.log?.length) box.append(el('pre', status.log.join('\n'), 'code update-log'));
+  clearTimeout(updateTimer);
+  updateTimer = setTimeout(async () => {
+    let next;
+    try { next = await api('update_status'); }
+    catch { box.firstChild.textContent = 'Dienste werden neu gestartet …'; updateTimer = setTimeout(() => updateProgress(status), 3000); return; }
+    if (next.state === 'done') { message('Aktualisierung abgeschlossen: ' + next.to + '. Die Seite wird neu geladen.'); setTimeout(() => location.reload(), 2500); return; }
+    if (next.state === 'failed') { loadUpdate(false); message(next.message, true); return; }
+    updateProgress(next);
+  }, 3000);
+}
+
 // ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
 const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-t2med-paid', 's-export']},
   {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
   {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
-  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-password']},
+  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-password']},
 ];
 let activeTab = null;
 function tabOf(cardId) { return (TABS.find(t => t.cards.includes(cardId)) || {}).id; }
@@ -246,7 +300,7 @@ async function busy(button, action) {
   button.disabled = true;
   try { await action(); } catch (error) { message(error.message, true); } finally { button.disabled = false; }
 }
-async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); }
+async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); }
 
 $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
   if ($('setup-password').value !== $('setup-password2').value) throw new Error('Die Passwörter stimmen nicht überein.');

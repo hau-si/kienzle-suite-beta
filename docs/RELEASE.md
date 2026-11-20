@@ -1,9 +1,14 @@
-Version 1.4.1-rechnung.12 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.13 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.13: Aktualisierung im Webinterface: neue Version auf GitHub erkennen (Hinweis oben,
+  Neuerungen aus RELEASE.md), mit einem Klick installieren. Ein root-Dienst lädt den eingestellten
+  Zweig, sichert Programm und Datenbank, führt den Installer aus und stellt bei Fehlern den vorherigen
+  Stand wieder her. Quelle in `/etc/kienzle-sumup/update.conf`. „Ohne Terminzettel“ bleibt bei
+  Aktualisierungen erhalten.
 - Neu in rechnung.12: Drucker „SumUp-Rechnung“ ohne `sudo`: Der Server-Installer legt Backend und PPD
   ab, die Einstellungsseite legt die Warteschlange beim Einschalten von „T2med-Rechnungen übernehmen“
   an bzw. entfernt sie und schreibt die Verbindungsdaten (`/etc/kienzle-sumup-printer/web`). Das

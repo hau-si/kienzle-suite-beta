@@ -13,10 +13,13 @@ for arg in "$@"; do
   case "$arg" in
     --fragen) ask_flag="--fragen" ;;
     --admin-reset) admin_reset="--reset" ;;
-    --ohne-terminzettel) with_terminzettel=0 ;;
-    *) echo "Unbekannte Option: $arg (erlaubt: --fragen, --admin-reset, --ohne-terminzettel)"; exit 2 ;;
+    --ohne-terminzettel) with_terminzettel=0; install -d -m 750 /etc/kienzle-sumup; touch /etc/kienzle-sumup/ohne-terminzettel ;;
+    --mit-terminzettel) rm -f /etc/kienzle-sumup/ohne-terminzettel ;;
+    *) echo "Unbekannte Option: $arg (erlaubt: --fragen, --admin-reset, --ohne-terminzettel, --mit-terminzettel)"; exit 2 ;;
   esac
 done
+# Einmal gewählt, gilt „ohne Terminzettel“ auch für spätere Aktualisierungen aus dem Webinterface.
+if [ -f /etc/kienzle-sumup/ohne-terminzettel ]; then with_terminzettel=0; fi
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups ghostscript
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
@@ -269,9 +272,46 @@ UNIT
   chmod 644 /etc/systemd/system/kienzle-sumup-export.service /etc/systemd/system/kienzle-sumup-export.timer
   export_timer=1
 fi
+# Aktualisierung aus dem Webinterface: root-Dienst, ausgelöst durch eine Anfragedatei der Anwendung.
+install -m 755 -o root -g root scripts/self-update.sh /usr/local/sbin/kienzle-sumup-update
+install -d -m 755 -o root -g root /var/lib/kienzle-sumup-update
+if [ ! -f /etc/kienzle-sumup/update.conf ]; then
+  # Quelle aus dem Git-Ordner übernehmen, aus dem installiert wird (sonst das Originalprojekt).
+  update_repo=thomaskien/t2med-sumup; update_branch=main
+  if [ -f "$source_dir/.git/config" ]; then
+    origin=$(sed -n '/^\[remote "origin"\]/,/^\[/{s/^[[:space:]]*url = //p}' "$source_dir/.git/config" | head -1)
+    origin=${origin%.git}; origin=${origin#https://github.com/}; origin=${origin#git@github.com:}
+    if [[ $origin =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then update_repo=$origin; fi
+    head_ref=$(sed -n 's#^ref: refs/heads/##p' "$source_dir/.git/HEAD" 2>/dev/null)
+    if [[ $head_ref =~ ^[A-Za-z0-9_./-]+$ ]]; then update_branch=$head_ref; fi
+  fi
+  printf '# Quelle für „Aktualisieren“ in den Einstellungen (GitHub)\nrepo=%s\nbranch=%s\n' "$update_repo" "$update_branch" > /etc/kienzle-sumup/update.conf
+fi
+chown root:kienzle-sumup /etc/kienzle-sumup/update.conf; chmod 640 /etc/kienzle-sumup/update.conf
+cat > /etc/systemd/system/kienzle-sumup-update.path <<'UNIT'
+[Unit]
+Description=Kienzle-SumUp Aktualisierung auf Anforderung aus den Einstellungen
+[Path]
+PathExists=/var/lib/kienzle-sumup/update-request
+Unit=kienzle-sumup-update.service
+[Install]
+WantedBy=multi-user.target
+UNIT
+cat > /etc/systemd/system/kienzle-sumup-update.service <<'UNIT'
+[Unit]
+Description=Kienzle-SumUp aktualisieren (GitHub)
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kienzle-sumup-update
+TimeoutStartSec=1800
+UNIT
+chmod 644 /etc/systemd/system/kienzle-sumup-update.path /etc/systemd/system/kienzle-sumup-update.service
 systemctl daemon-reload
 systemctl enable --now kienzle-sumup-php.service kienzle-sumup-apache.service
 if [ "$export_timer" = 1 ]; then systemctl enable --now kienzle-sumup-export.timer; fi
+systemctl enable --now kienzle-sumup-update.path
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
 echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'

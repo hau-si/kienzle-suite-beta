@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.12**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.13**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -874,6 +874,37 @@ Start entfernt. Browser erhalten nur eine Sitzung, keine SumUp-/FHIR-Schlüssel.
 Starttickets laufen nach 90 Sekunden ab und werden aus der Adresszeile entfernt.
 Die App ist für eine Praxis mit einem Terminal gedacht; keine komplexe Benutzerverwaltung.
 Alle berechtigten Starter-Benutzer können Leistungen verwalten.
+
+## Aktualisieren im Webinterface
+
+Unter **Einstellungen → Einrichtung → Aktualisierung** steht die installierte Version, die Quelle und die
+neueste Version auf GitHub (geprüft alle sechs Stunden oder mit „Jetzt auf neue Version prüfen“). Ist eine
+neuere Version da, erscheint oben auf der Seite ein Hinweis; die Karte listet die Neuerungen aus
+`docs/RELEASE.md`. **„Jetzt aktualisieren“** startet die Aktualisierung – ohne Terminal:
+
+1. Die Einstellungsseite legt nur eine Anfrage ab (`/var/lib/kienzle-sumup/update-request`).
+2. Der root-Dienst `kienzle-sumup-update` (ausgelöst über `kienzle-sumup-update.path`) lädt den Stand
+   des eingestellten Zweigs von GitHub, prüft die Versionsangabe, sichert Programm und Datenbank und
+   führt den Server-Installer ohne Fragen aus.
+3. Schlägt der Installer fehl, werden Programm und Datenbank automatisch wiederhergestellt und die
+   Dienste gestartet. Fortschritt und Protokoll zeigt die Karte; danach lädt die Seite neu.
+
+Während einer laufenden Kartenzahlung lässt sich nicht aktualisieren. Kartenzahlung und Einstellungen sind
+während der Installation einige Minuten nicht erreichbar – am besten außerhalb der Sprechzeit.
+
+Die Quelle steht in `/etc/kienzle-sumup/update.conf` (nur root kann sie ändern; die Anwendung kann
+weder Quelle noch Befehle bestimmen). Der Installer übernimmt sie beim ersten Lauf aus dem Git-Ordner,
+aus dem installiert wird, z. B.:
+
+```text
+repo=hau-si/t2med-sumup
+branch=rechnungseingang
+```
+
+Für einen anderen Zweig oder das Originalprojekt (`repo=thomaskien/t2med-sumup`, `branch=main`) die
+Datei mit `sudo nano /etc/kienzle-sumup/update.conf` anpassen. Protokoll der letzten Aktualisierung:
+`/var/lib/kienzle-sumup-update/update.log`. Wer mit `--ohne-terminzettel` installiert hat, behält das auch
+bei Aktualisierungen (`--mit-terminzettel` schaltet ihn wieder ein).
 
 ## TOML und Updates
 

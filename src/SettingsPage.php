@@ -9,6 +9,9 @@ final class SettingsPage {
     private ?string $cookie = null;
 
     private PrinterAdmin $printers;
+    private ?Updater $updater = null;
+    public function updater(): Updater { return $this->updater ??= new Updater($this->db, dirname(__DIR__)); }
+    public function setUpdater(Updater $updater): void { $this->updater = $updater; }
 
     public function __construct(private Config $base, private ?HttpClient $http = null, ?PrinterAdmin $printers = null) {
         $this->printers = $printers ?? new PrinterAdmin();
@@ -33,7 +36,7 @@ final class SettingsPage {
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
-        if (!in_array($action, ['get', 'printer_setup', 'printers', 't2med_paid'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        if (!in_array($action, ['get', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
         return match ($action) {
             'get' => $this->view(),
             'save' => $this->save(App::string($input, 'section', 40), is_array($input['values'] ?? null) ? $input['values'] : []),
@@ -42,6 +45,9 @@ final class SettingsPage {
             'logout' => $this->logout($sessionToken),
             'printer_setup' => $this->printerSetup(),
             'printers' => $this->printerList(),
+            'update_check' => $this->updater()->check(($input['force'] ?? false) === true) + ['status' => $this->updater()->status()],
+            'update_status' => $this->updater()->status(),
+            'update_start' => $this->updater()->request(),
             't2med_paid' => $this->t2medPaid($input),
             't2med_done' => $this->t2medDone($input),
             'terminzettel_preview' => $this->terminzettelPreview(is_array($input['values'] ?? null) ? $input['values'] : []),

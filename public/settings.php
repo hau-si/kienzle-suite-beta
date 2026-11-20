@@ -28,6 +28,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <div id="settings" hidden>
 <nav id="tabs" class="tab-bar" role="tablist" aria-label="Bereiche"></nav>
 <p id="warning" class="inline-error" hidden></p>
+<p id="update-banner" class="notice update-banner" hidden></p>
 <div id="tab-panels"></div>
 <div id="sections" hidden></div>
 <section class="card settings-card" id="s-checklist"><h2>Einrichtung – Überblick</h2><p class="muted">Diese Schritte sind nur einmal nötig. Ein Klick auf einen Punkt öffnet die passende Einstellung.</p><ul id="checklist" class="checklist"></ul></section>
@@ -58,6 +59,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <details class="tz-how"><summary>Drucker auf einem anderen Druckserver (z. B. kienzlebox)</summary>
 <p class="muted small">Nur nötig, wenn T2med auf einem anderen Rechner druckt als diesem: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und dort im Projektordner <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
 <button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></details></section>
+<section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>
 <section class="card settings-card" id="s-password"><h2>Admin-Passwort ändern</h2>
 <form id="password-form"><label>Bisheriges Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
 <label>Neues Passwort (mind. 10 Zeichen)<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>
