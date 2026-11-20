@@ -63,12 +63,32 @@ try {
     check(http(fn() => $fw->validate(['networks' => ['10.0.0.0/8']], '127.0.0.1')) === 0, 'Zugriff vom Server selbst abgelehnt');
     check($fw->validate(['networks' => ['192.168.1.0/24'], 'ssh' => 'ja'], '192.168.1.20')['ssh'] === false, 'ssh nicht streng boolesch');
 
+    // Dienste der Kienzle-Projekte und eigene Ports
+    $svc = $fw->validate(['networks' => ['192.168.1.0/24'], 'services' => ['middleware', 'ami', 'middleware'], 'custom' => "tcp 8080\nudp 5000 - 5100, TCP:9000"], '192.168.1.20');
+    check($svc['services'] === ['middleware', 'ami'] && $svc['custom'] === ['tcp 8080', 'udp 5000-5100', 'tcp 9000'], 'Dienste/eigene Ports falsch: ' . json_encode($svc));
+    foreach ([['services' => ['rootkit']], ['services' => 'x'], ['custom' => 'tcp 0'], ['custom' => 'tcp 70000'], ['custom' => 'udp 200-100'], ['custom' => 'icmp 5'], ['custom' => 'tcp 80; reboot'], ['custom' => implode("\n", array_map(fn($i) => 'tcp ' . (1000 + $i), range(1, 21)))]] as $bad) {
+        check(http(fn() => $fw->validate(['networks' => ['192.168.1.0/24']] + $bad, '192.168.1.20')) === 422, 'ungültig akzeptiert: ' . json_encode($bad));
+    }
+    // Katalog muss mit dem root-Dienst übereinstimmen
+    $python = json_decode((string)shell_exec('python3 -I -c ' . escapeshellarg("import importlib.util,json,sys;s=importlib.util.spec_from_file_location('fw','" . dirname(__DIR__) . "/scripts/firewall-apply.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(json.dumps(m.SERVICES))")), true);
+    $php = [];
+    foreach (Firewall::SERVICES as $id => $d) $php[$id] = array_filter(['tcp' => $d['tcp'] ?? null, 'udp' => $d['udp'] ?? null, 'scope' => $d['scope']]);
+    ksort($php); ksort($python);
+    check($php == $python, 'Dienstekatalog in PHP und im root-Dienst weichen ab');
+    // Vorschlag: lauschende Dienste vorwählen
+    $withMiddleware = new Firewall($db, new Network(function (array $c) use ($answers) {
+        if (str_ends_with($c[0], 'ss')) return "LISTEN 0 1 0.0.0.0:8766 0.0.0.0:*\nLISTEN 0 1 0.0.0.0:443 0.0.0.0:*\n";
+        return match ($c[2] ?? '') { 'addr' => $answers['addr'], default => null };
+    }));
+    $sug = $withMiddleware->overview('192.168.1.20')['config'];
+    check($sug['services'] === ['middleware'], 'lauschende Middleware nicht vorgewählt: ' . json_encode($sug['services']));
+
     // Ohne Dienst keine Anfrage
     check(http(fn() => $fw->apply($in, '192.168.1.20')) === 503, 'Anwenden ohne Dienst');
     touch(Firewall::$service);
     $r = $fw->apply($in, '192.168.1.20');
     $req = json_decode((string)file_get_contents($state . '/firewall-request'), true);
-    check($req['action'] === 'apply' && $req['cidrs'] === $ok['cidrs'] && $req['ssh'] === true && array_keys($req) === ['action', 'cidrs', 'ssh', 'ipp', 'strict'], 'Anfragedatei falsch');
+    check($req['action'] === 'apply' && $req['cidrs'] === $ok['cidrs'] && $req['ssh'] === true && array_keys($req) === ['action', 'cidrs', 'ssh', 'ipp', 'strict', 'services', 'custom'], 'Anfragedatei falsch');
     check($fw->status()['state'] === 'requested', 'Zustand nach Anfrage');
     check(http(fn() => $fw->apply($in, '192.168.1.20')) === 409, 'Doppelanfrage erlaubt');
     check(http(fn() => $fw->confirm()) === 409, 'Bestätigen ohne wartende Änderung');

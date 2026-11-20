@@ -628,18 +628,43 @@ function renderFirewall(info) {
   opts.append(fwCheck('Druckfreigabe (Port 631, z. B. Terminzettel-Drucker für T2med) nur aus diesen Netzen erlauben', info.config.ipp, 'fw-ipp', 'Nötig, wenn T2med auf Drucker dieses Servers druckt.'));
   opts.append(fwCheck('Alles andere von außen sperren (strenger)', info.config.strict, 'fw-strict', 'Blockiert auch alle übrigen eingehenden Verbindungen. Nur ankreuzen, wenn auf diesem Server keine weiteren Dienste für das Netz laufen (z. B. Dateifreigaben).'));
   box.append(opts);
+  // Dienste der Kienzle-Projekte
+  const svcBox = el('div', null, 'settings-form'); svcBox.append(el('h3', 'Weitere Dienste auf diesem Server'));
+  svcBox.append(el('p', 'Kreuze an, was hier läuft oder von hier aus erreichbar sein muss. Angekreuzte Dienste sind nur aus den freigegebenen Netzen erreichbar – außer WireGuard und die App-Anbindung, die aus dem Internet kommen. Ohne „Alles andere sperren“ bleiben nicht angekreuzte Dienste unverändert.', 'muted small'));
+  const listenSet = new Set(net.listening.map(l => String(l.port)));
+  for (const [id, svc] of Object.entries(info.catalog)) {
+    const ports = ['tcp', 'udp'].flatMap(proto => (svc[proto] || []).map(p => p + '/' + proto)).join(', ');
+    const running = (svc.tcp || []).some(p => listenSet.has(p));
+    const wrap = fwCheck(svc.label + ' (' + ports + ')' + (svc.scope === 'any' ? ' – von überall' : ''), info.config.services.includes(id), 'fw-svc-' + id, svc.note + (running ? ' Läuft auf diesem Server.' : ''));
+    wrap.querySelector('input').dataset.service = id; svcBox.append(wrap);
+  }
+  const customLabel = el('label', 'Eigene Ports (einer pro Zeile, z. B. tcp 8080 oder udp 5000-5100)', null, {for: 'fw-custom'});
+  const customArea = el('textarea', null, null, {id: 'fw-custom', rows: '2', placeholder: 'tcp 8080'}); customArea.value = (info.config.custom || []).join('\n');
+  const customField = el('div', null, 'field'); customField.append(customLabel, customArea); svcBox.append(customField);
+  box.append(svcBox);
   const listening = net.listening.filter(l => !l.local_only);
   if (listening.length) {
     const d = el('details'); d.append(el('summary', 'Von außen erreichbare Ports dieses Servers (' + listening.length + ')'));
     d.append(el('p', listening.map(l => l.port).join(', '), 'small'));
-    d.append(el('p', 'Ports, die hier nicht verwaltet werden (nicht Weboberfläche, SSH, Druck), bleiben ohne „Alles andere sperren“ unverändert.', 'muted small'));
+    d.append(el('p', 'Ports, die hier nicht verwaltet werden (nicht Weboberfläche, SSH, Druck oder oben angekreuzt), bleiben ohne „Alles andere sperren“ unverändert.', 'muted small'));
     box.append(d);
   }
   const buttons = el('div', null, 'row-buttons');
   const apply = el('button', 'Firewall anwenden', 'primary', {type: 'button'}), off = el('button', 'Firewall ausschalten', 'secondary', {type: 'button'}), refresh = el('button', 'Netzwerk neu abfragen', 'secondary', {type: 'button'});
   apply.disabled = !info.service || ['pending', 'requested'].includes(st.state); off.disabled = !info.service || st.state === 'off';
   apply.onclick = () => busy(apply, async () => {
-    const r = await api('firewall_apply', fwValues());
+    const v = fwValues();
+    if (v.strict) {
+      // Warnen, welche gerade lauschenden Ports „alles andere sperren“ treffen würde.
+      const kept = new Set([String(info.web_port)]);
+      if (v.ssh) net.listening.filter(l => [22, 2222].includes(l.port)).forEach(l => kept.add(String(l.port)));
+      if (v.ipp) kept.add('631');
+      for (const id of v.services) for (const p of [...(info.catalog[id].tcp || []), ...(info.catalog[id].udp || [])]) kept.add(p);
+      for (const c of v.custom.split(/[\n,;]+/)) { const m = c.trim().match(/^(?:tcp|udp)[ :]+(\d+)/i); if (m) kept.add(m[1]); }
+      const blocked = net.listening.filter(l => !l.local_only && !kept.has(String(l.port))).map(l => l.port);
+      if (blocked.length && !confirm('„Alles andere sperren“ würde diese Ports blockieren, auf denen hier etwas lauscht: ' + blocked.join(', ') + '.\n\nWirklich fortfahren? (Abbrechen und den passenden Dienst oben ankreuzen oder unter „Eigene Ports“ eintragen.)')) return;
+    }
+    const r = await api('firewall_apply', v);
     message(r.message); await loadFirewall();
   });
   off.onclick = () => { if (confirm('Firewall ausschalten? Danach ist der Server im Netz wieder ohne Einschränkung erreichbar.')) busy(off, async () => { message((await api('firewall_disable')).message); setTimeout(loadFirewall, 2500); }); };
@@ -648,7 +673,8 @@ function renderFirewall(info) {
 }
 function fwValues() {
   return {networks: [...document.querySelectorAll('#fw-box input[data-net]:checked')].map(c => c.dataset.net), extra: $('fw-extra').value,
-    ssh: $('fw-ssh').checked, ipp: $('fw-ipp').checked, strict: $('fw-strict').checked};
+    ssh: $('fw-ssh').checked, ipp: $('fw-ipp').checked, strict: $('fw-strict').checked,
+    services: [...document.querySelectorAll('#fw-box input[data-service]:checked')].map(c => c.dataset.service), custom: $('fw-custom').value};
 }
 // Fortschritt: nach dem Anwenden alle 2 Sekunden Zustand holen; läuft der Zähler, Sekunden aktualisieren.
 function watchFirewall(st) {

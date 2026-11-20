@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.15**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.16**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -920,6 +920,23 @@ VPN, trägst du als `192.168.2.0/24` ein), und klickst **Firewall anwenden**.
   und beim Start geladen.
 - Geschützt werden die Weboberfläche, optional **SSH** (Port wird erkannt) und die **Druckfreigabe 631** (Terminzettel-Drucker
   für T2med). Andere Dienste des Servers bleiben unverändert, außer du wählst „Alles andere von außen sperren“.
+- **Weitere Dienste:** Die Karte kennt die Ports der Kienzle-Projekte (Ports laut deren Dokumentation) und wählt vor, was auf
+  diesem Server schon lauscht:
+
+  | Dienst | Port | Zugriff |
+  | --- | --- | --- |
+  | Kienzlefon-Middleware (`kienzlefon-t2med`) | 8766/tcp | Praxisnetz |
+  | Telefonanlage: Manager-Schnittstelle (AMI) | 5038/tcp | Praxisnetz |
+  | Telefonanlage: SIP für Telefone | 5060/tcp und udp | Praxisnetz |
+  | Telefonanlage: Sprachdaten (RTP) | 10000–20000/udp (Asterisk-Standard, im Projekt nicht festgelegt) | Praxisnetz |
+  | Kienzlefon-Weboberfläche | 8443/tcp (TLS), 8088/tcp | Praxisnetz |
+  | WireGuard-VPN (KI-Anbindung) | 51820/udp | von überall |
+  | Kienzlefon-App, Quellserver (nginx) | 80 und 443/tcp | von überall |
+
+  Angekreuzte Dienste sind nur aus den freigegebenen Netzen erreichbar, WireGuard und die App-Anbindung aus dem Internet
+  (sie kommen nicht aus dem Praxisnetz). Weitere Ports lassen sich unter „Eigene Ports“ eintragen (`tcp 8080`, `udp 5000-5100`).
+  Bei „Alles andere von außen sperren“ nennt die Seite vor dem Anwenden alle lauschenden Ports, die dadurch gesperrt würden.
+  Läuft die Telefonanlage auf einem anderen Rechner, gilt deren Firewall; `kienzlefon` pflegt dafür bei aktivem UFW eine eigene Regel.
 - Arbeitsplätze, Drucker, Druckserver und der T2med-Rechner müssen in den freigegebenen Netzen liegen. Die Liste der
   zuletzt gesehenen Geräte hilft beim Prüfen.
 - Technik: Die Anwendung legt nur eine Anfragedatei ab. Der root-Dienst `kienzle-sumup-firewall`

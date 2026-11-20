@@ -39,6 +39,18 @@ grep -q 'tcp dport { 631, 2222, 7868 } drop' "$t/etc/firewall.nft" || fail 'drop
 python3 -I "$root/scripts/firewall-apply.py" --boot && grep -q -- "-f $t/etc/firewall.nft" "$t/log" || fail 'Start lädt die Regeln nicht'
 echo 1 ok
 
+# 1b. Dienste und eigene Ports
+echo '{"action":"apply","cidrs":["192.168.1.0/24"],"ssh":false,"ipp":false,"strict":true,"services":["middleware","wireguard","kfapp","rtp"],"custom":["tcp 8080","udp 5000-5100"]}' > "$t/data/firewall-request"
+( sleep 1; touch "$t/data/firewall-confirm" ) &
+run; wait
+[ "$(state state)" = active ] || fail "Dienste nicht aktiv: $(cat "$t/state/status.json")"
+grep -q '^    tcp dport { 80, 443 } accept' "$t/etc/firewall.nft" || fail 'kfapp (von überall) fehlt'
+grep -q '^    udp dport { 51820 } accept' "$t/etc/firewall.nft" || fail 'wireguard (von überall) fehlt'
+grep -q 'ip saddr { 192.168.1.0/24 } tcp dport { 7868, 8080, 8766 } accept' "$t/etc/firewall.nft" || fail 'middleware/eigener Port fehlt'
+grep -q 'ip saddr { 192.168.1.0/24 } udp dport { 5000-5100, 10000-20000 } accept' "$t/etc/firewall.nft" || fail 'rtp/eigener UDP-Bereich fehlt'
+grep -q 'policy drop' "$t/etc/firewall.nft" || fail 'strict ohne policy drop'
+echo 1b ok
+
 # 2. Nicht bestätigt: alte Tabelle wird wiederhergestellt
 cp "$t/table" "$t/table.before"
 echo '{"action":"apply","cidrs":["172.16.0.0/16"],"ssh":false,"ipp":false,"strict":true}' > "$t/data/firewall-request"
@@ -50,7 +62,9 @@ echo 2 ok
 
 # 3. Ablehnung: öffentliche Netze, Müll, Einschleusung, zu große Anfrage, Symlink
 for bad in '{"action":"apply","cidrs":["0.0.0.0/0"]}' '{"action":"apply","cidrs":["8.8.8.0/24"]}' '{"action":"apply","cidrs":["192.168.1.0/24; flush ruleset"]}' \
-           '{"action":"apply","cidrs":[]}' '{"action":"drop"}' 'kein json' '{"action":"apply","cidrs":"192.168.0.0/16"}' '{"action":"apply","cidrs":[1]}'; do
+           '{"action":"apply","cidrs":["192.168.1.0/24"],"services":["rootkit"]}' '{"action":"apply","cidrs":["192.168.1.0/24"],"custom":["tcp 0"]}' \
+           '{"action":"apply","cidrs":["192.168.1.0/24"],"custom":["tcp 80; flush ruleset"]}' '{"action":"apply","cidrs":["192.168.1.0/24"],"custom":["udp 900-100"]}' \
+           '{"action":"apply","cidrs":["192.168.1.0/24"],"services":"ami"}' '{"action":"apply","cidrs":[]}' '{"action":"drop"}' 'kein json' '{"action":"apply","cidrs":"192.168.0.0/16"}' '{"action":"apply","cidrs":[1]}'; do
   : > "$t/log"; echo "$bad" > "$t/data/firewall-request"; run
   [ "$(state state)" = failed ] || fail "nicht abgelehnt: $bad"
   grep -q -- '^-f' "$t/log" && fail "trotz Ablehnung geladen: $bad"

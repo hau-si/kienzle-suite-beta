@@ -1,9 +1,12 @@
-Version 1.4.1-rechnung.15 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.16 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.16: Firewall kennt die Dienste der Kienzle-Projekte (Middleware 8766, AMI 5038, SIP 5060,
+  RTP, Kienzlefon-Weboberfläche 8443/8088, WireGuard 51820, App 80/443) und beliebige eigene Ports; lauschende
+  Dienste werden vorgewählt, vor „Alles andere sperren“ warnt die Seite vor betroffenen Ports.
 - Neu in rechnung.15: Netzwerk und Firewall im Webinterface: Server erkennt Netze, Router, bekannte Geräte und
   offene Ports, Zugriff nur aus gewählten privaten Netzen (Weboberfläche, SSH, Druckfreigabe). Schutz vor
   Aussperren durch Prüfung des eigenen Geräts und automatisches Zurücksetzen ohne Bestätigung. Root-Dienst mit

@@ -50,7 +50,7 @@ final class SettingsPage {
         return match ($action) {
             'get' => $this->view(),
             'audit' => ['lines' => $this->admin->audit->recent(40)],
-            'firewall_info' => $this->firewall()->overview($this->clientIp()),
+            'firewall_info' => $this->firewall()->overview($this->clientIp()) + ['web_port' => (int)$this->config()->get('app', 'port', 7868)],
             'firewall_status' => $this->firewall()->status(),
             'firewall_apply' => $this->firewall()->apply($input, $this->clientIp()),
             'firewall_confirm' => $this->firewall()->confirm(),

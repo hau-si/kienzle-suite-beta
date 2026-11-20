@@ -28,6 +28,47 @@ class Rejected(Exception):
     pass
 
 
+# Bekannte Dienste der Kienzle-Projekte. Muss mit src/Firewall.php (SERVICES) übereinstimmen; tests/firewall.php prüft das.
+# scope: nets = nur aus den freigegebenen Netzen, any = von überall (nötig, wenn der Zugriff aus dem Internet kommt).
+SERVICES = {
+    'middleware': {'tcp': ['8766'], 'scope': 'nets'},
+    'ami': {'tcp': ['5038'], 'scope': 'nets'},
+    'sip': {'tcp': ['5060'], 'udp': ['5060'], 'scope': 'nets'},
+    'rtp': {'udp': ['10000-20000'], 'scope': 'nets'},
+    'kfweb': {'tcp': ['8443', '8088'], 'scope': 'nets'},
+    'wireguard': {'udp': ['51820'], 'scope': 'any'},
+    'kfapp': {'tcp': ['80', '443'], 'scope': 'any'},
+}
+CUSTOM = re.compile(r'^(tcp|udp) (\d{1,5})(?:-(\d{1,5}))?$')
+
+
+def clean_custom(values):
+    if values is None:
+        return []
+    if not isinstance(values, list) or len(values) > 20:
+        raise Rejected('Höchstens 20 eigene Ports.')
+    out = []
+    for v in values:
+        m = CUSTOM.match(v) if isinstance(v, str) else None
+        if not m:
+            raise Rejected('Eigener Port ungültig (Beispiel: tcp 8080 oder udp 5000-5100).')
+        lo, hi = int(m.group(2)), int(m.group(3) or m.group(2))
+        if not (1 <= lo <= hi <= 65535):
+            raise Rejected('Portnummer außerhalb 1–65535.')
+        entry = f'{m.group(1)} {lo}' + (f'-{hi}' if hi != lo else '')
+        if entry not in out:
+            out.append(entry)
+    return out
+
+
+def clean_services(values):
+    if values is None:
+        return []
+    if not isinstance(values, list) or not all(isinstance(v, str) and v in SERVICES for v in values):
+        raise Rejected('Unbekannter Dienst.')
+    return sorted(set(values))
+
+
 def status(state, message, **extra):
     os.makedirs(STATE, mode=0o755, exist_ok=True)
     data = {'state': state, 'message': message, 'time': int(time.time())}
@@ -103,26 +144,48 @@ def ssh_ports():
     return sorted(ports) or [22]
 
 
-def build_rules(nets, web, ssh=None, ipp=False, strict=False):
-    """Regeln aus festen Vorlagen. Alle Eingaben sind zuvor geprüft: Netze (ipaddress), Ports (int)."""
+def port_sets(web, ssh, ipp, services, custom):
+    """Ports, die verwaltet werden: (nets_tcp, nets_udp, any_tcp, any_udp) als nft-Listen („80“, „1000-2000“)."""
+    sets = {('nets', 'tcp'): [str(web)], ('nets', 'udp'): [], ('any', 'tcp'): [], ('any', 'udp'): []}
+    sets[('nets', 'tcp')] += [str(p) for p in (ssh or [])] + (['631'] if ipp else [])
+    for sid in services:
+        for proto in ('tcp', 'udp'):
+            sets[(SERVICES[sid]['scope'], proto)] += SERVICES[sid].get(proto, [])
+    for entry in custom:
+        proto, port = entry.split(' ')
+        sets[('nets', proto)].append(port)
+    def order(p):
+        return int(p.split('-')[0])
+    return {k: sorted(set(v), key=lambda p: (order(p), p)) for k, v in sets.items()}
+
+
+def build_rules(nets, web, ssh=None, ipp=False, strict=False, services=(), custom=()):
+    """Regeln aus festen Vorlagen. Alle Eingaben sind zuvor geprüft: Netze (ipaddress), Ports (int), Dienste (Katalog)."""
     v4 = [n for n in nets if ':' not in n]
     v6 = [n for n in nets if ':' in n]
-    managed = [web] + (ssh or []) + ([631] if ipp else [])
-    ports = ', '.join(str(p) for p in sorted(set(managed)))
+    sets = port_sets(web, ssh, ipp, services, custom)
+    fmt = lambda ports: ', '.join(ports)
     lines = [f'table inet {TABLE}', f'delete table inet {TABLE}', f'table inet {TABLE} {{', '  chain input {',
              f'    type filter hook input priority -10; policy {"drop" if strict else "accept"};',
              '    iifname "lo" accept', '    ct state established,related accept', '    ct state invalid drop',
              '    meta l4proto { icmp, ipv6-icmp } accept']
     if strict:
         lines += ['    udp sport 67 udp dport 68 accept', '    ip6 saddr fe80::/10 udp dport 546 accept']
-    if v4:
-        lines.append(f'    ip saddr {{ {", ".join(v4)} }} tcp dport {{ {ports} }} accept')
-        if strict: lines.append(f'    ip saddr {{ {", ".join(v4)} }} udp dport 5353 accept')
-    if v6:
-        lines.append(f'    ip6 saddr {{ {", ".join(v6)} }} tcp dport {{ {ports} }} accept')
-        if strict: lines.append(f'    ip6 saddr {{ {", ".join(v6)} }} udp dport 5353 accept')
+    for proto in ('tcp', 'udp'):
+        if sets[('any', proto)]:
+            lines.append(f'    {proto} dport {{ {fmt(sets[("any", proto)])} }} accept')
+    for family, group in (('ip', v4), ('ip6', v6)):
+        if not group:
+            continue
+        for proto in ('tcp', 'udp'):
+            if sets[('nets', proto)]:
+                lines.append(f'    {family} saddr {{ {", ".join(group)} }} {proto} dport {{ {fmt(sets[("nets", proto)])} }} accept')
+        if strict:
+            lines.append(f'    {family} saddr {{ {", ".join(group)} }} udp dport 5353 accept')
     if not strict:
-        lines.append(f'    tcp dport {{ {ports} }} drop')
+        for proto in ('tcp', 'udp'):
+            if sets[('nets', proto)]:
+                lines.append(f'    {proto} dport {{ {fmt(sets[("nets", proto)])} }} drop')
     lines += ['  }', '}', '']
     return '\n'.join(lines)
 
@@ -191,7 +254,9 @@ def handle():
         ssh = ssh_ports() if request.get('ssh') is True else None
         ipp = request.get('ipp') is True
         strict = request.get('strict') is True
-        rules = build_rules(nets, web, ssh, ipp, strict)
+        services = clean_services(request.get('services'))
+        custom = clean_custom(request.get('custom'))
+        rules = build_rules(nets, web, ssh, ipp, strict, services, custom)
     except (Rejected, ValueError, UnicodeDecodeError) as e:
         status('failed', str(e) or 'Anfrage ungültig.')
         return
@@ -208,7 +273,7 @@ def handle():
         return
     deadline = int(time.time()) + WAIT
     status('pending', f'Firewall geladen. Bitte binnen {WAIT} Sekunden bestätigen, sonst wird sie zurückgesetzt.',
-           deadline=deadline, networks=nets, ports=sorted({web, *(ssh or []), *([631] if ipp else [])}), ssh=ssh is not None, ipp=ipp, strict=strict)
+           deadline=deadline, networks=nets, ports=sorted({web, *(ssh or []), *([631] if ipp else [])}), ssh=ssh is not None, ipp=ipp, strict=strict, services=services, custom=custom)
     while time.time() < deadline:
         if confirmed(started):
             os.makedirs(os.path.dirname(RULES), exist_ok=True)
@@ -220,7 +285,7 @@ def handle():
             try: os.unlink(CONFIRM)
             except OSError: pass
             status('active', 'Firewall aktiv und bestätigt. Sie wird beim Start des Servers automatisch geladen.',
-                   networks=nets, ports=sorted({web, *(ssh or []), *([631] if ipp else [])}), ssh=ssh is not None, ipp=ipp, strict=strict)
+                   networks=nets, ports=sorted({web, *(ssh or []), *([631] if ipp else [])}), ssh=ssh is not None, ipp=ipp, strict=strict, services=services, custom=custom)
             return
         time.sleep(1)
     restore(previous)
