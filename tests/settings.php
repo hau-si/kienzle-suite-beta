@@ -94,6 +94,24 @@ try {
     check($withIps['terminzettel']['ips'] === [['name' => 'eth0', 'ip' => '192.168.111.115']] && $withIps['invoice_printer']['ips'] === [['name' => 'eth0', 'ip' => '192.168.111.115']], 'Server-IP für Druckeradressen fehlt oder enthält öffentliche Adresse');
     $page->network = null;
 
+    // Leistungen und GOÄ-Positionen im Adminpanel verwalten.
+    $c = $page->handle('catalog', [], $session, null);
+    check($c['services'] === [] && $c['groups'] === [] && isset($c['fee_types']['standard']), 'Leerer Katalog falsch');
+    problem(fn() => $page->handle('catalog_service_save', ['label' => 'X', 'price' => '10,00'], $session, 'falsch'), 'Leistung ohne CSRF-Token gespeichert', 403);
+    $c = $page->handle('catalog_service_save', ['id' => '', 'label' => 'Ausführliche Beratung', 'price' => '25,00', 'goae_code' => '3', 'fee_type' => 'standard', 'factor' => '2,86', 'base' => '8,74', 'on_request' => false, 'vat' => false], $session, $login['csrf']);
+    check(count($c['services']) === 1 && $c['services'][0]['factor'] === '2.86' && $c['services'][0]['price_cents'] === 2500 && $c['services'][0]['base_cents'] === 874, 'Leistung falsch gespeichert');
+    problem(fn() => $page->handle('catalog_service_save', ['label' => 'Falsch', 'price' => '99,00', 'goae_code' => '3', 'fee_type' => 'standard', 'factor' => '2,86', 'base' => '8,74'], $session, $login['csrf']), 'Preis passt nicht zu Einfachsatz × Faktor akzeptiert', 400);
+    $sid = $c['services'][0]['id'];
+    $c = $page->handle('catalog_service_save', ['id' => $sid, 'label' => 'Beratung ausführlich', 'price' => '25,00', 'goae_code' => '3', 'fee_type' => 'standard', 'factor' => '2,86', 'base' => '8,74'], $session, $login['csrf']);
+    check($c['services'][0]['label'] === 'Beratung ausführlich' && count($c['services']) === 1, 'Leistung nicht geändert');
+    $c = $page->handle('catalog_group_save', ['id' => '', 'label' => 'Kombi', 'services' => [$sid]], $session, $login['csrf']);
+    check(count($c['groups']) === 1 && $c['groups'][0]['services'] === [$sid], 'Kombination falsch gespeichert');
+    problem(fn() => $page->handle('catalog_service_delete', ['id' => $sid], $session, $login['csrf']), 'Leistung in Kombination gelöscht', 409);
+    $c = $page->handle('catalog_group_delete', ['id' => $c['groups'][0]['id']], $session, $login['csrf']);
+    check($c['groups'] === [], 'Kombination nicht gelöscht');
+    $c = $page->handle('catalog_service_delete', ['id' => $sid], $session, $login['csrf']);
+    check($c['services'] === [] && str_contains($c['message'], 'gelöscht'), 'Leistung nicht gelöscht');
+
     // Textschnipsel für die Rechnungserkennung und Eingangsübersicht.
     $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true, 'max_age_days' => 14, 'label_number' => "Beleg-Nr.\nBeleg Nummer", 'label_total' => 'Endsumme']], $session, $login['csrf']);
     check(Settings::effective($base)->get('invoice_inbox', 'label_number') === ['Beleg-Nr.', 'Beleg Nummer'], 'Textschnipsel nicht gespeichert');

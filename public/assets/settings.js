@@ -230,7 +230,7 @@ function updateProgress(status) {
 // ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
 const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-inbox-list', 's-t2med-paid', 's-export']},
-  {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
+  {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-catalog', 's-tax', 's-app', 's-mail', 's-invoice_export']},
   {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
   {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-firewall', 's-audit', 's-password']},
 ];
@@ -336,7 +336,7 @@ async function busy(button, action) {
   button.disabled = true;
   try { await action(); } catch (error) { message(error.message, true); } finally { button.disabled = false; }
 }
-async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); loadInbox(); }
+async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); loadInbox(); loadCatalog(); }
 
 $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
   if ($('setup-password').value !== $('setup-password2').value) throw new Error('Die Passwörter stimmen nicht überein.');
@@ -644,6 +644,132 @@ $('audit-load').onclick = async () => {
     box.hidden = false;
   } catch (error) { message(error.message, true); }
 };
+
+// ---- Leistungen und GOÄ-Positionen --------------------------------------------------------
+let catalogData = null;
+const eur = c => (c / 100).toLocaleString('de-DE', {style: 'currency', currency: 'EUR'});
+const feeLabels = {standard: 'Ärztlich', technical: 'Technisch (A, E, O)', lab: 'Labor (M / Nr. 437)'};
+async function loadCatalog() {
+  try { renderCatalog(await api('catalog')); }
+  catch (error) { $('catalog-box').replaceChildren(el('p', error.message, 'muted')); }
+}
+function catField(labelText, input, hint) {
+  const f = el('div', null, 'field'); f.append(el('label', labelText), input); if (hint) f.append(el('small', hint, 'muted')); return f;
+}
+function renderCatalog(data) {
+  catalogData = data;
+  const box = $('catalog-box'); box.replaceChildren();
+  const apply = (result) => { renderCatalog(result); message(result.message); };
+  // Liste
+  if (!data.services.length) box.append(el('p', 'Noch keine Leistungen angelegt.', 'muted'));
+  else {
+    const table = el('table', null, 'fw-table'), head = el('tr');
+    for (const h of ['Bezeichnung', 'GOÄ', 'Faktor', 'Preis', 'MwSt.', '']) head.append(el('th', h));
+    table.append(head);
+    for (const sv of data.services) {
+      const tr = el('tr');
+      const name = el('td', sv.label + (sv.on_request ? ' (auf Verlangen)' : ''));
+      const factor = sv.goae_code && sv.factor ? sv.factor.replace('.', ',') + (sv.fee_type !== 'standard' ? ' · ' + (feeLabels[sv.fee_type] || '') : '') : '–';
+      tr.append(name, el('td', sv.goae_code || '–'), el('td', factor), el('td', eur(sv.price_cents)), el('td', sv.vat ? 'ja' : '–'));
+      const actions = el('td'); const edit = el('button', 'Bearbeiten', 'secondary small-button', {type: 'button'});
+      edit.onclick = () => fillCatalogForm(sv);
+      const del = el('button', 'Löschen', 'secondary small-button', {type: 'button'});
+      del.onclick = () => { if (!confirm('„' + sv.label + '“ aus der Auswahl löschen? Frühere Zahlungen bleiben erhalten.')) return; busy(del, async () => apply(await api('catalog_service_delete', {id: sv.id}))); };
+      actions.append(edit, ' ', del); tr.append(actions); table.append(tr);
+    }
+    box.append(table);
+  }
+  // Formular
+  box.append(el('h3', 'Leistung anlegen oder ändern', null, {id: 'cat-form-title'}));
+  const form = el('form', null, 'settings-form', {id: 'cat-form'});
+  const id = el('input', null, null, {type: 'hidden', id: 'cat-id'});
+  const label = el('input', null, null, {type: 'text', id: 'cat-label', maxlength: '160', required: '', placeholder: 'z. B. Attest'});
+  const price = el('input', null, null, {type: 'text', id: 'cat-price', inputmode: 'decimal', maxlength: '12', required: '', placeholder: '10,00'});
+  const vat = el('input', null, null, {type: 'checkbox', id: 'cat-vat'});
+  const vatRow = el('label', null, 'check'); vatRow.append(vat, document.createTextNode(' mit MwSt. (im Preis enthalten)'));
+  if (data.tax.small_business) { vat.disabled = true; vatRow.append(el('small', ' – Kleinunternehmerregelung ist eingeschaltet, Rechnungen werden ohne MwSt. erstellt.', 'muted')); }
+  const onRequest = el('input', null, null, {type: 'checkbox', id: 'cat-on-request'});
+  const onRow = el('label', null, 'check'); onRow.append(onRequest, document.createTextNode(' Leistung auf Verlangen'));
+  // GOÄ
+  const goae = el('details', null, 'catalog-details', {id: 'cat-goae'}); goae.append(el('summary', 'GOÄ-Angaben und Rechner (optional)'));
+  const code = el('input', null, null, {type: 'text', id: 'cat-code', maxlength: '20', placeholder: 'z. B. 250'});
+  const base = el('input', null, null, {type: 'text', id: 'cat-base', inputmode: 'decimal', maxlength: '12', placeholder: 'z. B. 10,72'});
+  const target = el('input', null, null, {type: 'text', id: 'cat-target', inputmode: 'decimal', maxlength: '12', placeholder: 'z. B. 25,00'});
+  const factor = el('input', null, null, {type: 'text', id: 'cat-factor', inputmode: 'decimal', maxlength: '8', value: '2,3'});
+  const type = el('select', null, null, {id: 'cat-type'});
+  for (const [k, v] of Object.entries(data.fee_types)) type.append(el('option', (feeLabels[k] || k) + ' · Schwelle ' + commaFactor(v.threshold * 100) + ' / max. ' + commaFactor(v.max * 100), null, {value: k}));
+  const result = el('p', null, 'goae-result', {role: 'status', hidden: ''});
+  goae.append(catField('GOÄ-Ziffer', code), catField('Einfachsatz (1,0-fach) in Euro', base), catField('Gewünschter Endbetrag in Euro', target), result,
+    catField('Steigerungsfaktor', factor), catField('Gebührenrahmen', type),
+    el('p', 'Rechner: Einfachsatz und gewünschten Endbetrag eintragen, Faktor und Preis werden berechnet (Gebühr = Einfachsatz × Faktor, auf Cent gerundet; bis zu 4 Nachkommastellen). Ohne Einfachsatz ergänzen GOÄ und Faktor nur den Beleg, der Preis bleibt wie eingetragen. Oberhalb der Schwelle wird bei der Abrechnung eine Begründung erfasst.', 'muted small'));
+  const show = (text, level) => { result.hidden = !text; result.textContent = text || ''; result.className = 'goae-result' + (level ? ' ' + level : ''); };
+  const calc = source => {
+    const b = parseCents(base.value), limits = data.fee_types[type.value];
+    if (!b) { show(''); return; }
+    let h, p;
+    if (source === 'factor') {
+      const f = String(factor.value).replace(',', '.');
+      if (!/^\d(\.\d{1,4})?$/.test(f)) { show('Bitte einen Faktor wie 2,3 oder 2,332 eingeben (höchstens 4 Nachkommastellen).', 'warn'); return; }
+      h = factorUnits(f); p = fee(b, h); target.value = (p / 100).toFixed(2).replace('.', ',');
+    } else {
+      const t = parseCents(target.value);
+      if (!t) { show('Gewünschten Endbetrag eintragen, dann wird der Faktor berechnet.'); return; }
+      [h, p] = bestFactor(b, t);
+      if (h > limits.max * 100) { show('Über dem Höchstsatz (' + commaFactor(limits.max * 100) + '-fach): höchstens ' + eur(fee(b, limits.max * 100)) + ' möglich. Bitte anderen Endbetrag oder Gebührenrahmen wählen.', 'error'); return; }
+      factor.value = commaFactor(h);
+    }
+    if (h > limits.max * 100) { show('Faktor über dem Höchstsatz (' + commaFactor(limits.max * 100) + ').', 'error'); return; }
+    price.value = (p / 100).toFixed(2).replace('.', ',');
+    const t2 = parseCents(target.value), parts = ['Faktor ' + commaFactor(h) + ' × ' + eur(b) + ' = ' + eur(p) + ' → als Preis übernommen.'];
+    if (source !== 'factor' && t2 && p !== t2) parts.push('Genau ' + eur(t2) + ' ist auch mit vier Nachkommastellen beim Faktor nicht möglich.');
+    else if (source !== 'factor' && h % 100 !== 0) parts.push('Der Faktor hat ' + (h % 10 === 0 ? '3' : '4') + ' Nachkommastellen, damit der Betrag genau ' + eur(p) + ' ergibt.');
+    if (h > limits.threshold * 100) parts.push('Über dem Schwellenwert ' + commaFactor(limits.threshold * 100) + ': Bei der Abrechnung ist eine Begründung nötig.');
+    show(parts.join(' '), h > limits.threshold * 100 ? 'warn' : 'ok');
+  };
+  for (const [input, source] of [[base, 'target'], [target, 'target'], [factor, 'factor']]) input.addEventListener('input', () => calc(source));
+  type.addEventListener('change', () => calc('target'));
+  const save = el('button', 'Leistung hinzufügen', 'primary', {type: 'submit', id: 'cat-save'});
+  const reset = el('button', 'Abbrechen', 'secondary', {type: 'button', hidden: ''});
+  const clear = () => { form.reset(); id.value = ''; factor.value = '2,3'; goae.open = false; show(''); save.textContent = 'Leistung hinzufügen'; reset.hidden = true; $('cat-form-title').textContent = 'Leistung anlegen oder ändern'; };
+  reset.onclick = clear;
+  const buttons = el('div', null, 'row-buttons'); buttons.append(save, reset);
+  form.append(id, catField('Bezeichnung', label), catField('Preis in Euro', price), vatRow, goae, onRow, buttons);
+  form.onsubmit = e => { e.preventDefault(); busy(save, async () => apply(await api('catalog_service_save', {id: id.value, label: label.value, price: price.value,
+    goae_code: code.value, fee_type: type.value, factor: factor.value, base: base.value, on_request: onRequest.checked, vat: vat.checked && !vat.disabled}))); };
+  window.fillCatalogForm = sv => {
+    id.value = sv.id; label.value = sv.label; price.value = (sv.price_cents / 100).toFixed(2).replace('.', ','); code.value = sv.goae_code || '';
+    factor.value = (sv.factor || '2.3').replace('.', ','); type.value = sv.fee_type; onRequest.checked = !!sv.on_request; vat.checked = !!sv.vat;
+    base.value = sv.base_cents ? (sv.base_cents / 100).toFixed(2).replace('.', ',') : ''; target.value = sv.base_cents ? price.value : '';
+    goae.open = !!sv.goae_code; show(''); save.textContent = 'Änderung speichern'; reset.hidden = false;
+    $('cat-form-title').textContent = 'Leistung ändern: ' + sv.label; label.focus();
+  };
+  box.append(form);
+  // Kombinationen
+  box.append(el('h3', 'Kombinationen'));
+  box.append(el('p', 'Mehrere Einzelleistungen, die an der Kasse mit einem Klick gewählt werden (z. B. Laborprofil mit Blutentnahme).', 'muted small'));
+  for (const g of data.groups) {
+    const sum = data.services.filter(s => g.services.includes(s.id)).reduce((t, s) => t + s.price_cents, 0);
+    const row = el('div', null, 'manage-row');
+    row.append(el('span', g.label + ' · ' + eur(sum) + ' (' + data.services.filter(s => g.services.includes(s.id)).map(s => s.label).join(', ') + ')'));
+    const edit = el('button', 'Bearbeiten', 'secondary small-button', {type: 'button'});
+    const del = el('button', 'Löschen', 'secondary small-button', {type: 'button'});
+    del.onclick = () => { if (!confirm('Kombination „' + g.label + '“ löschen? Die Einzelleistungen bleiben erhalten.')) return; busy(del, async () => apply(await api('catalog_group_delete', {id: g.id}))); };
+    edit.onclick = () => { gid.value = g.id; glabel.value = g.label; members.querySelectorAll('input').forEach(c => { c.checked = g.services.includes(c.value); }); gsave.textContent = 'Kombination speichern'; greset.hidden = false; glabel.focus(); };
+    row.append(edit, ' ', del); box.append(row);
+  }
+  const gform = el('form', null, 'settings-form');
+  const gid = el('input', null, null, {type: 'hidden'});
+  const glabel = el('input', null, null, {type: 'text', maxlength: '160', required: '', placeholder: 'z. B. Laborprofil mit Blutentnahme'});
+  const members = el('div');
+  for (const sv of data.services) { const l = el('label', null, 'check'); const c = el('input', null, null, {type: 'checkbox', value: sv.id}); l.append(c, document.createTextNode(' ' + sv.label + ' · ' + eur(sv.price_cents))); members.append(l); }
+  const gsave = el('button', 'Kombination hinzufügen', 'primary', {type: 'submit'});
+  const greset = el('button', 'Abbrechen', 'secondary', {type: 'button', hidden: ''});
+  greset.onclick = () => { gform.reset(); gid.value = ''; gsave.textContent = 'Kombination hinzufügen'; greset.hidden = true; };
+  const gbuttons = el('div', null, 'row-buttons'); gbuttons.append(gsave, greset);
+  gform.append(gid, catField('Name der Kombination', glabel), members, gbuttons);
+  gform.onsubmit = e => { e.preventDefault(); busy(gsave, async () => apply(await api('catalog_group_save', {id: gid.value, label: glabel.value, services: [...members.querySelectorAll('input:checked')].map(c => c.value)}))); };
+  if (data.services.length) box.append(gform);
+}
 
 // ---- Rechnungseingang -------------------------------------------------------------------
 const inboxState = {offen: 'Offen', bezahlt: 'Bezahlt', 'am Terminal': 'Am Terminal', ersetzt: 'Ersetzt', abgelaufen: 'Abgelaufen'};

@@ -43,11 +43,10 @@ try {
     // Sehr hoher Einfachsatz: nicht jeder Cent erreichbar, dann nächstliegender Betrag
     $r = ServiceCatalog::bestFactor(25000, 61234, 'standard');
     check(!$r['exact'] ? abs($r['price_cents'] - 61234) <= 1 : $r['price_cents'] === 61234, 'hoher Einfachsatz: ' . json_encode($r));
-    // Der Rechner im Browser (app.js) muss dieselben Faktoren liefern
+    // Der Rechner im Browser (goae-calc.js) muss dieselben Faktoren liefern
     if (trim((string)shell_exec('command -v node'))) {
-        $js = file_get_contents(dirname(__DIR__) . '/public/assets/app.js');
-        preg_match('/const fee=.*?\nfunction goaeResult/s', $js, $m);
-        $script = "const euro=x=>x;\n" . preg_replace('/function goaeResult$/', '', $m[0]) . "\nconst cases=" . json_encode($cases) . ";\nconst bad=cases.filter(([b,t,f])=>commaFactor(bestFactor(b,t)[0]).replace(',','.')!==f);\nconsole.log(bad.length?JSON.stringify(bad.slice(0,3)):'ok');";
+        $js = file_get_contents(dirname(__DIR__) . '/public/assets/goae-calc.js');
+        $script = "const euro=x=>x;\n" . $js . "\nconst cases=" . json_encode($cases) . ";\nconst bad=cases.filter(([b,t,f])=>commaFactor(bestFactor(b,t)[0]).replace(',','.')!==f);\nconsole.log(bad.length?JSON.stringify(bad.slice(0,3)):'ok');";
         $out = trim((string)shell_exec('node -e ' . escapeshellarg($script) . ' 2>&1'));
         check($out === 'ok', 'Browser-Rechner weicht ab: ' . $out);
     }

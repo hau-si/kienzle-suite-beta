@@ -42,9 +42,9 @@ final class SettingsPage {
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
-        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status', 'inbox_overview'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status', 'inbox_overview', 'catalog'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
         // Alles, was etwas verändert, im Protokoll festhalten (ohne Werte).
-        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'inbox_overview', 'firewall_info', 'firewall_status', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
+        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'inbox_overview', 'catalog', 'firewall_info', 'firewall_status', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
             $this->admin->audit->write($action, $action === 'save' ? App::string($input, 'section', 40) : '');
         }
         return match ($action) {
@@ -70,6 +70,11 @@ final class SettingsPage {
             't2med_done' => $this->t2medDone($input),
             't2med_correct' => $this->t2medCorrect($input),
             'inbox_delete' => $this->inboxDelete($input),
+            'catalog' => $this->catalog()->overview(),
+            'catalog_service_save' => $this->catalogChange(fn(Catalog $c) => $c->saveService($input), 'Leistung gespeichert.'),
+            'catalog_service_delete' => $this->catalogChange(fn(Catalog $c) => $c->deleteService(App::string($input, 'id', 32)), 'Leistung gelöscht. Frühere Zahlungen behalten ihre Angaben.'),
+            'catalog_group_save' => $this->catalogChange(fn(Catalog $c) => $c->saveGroup($input), 'Kombination gespeichert.'),
+            'catalog_group_delete' => $this->catalogChange(fn(Catalog $c) => $c->deleteGroup(App::string($input, 'id', 32)), 'Kombination gelöscht. Die Einzelleistungen bleiben erhalten.'),
             'terminzettel_preview' => $this->terminzettelPreview(is_array($input['values'] ?? null) ? $input['values'] : []),
             'printer_discover' => ['found' => $this->printerReady()->discover()],
             'printer_add' => $this->printerAdd($input),
@@ -251,6 +256,12 @@ final class SettingsPage {
         (new TaxExport($this->db, $this->config()))->correctT2medPayment(App::string($input, 'id', 32), $change, $max);
         $text = ['amount' => 'Betrag korrigiert.', 'void' => 'Zahlung storniert. Eine Erstattung an den Patienten erfolgt nicht automatisch, bitte im SumUp-Konto vornehmen.', 'restore' => 'Korrektur zurückgenommen.'][$action];
         return $this->t2medPaid($input['filter'] ?? []) + ['message' => $text];
+    }
+    private function catalog(): Catalog { return new Catalog($this->db, $this->config()); }
+    private function catalogChange(callable $change, string $message): array {
+        $catalog = $this->catalog();
+        $change($catalog);
+        return $catalog->overview() + ['message' => $message];
     }
     private function inboxDelete(array $input): array {
         InboxOverview::delete($this->db, App::string($input, 'id', 32));

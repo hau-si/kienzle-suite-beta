@@ -8,7 +8,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 ?>
 <!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kienzle-SumUp · Einstellungen</title><link rel="stylesheet" href="/assets/style.css?v=<?= $version ?>"><script src="/assets/settings.js?v=<?= $version ?>" defer></script></head>
+<title>Kienzle-SumUp · Einstellungen</title><link rel="stylesheet" href="/assets/style.css?v=<?= $version ?>"><script src="/assets/goae-calc.js?v=<?= $version ?>" defer></script><script src="/assets/settings.js?v=<?= $version ?>" defer></script></head>
 <body><main class="settings-main">
 <header class="top"><div class="brand"><span class="mark" aria-hidden="true">K</span><div><strong>kienzle-sumup</strong><span>Einstellungen</span></div></div><span id="mode" class="badge" hidden></span></header>
 <p id="message" class="notice" role="status" hidden></p>
@@ -63,6 +63,9 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted">Von T2med auf „SumUp-Rechnung“ gedruckte Rechnungen. Mit Name und Geburtsdatum des Patienten (nur nach Anmeldung sichtbar). Nicht bezahlte Rechnungen lassen sich löschen. „Offen“ heißt: Wird beim passenden Patienten zum Kassieren angeboten.</p>
 <div class="row-buttons"><button id="inbox-load" class="secondary" type="button">Aktualisieren</button></div>
 <div id="inbox-box"><p class="muted">Wird geladen …</p></div></section>
+<section class="card settings-card" id="s-catalog"><h2>Leistungen und GOÄ-Positionen</h2>
+<p class="muted">Die an der Kasse auswählbaren Leistungen. Mit GOÄ-Ziffer, Faktor und Gebührenrahmen für den Beleg; der GOÄ-Rechner stellt den Faktor so ein, dass der gewünschte Endbetrag genau erreicht wird. Gelöschte Leistungen verschwinden aus der Auswahl, frühere Zahlungen behalten ihre Angaben.</p>
+<div id="catalog-box"><p class="muted">Wird geladen …</p></div></section>
 <section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>
 <section class="card settings-card" id="s-firewall"><h2>Netzwerk &amp; Firewall</h2>
 <p class="muted">Der Server erkennt sein Netz selbst. Wähle, aus welchen Netzen Arbeitsplätze, Drucker und der T2med-Rechner zugreifen dürfen; alle anderen werden ausgesperrt. Nach dem Anwenden bestätigst du binnen 2 Minuten, dass diese Seite noch funktioniert – sonst stellt der Server die alten Regeln selbst wieder her.</p>

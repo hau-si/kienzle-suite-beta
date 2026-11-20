@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.30**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.31**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -16,6 +16,8 @@ Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
 **Kassieren aus T2med**
 - Leistungen und Kombinationen auswählen, Betrag am SumUp Solo kassieren (Karte) oder bar buchen,
   danach bewusst in der Patientenakte dokumentieren (FHIR, Aktenkürzel einstellbar).
+- **Leistungsverwaltung im Adminpanel** (Reiter „Praxis & Rechnungen“): auswählbare Leistungen und Kombinationen
+  anlegen, ändern und löschen, mit GOÄ-Ziffer, Gebührenrahmen und MwSt.; zusätzlich weiter an der Kasse möglich.
 - **GOÄ-Angaben und GOÄ-Rechner:** Der Faktor wird so berechnet (bis zu vier Nachkommastellen), dass der
   gewünschte Euro-Betrag genau getroffen wird; Begründung ab dem Schwellenwert.
 - Eigener Beleg als PDF (Rechnung oder Leistungsbeleg, Mehrwertsteuer je Leistung oder Kleinunternehmer),
@@ -24,6 +26,7 @@ Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
 - Schutz vor Doppelzahlungen, Terminalsperre, Statusabgleich bei verlorenen Antworten.
 
 <p align="center"><img src="docs/screenshots/01-kasse-t2med-rechnung.png" width="420" alt="Kasse mit offener T2med-Rechnung"> <img src="docs/screenshots/03-goae-rechner.png" width="420" alt="GOÄ-Rechner"></p>
+<p align="center"><img src="docs/screenshots/12-leistungen-goae-verwaltung.png" width="420" alt="Leistungsverwaltung im Adminpanel"></p>
 
 **T2med-Rechnungen kassieren** (virtueller Drucker „SumUp-Rechnung“)
 - Eine in T2med erstellte Rechnung wird auf den Drucker „SumUp-Rechnung“ gedruckt, vom Server gelesen
