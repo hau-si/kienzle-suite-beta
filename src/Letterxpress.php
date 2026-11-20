@@ -53,6 +53,19 @@ final class Letterxpress {
         return $rewrite($fixed, ['--object-streams=disable']) ?? $clean;
     }
 
+    /** Meldung, wenn das aufbereitete PDF nicht A4 hoch, unverschlüsselt und ungedreht ist; sonst null. */
+    public static function formatProblem(string $pdf): ?string {
+        if (str_contains($pdf, '/Encrypt')) return 'Das PDF ist verschlüsselt und ließ sich nicht entschlüsseln (qpdf fehlt? „sudo apt install qpdf“).';
+        if (!preg_match_all('#/MediaBox\s*\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', $pdf, $boxes, PREG_SET_ORDER))
+            return null; // Größe nicht lesbar (z. B. in Objektströmen): Letterxpress entscheidet.
+        foreach ($boxes as $b) {
+            if (abs(($b[3] - $b[1]) - 595) > 2 || abs(($b[4] - $b[2]) - 842) > 2)
+                return 'Das PDF ist nicht A4 hoch und ließ sich nicht umwandeln (Querformat oder anderes Format?). Bitte die Rechnungsvorlage in T2med bzw. das Papierformat des Druckers „SumUp-Rechnung“ auf A4 hoch stellen.';
+        }
+        if (preg_match('#/Rotate\s+(90|270|-90|-270)\b#', $pdf)) return 'Das PDF ist gedreht (Querformat). Bitte die Rechnungsvorlage in T2med auf A4 hoch stellen.';
+        return null;
+    }
+
     /** Kurzbeschreibung des PDFs für Fehlermeldungen: Version, Seiten, Format, Drehung, Verschlüsselung. */
     public static function describe(string $pdf): string {
         $version = preg_match('/^%PDF-(\d\.\d)/', $pdf, $m) ? $m[1] : '?';
@@ -105,7 +118,10 @@ final class Letterxpress {
             if ($row['lxp_status'] !== '' && !$again) throw new Problem($row['lxp_status'] === 'unknown'
                 ? 'Der Versand dieser Rechnung ist unklar. Bitte zuerst den Postausgang bei Letterxpress prüfen.' : 'Diese Rechnung wurde bereits per Post gesendet.', 409);
             if ($row['pdf'] === null || !str_starts_with((string)$row['pdf'], '%PDF-')) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut auf „SumUp-Rechnung“ drucken.', 409);
-            $file = base64_encode(self::unprotected((string)$row['pdf']));
+            $prepared = self::unprotected((string)$row['pdf']);
+            // Vorab prüfen statt erst von Letterxpress abgewiesen zu werden (kein Versuch, kein Guthabenverbrauch).
+            if (($problem = self::formatProblem($prepared)) !== null) throw new Problem($problem . ' PDF: ' . self::describe($prepared) . '.', 422);
+            $file = base64_encode($prepared);
             $letter = ['base64_file' => $file, 'base64_file_checksum' => md5($file),
                 'filename_original' => 'Rechnung-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $row['invoice_number']) . '.pdf',
                 'specification' => ['color' => (string)$this->config->get('letterxpress', 'color', '1'),
