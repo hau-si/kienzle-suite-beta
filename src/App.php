@@ -117,7 +117,8 @@ final class App {
         return ['visit_id' => $visit['id'], 'csrf' => $browser['csrf'],
             'patient' => ['name' => $visit['patient_name'], 'birthdate' => $visit['patient_birthdate']],
             'completed' => $visit['completed_at'] !== null,
-            'services' => $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll(),
+            'services' => array_map(static fn($s) => ['vat' => (bool)$s['vat']] + $s, $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
+            'tax' => array_intersect_key(Tax::settings($this->config), ['small_business' => 1, 'rate' => 1, 'manual_vat' => 1]),
             'groups' => array_map(static fn($g) => ['id' => $g['id'], 'label' => $g['label'], 'services' => json_decode($g['service_ids_json'], true, 32, JSON_THROW_ON_ERROR)], $this->db->query('SELECT * FROM service_groups WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
             'local_receipts' => $this->config->practiceReady(),
             'fee_types' => ServiceCatalog::FEES,
@@ -146,10 +147,12 @@ final class App {
         $factor = $code !== '' ? ServiceCatalog::factor(self::string($input, 'factor', 8), $type) : '';
         $onRequest = $input['on_request'] ?? false;
         if (!is_bool($onRequest)) throw new Problem('Ungültige Angabe für Leistung auf Verlangen.');
+        $vat = $input['vat'] ?? false;
+        if (!is_bool($vat)) throw new Problem('Ungültige Angabe zur Mehrwertsteuer.');
         if ($id === '') {
-            $this->db->query('INSERT INTO services(id,label,price_cents,goae_code,factor,fee_type,on_request,updated_at) VALUES(?,?,?,?,?,?,?,?)', [self::id(), $label, $cents, $code, $factor, $type, (int)$onRequest, time()]);
+            $this->db->query('INSERT INTO services(id,label,price_cents,goae_code,factor,fee_type,on_request,vat,updated_at) VALUES(?,?,?,?,?,?,?,?,?)', [self::id(), $label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, time()]);
         } else {
-            if ($this->db->query('UPDATE services SET label=?,price_cents=?,goae_code=?,factor=?,fee_type=?,on_request=?,updated_at=? WHERE id=? AND active=1', [$label, $cents, $code, $factor, $type, (int)$onRequest, time(), $id])->rowCount() !== 1) throw new Problem('Leistung nicht gefunden.', 404);
+            if ($this->db->query('UPDATE services SET label=?,price_cents=?,goae_code=?,factor=?,fee_type=?,on_request=?,vat=?,updated_at=? WHERE id=? AND active=1', [$label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, time(), $id])->rowCount() !== 1) throw new Problem('Leistung nicht gefunden.', 404);
         }
     }
     public function deleteService(array $visit, string $id): void {
@@ -213,6 +216,7 @@ final class App {
             $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input): array {
                 $visit = $fresh;
                 $items = []; $amount = 0; $max = $this->config->get('app', 'max_amount_cents');
+                $tax = Tax::settings($this->config);
                 foreach ($groups as $groupId) {
                     $group = $this->db->one('SELECT service_ids_json FROM service_groups WHERE id=? AND active=1', [$groupId]);
                     if (!$group) throw new Problem('Eine ausgewählte Kombination wurde gelöscht. Bitte Auswahl aktualisieren.');
@@ -222,8 +226,10 @@ final class App {
                 if (count($ids) > 100) throw new Problem('Bitte höchstens 100 Einzelleistungen auswählen.');
                 foreach ($reasons as $id => $_) if (!in_array($id, $ids, true)) throw new Problem('Eine Begründung gehört nicht zur Auswahl.');
                 foreach ($ids as $id) {
-                    $service = $this->db->one('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request FROM services WHERE id=? AND active=1', [$id]);
+                    $service = $this->db->one('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat FROM services WHERE id=? AND active=1', [$id]);
                     if (!$service) throw new Problem('Eine ausgewählte Leistung wurde gelöscht. Bitte Auswahl aktualisieren.');
+                    // Steuersatz zum Zeitpunkt der Zahlung festhalten; spätere Änderungen betreffen alte Rechnungen nicht.
+                    $service['vat_rate'] = Tax::rateFor($tax, (bool)$service['vat']); unset($service['vat']);
                     $service['reason'] = $reasons[$id] ?? '';
                     if (ServiceCatalog::needsReason($service) && $service['reason'] === '') throw new Problem('Bitte die Faktorsteigerung für „' . $service['label'] . '“ begründen.');
                     $items[] = $service; $amount += $service['price_cents'];
@@ -231,7 +237,7 @@ final class App {
                 usort($items, static fn($a, $b) => strnatcasecmp($a['goae_code'] ?: $a['label'], $b['goae_code'] ?: $b['label']));
                 if ($manual !== '') {
                     $cents = Money::cents($manual, $max); $amount += $cents;
-                    $items[] = ['id' => null, 'label' => 'Sonstiger Betrag', 'price_cents' => $cents];
+                    $items[] = ['id' => null, 'label' => 'Sonstiger Betrag', 'price_cents' => $cents, 'vat_rate' => Tax::rateFor($tax, $tax['manual_vat'])];
                 }
                 if ($amount <= 0 || $amount > $max) throw new Problem('Bitte Leistungen oder einen zulässigen Betrag auswählen.');
                 $hasGoae = count(array_filter($items, static fn($s) => ($s['goae_code'] ?? '') !== ''));
@@ -243,7 +249,9 @@ final class App {
                     $invoice = json_encode(['title' => $hasGoae === count($items) ? 'PRIVATÄRZTLICHE RECHNUNG' : 'LEISTUNGSBELEG',
                         'timezone' => $this->config->get('app', 'timezone'), 'mock' => $this->config->get('sumup', 'mode') === 'mock',
                         'practice' => $practice, 'patient' => ['id' => $visit['patient_id'], 'name' => $visit['patient_name'], 'birthdate' => $visit['patient_birthdate'], 'address' => json_decode($visit['patient_address'], true, 32, JSON_THROW_ON_ERROR)],
-                        'service_date' => $date, 'items' => $items, 'total_cents' => $amount], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+                        'service_date' => $date, 'items' => $items, 'total_cents' => $amount,
+                        'tax' => ['small_business' => $tax['small_business'], 'tax_id' => $tax['tax_id'], 'exempt_note' => $tax['exempt_note'], 'small_business_note' => $tax['small_business_note']]],
+                        JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
                 }
                 $id = self::id();
                 $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)',

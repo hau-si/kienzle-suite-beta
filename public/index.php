@@ -42,6 +42,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <button id="pay" class="primary wide" disabled>Mit Karte kassieren</button></section>
 <section id="manager" class="card" hidden><div class="section-heading"><h2>Leistungen verwalten</h2><button id="manage-close" class="text-button">Fertig</button></div><div id="manage-list"></div>
 <form id="service-form"><input id="service-id" type="hidden"><label for="service-label">Bezeichnung</label><input id="service-label" required maxlength="160" placeholder="z. B. Attest"><label for="service-price">Preis in Euro</label><input id="service-price" required inputmode="decimal" placeholder="10,00" maxlength="12">
+<label class="check-label" id="service-vat-row"><input id="service-vat" type="checkbox"> <span id="service-vat-label">mit MwSt. (im Preis enthalten)</span></label><p id="service-vat-note" class="muted small" hidden></p>
 <details id="goae-fields" class="catalog-details"><summary>GOÄ-Angaben ergänzen (optional)</summary>
 <label for="service-goae">GOÄ-Ziffer</label><input id="service-goae" maxlength="20" placeholder="z. B. 250">
 <label for="service-factor">Steigerungsfaktor</label><input id="service-factor" inputmode="decimal" value="2,3" maxlength="8">

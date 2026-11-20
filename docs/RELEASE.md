@@ -1,9 +1,14 @@
-Version 1.4.1-rechnung.7 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.8 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.8: Mehrwertsteuer je Leistung („mit MwSt.“, Preis bleibt Endpreis), Satz und
+  Kleinunternehmerregelung (§ 19 UStG) unter Einstellungen → Umsatzsteuer, Steuernummer/USt-IdNr. und
+  Hinweistexte auf der Rechnung, Netto/MwSt. je Satz unter der Summe. Der Satz wird je Zahlung
+  festgehalten. Excel-Export (XLSX, ohne Zusatzpakete) aller Rechnungen aus dem Rechnungstool je Jahr
+  oder Monat mit Blättern Rechnungen, Positionen und Monatssummen. Datenbank-Version 10.
 - Neu in rechnung.7: T2med-Terminzettel integriert (aus thomaskien/t2med-terminzettel 1.3.1,
   Ordner `terminzettel/`), vom Server-Installer ohne Rückfragen eingerichtet. Einstellungsbereich
   „Terminzettel“: Schriftgröße getrennt für Starttext, Überschrift, Termine und Endtext, Position

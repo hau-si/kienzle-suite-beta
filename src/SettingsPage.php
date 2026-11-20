@@ -63,6 +63,7 @@ final class SettingsPage {
             'mode' => $config->get('sumup', 'mode'), 'fhir_mode' => $config->get('fhir', 'mode'),
             'warning' => $broken ? 'Gespeicherte Einstellungen passen nicht zur aktuellen Version und werden ignoriert. Bitte die Bereiche prüfen und neu speichern.' : null,
             'invoice_printer' => (bool)$config->get('invoice_inbox', 'enabled', false), 'clients' => $this->clients(),
+            'export_years' => (new TaxExport($this->db, $config))->years(),
             'terminzettel' => ['installed' => Terminzettel::installed(), 'target' => Terminzettel::target($config),
                 'printer_url' => 'http://' . (parse_url((string)$config->get('app', 'base_url'), PHP_URL_HOST) ?: 'server') . ':631/printers/Terminzettel']];
     }
@@ -177,6 +178,19 @@ final class SettingsPage {
         $header('Content-Disposition: attachment; filename="' . ClientPackage::filename($system) . '"');
         $header('Content-Length: ' . $size);
         ClientPackage::zip($files, $write);
+    }
+
+    /** Excel-Liste für die Steuerberatung; nur mit Admin-Sitzung. */
+    public function taxExport(?string $sessionToken, array $query, callable $header, callable $write): void {
+        if (!$this->admin->session($sessionToken)) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        $year = filter_var($query['year'] ?? '', FILTER_VALIDATE_INT);
+        $month = filter_var($query['month'] ?? '0', FILTER_VALIDATE_INT);
+        if ($year === false || $month === false) throw new Problem('Ungültiger Zeitraum.', 422);
+        $data = (new TaxExport($this->db, $this->config()))->workbook($year, $month, ($query['names'] ?? '') === '1', ($query['test'] ?? '') === '1');
+        $header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $header('Content-Disposition: attachment; filename="' . TaxExport::filename($year, $month) . '"');
+        $header('Content-Length: ' . strlen($data));
+        $write($data);
     }
 
     private function clients(): array {

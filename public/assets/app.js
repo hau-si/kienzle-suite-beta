@@ -70,15 +70,19 @@ function selectedIds() {
   for(const group of state.groups) if(selectedGroups.has(group.id)) for(const id of group.services) ids.add(id);
   return ids;
 }
+function vatText(s) {
+  if(!s.vat || !state.tax || state.tax.small_business) return '';
+  return 'inkl. '+(state.tax.rate/100).toLocaleString('de-DE')+' % MwSt.';
+}
 function serviceDescription(s) {
-  return s.goae_code ? 'GOÄ '+s.goae_code+' · Faktor '+s.factor.replace('.',',') : '';
+  return [s.goae_code ? 'GOÄ '+s.goae_code+' · Faktor '+s.factor.replace('.',',') : '', vatText(s)].filter(Boolean).join(' · ');
 }
 function renderBasket() {
   const ids=selectedIds(); $('basket-lines').replaceChildren(); $('basket').hidden=!ids.size;
   for(const s of state.services.filter(s=>ids.has(s.id))) {
     const row=element('div','','basket-line'), line=element('div','','position');
     line.append(element('span',s.label),element('strong',euro(s.price_cents))); row.append(line);
-    if(s.goae_code) row.append(element('small',serviceDescription(s),'muted'));
+    if(serviceDescription(s)) row.append(element('small',serviceDescription(s),'muted'));
     const needsReason=s.goae_code && Math.round(Number(s.factor)*100)>state.fee_types[s.fee_type].threshold;
     if(needsReason) {
       const label=element('label','Begründung für diese Abrechnung (erforderlich)');
@@ -98,13 +102,13 @@ function renderServices() {
   for (const service of state.services) {
     const label = element('label','','service'); const checkbox = document.createElement('input'); checkbox.type='checkbox'; checkbox.checked=selected.has(service.id);
     checkbox.addEventListener('change', () => { checkbox.checked ? selected.add(service.id) : selected.delete(service.id); startRequest=null; renderBasket(); });
-    const name=element('span',service.label,'label'); if(service.goae_code) name.append(element('small',serviceDescription(service),'muted'));
+    const name=element('span',service.label,'label'); if(serviceDescription(service)) name.append(element('small',serviceDescription(service),'muted'));
     label.append(checkbox, name, element('span',euro(service.price_cents),'price')); $('services').append(label);
-    const row = element('div','','manage-row'); row.append(element('span', service.label+' · '+euro(service.price_cents)+(service.goae_code?' · '+serviceDescription(service):'')));
+    const row = element('div','','manage-row'); row.append(element('span', service.label+' · '+euro(service.price_cents)+(serviceDescription(service)?' · '+serviceDescription(service):'')));
     const edit = element('button','Bearbeiten','text-button'); edit.onclick=() => {
       $('service-id').value=service.id; $('service-label').value=service.label; $('service-price').value=(service.price_cents/100).toFixed(2).replace('.',',');
       $('service-goae').value=service.goae_code; $('service-factor').value=(service.factor || '2.3').replace('.',','); $('service-fee-type').value=service.fee_type;
-      $('service-on-request').checked=!!service.on_request; $('goae-fields').open=!!service.goae_code;
+      $('service-on-request').checked=!!service.on_request; $('goae-fields').open=!!service.goae_code; $('service-vat').checked=!!service.vat;
       $('service-save').textContent='Änderung speichern'; $('edit-reset').hidden=false; $('service-label').focus();
     };
     const del = element('button','Löschen','text-button danger'); del.onclick=() => run(async() => { if(!confirm('„'+service.label+'“ aus der Auswahl löschen? Frühere Zahlungen bleiben erhalten.')) return; await api('service_delete',{id:service.id}); resetForm(); await load(); });
@@ -131,6 +135,12 @@ function renderServices() {
     row.append(edit,del); $('group-list').append(row);
   }
   renderBasket();
+}
+function renderVatOption() {
+  const tax=state.tax||{small_business:false,rate:1900}, rate=(tax.rate/100).toLocaleString('de-DE');
+  $('service-vat-label').textContent='mit '+rate+' % MwSt. (im Preis enthalten)';
+  $('service-vat').disabled=tax.small_business; $('service-vat-note').hidden=!tax.small_business;
+  $('service-vat-note').textContent='Kleinunternehmerregelung ist eingeschaltet: Rechnungen werden ohne MwSt. erstellt (Einstellungen → Umsatzsteuer).';
 }
 function resetForm() { $('service-form').reset(); $('service-id').value=''; $('goae-fields').open=false; $('service-save').textContent='Leistung hinzufügen'; $('edit-reset').hidden=true; }
 function resetGroup() { $('group-form').reset(); $('group-id').value=''; $('group-save').textContent='Kombination hinzufügen'; $('group-reset').hidden=true; }
@@ -270,7 +280,7 @@ async function load() {
   $('practice-hint').hidden=state.local_receipts;
   if(!$('service-date').value) $('service-date').value=state.today;
   $('service-date').max=state.today;
-  renderServices(); renderInvoices(); renderPrintBox(); renderPayment();
+  renderVatOption(); renderServices(); renderInvoices(); renderPrintBox(); renderPayment();
 }
 async function poll() {
   if(busy) { timer=setTimeout(poll,2200); return; }
@@ -286,7 +296,7 @@ $('service-fee-type').onchange=()=>{
   const fee=state.fee_types[$('service-fee-type').value];
   if(Number($('service-factor').value.replace(',','.'))*100>fee.max) $('service-factor').value=String(fee.threshold/100).replace('.',',');
 };
-$('service-form').onsubmit=e=>{ e.preventDefault(); run(async()=>{ await api('service_save',{id:$('service-id').value,label:$('service-label').value,price:$('service-price').value,goae_code:$('service-goae').value,factor:$('service-factor').value,fee_type:$('service-fee-type').value,on_request:$('service-on-request').checked}); resetForm(); await load(); }); };
+$('service-form').onsubmit=e=>{ e.preventDefault(); run(async()=>{ await api('service_save',{id:$('service-id').value,label:$('service-label').value,price:$('service-price').value,goae_code:$('service-goae').value,factor:$('service-factor').value,fee_type:$('service-fee-type').value,on_request:$('service-on-request').checked,vat:$('service-vat').checked}); resetForm(); await load(); }); };
 $('group-reset').onclick=resetGroup;
 $('group-form').onsubmit=e=>{e.preventDefault();run(async()=>{
   await api('group_save',{id:$('group-id').value,label:$('group-label').value,services:[...$('group-members').querySelectorAll('input:checked')].map(el=>el.value)});

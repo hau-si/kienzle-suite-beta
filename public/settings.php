@@ -39,6 +39,10 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <div id="printer-found"></div>
 <form id="printer-form" class="settings-form"></form>
 </div></section>
+<section class="card settings-card" id="s-export"><h2>Export für die Steuerberatung</h2>
+<p>Alle hier im Rechnungstool erstellten und per Karte bezahlten Rechnungen als Excel-Tabelle – für ein ganzes Jahr oder einen Monat. T2med-Rechnungen sind nicht enthalten; sie stehen in T2med.</p>
+<form id="export-form" class="settings-form export-form"></form>
+<p class="muted small">Die Datei hat drei Blätter: <strong>Rechnungen</strong> (je Rechnung Brutto, Netto und MwSt. je Satz), <strong>Positionen</strong> (jede Leistung einzeln) und <strong>Monatssummen</strong>. Patientennamen nur, wenn angekreuzt.</p></section>
 <section class="card settings-card" id="s-clients"><h2>Arbeitsplätze einrichten</h2>
 <p>Auf dem Arbeitsplatz diese Seite öffnen, anmelden und das passende Paket laden. Es enthält den Starter, mit dem T2med die Kartenzahlung öffnet.</p>
 <div id="client-downloads" class="row-buttons"></div>

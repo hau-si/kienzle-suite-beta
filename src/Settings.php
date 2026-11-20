@@ -40,6 +40,14 @@ final class Settings {
             'contact' => ['type' => 'string', 'label' => 'Kontakt auf dem Beleg (optional)'],
             'append_sumup_receipt' => ['type' => 'bool', 'label' => 'Originalen SumUp-Beleg statt lokaler Zahlungsbestätigung anhängen'],
         ]],
+        'tax' => ['label' => 'Umsatzsteuer', 'fields' => [
+            'small_business' => ['type' => 'bool', 'label' => 'Kleinunternehmerregelung (§ 19 UStG): alle Rechnungen ohne MwSt.', 'default' => false],
+            'rate' => ['type' => 'percent', 'label' => 'MwSt.-Satz in Prozent', 'default' => 1900],
+            'manual_vat' => ['type' => 'bool', 'label' => '„Sonstiger Betrag“ mit MwSt. berechnen', 'default' => false],
+            'tax_id' => ['type' => 'string', 'label' => 'Steuernummer oder USt-IdNr. (steht auf der Rechnung)', 'default' => '', 'optional' => true],
+            'exempt_note' => ['type' => 'text', 'label' => 'Hinweis bei Positionen ohne MwSt. (optional)', 'default' => ''],
+            'small_business_note' => ['type' => 'text', 'label' => 'Hinweis bei Kleinunternehmerregelung', 'default' => 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.'],
+        ]],
         'mail' => ['label' => 'E-Mail-Versand', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Belege per E-Mail senden'],
             'host' => ['type' => 'string', 'label' => 'SMTP-Server'],
@@ -145,6 +153,7 @@ final class Settings {
                 if ($field['type'] === 'secret') $value = ['set' => is_string($value) && $value !== ''];
                 elseif ($field['type'] === 'pem') $value = ['set' => is_string($config->get('fhir', 'ca_file', '')) && $config->get('fhir', 'ca_file', '') !== ''];
                 elseif ($field['type'] === 'money') $value = intdiv((int)$value, 100);
+                elseif ($field['type'] === 'percent') $value = rtrim(rtrim(number_format((int)$value / 100, 2, ',', ''), '0'), ',');
                 elseif ($field['type'] === 'list') $value = implode("\n", (array)$value);
                 $fields[] = ['key' => $key, 'value' => $value] + SettingsHelp::for($section, $key) + $field;
             }
@@ -171,6 +180,7 @@ final class Settings {
                 'secret' => trim((string)$raw) === '' ? $current->get($section, $key, '') : trim((string)$raw),
                 'pem' => self::pem($base, (string)$raw),
                 'text' => self::text($field['label'], $raw),
+                'percent' => self::percent($field['label'], (string)$raw),
                 default => trim((string)$raw),
             };
             if ($values[$key] === null) unset($values[$key]);
@@ -207,6 +217,15 @@ final class Settings {
             [self::ROW, self::encrypt($overrides, $base), time()]);
         Terminzettel::sync($config, $overrides['terminzettel'] ?? []);
         return $config;
+    }
+
+    /** Prozentsatz „19“ oder „7,5“ als Hundertstelprozent (1900, 750); 0 bis 30 %. */
+    private static function percent(string $label, string $raw): int {
+        $raw = trim(str_replace([',', '%'], ['.', ''], $raw));
+        if (!preg_match('/^(\d{1,2})(?:\.(\d{1,2}))?$/D', $raw, $m)) throw new Problem($label . ': Zahl erwartet, z. B. 19 oder 7.', 422);
+        $value = (int)$m[1] * 100 + (int)str_pad($m[2] ?? '', 2, '0');
+        if ($value > 3000) throw new Problem($label . ': höchstens 30 %.', 422);
+        return $value;
     }
 
     /** Mehrzeiliger Freitext (Terminzettel): höchstens 1000 Zeichen, keine Steuerzeichen. */

@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.7**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.8**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -469,6 +469,8 @@ weiterhin ohne Passwort.
 | Praxisdaten | Rechnungsaussteller und Anschrift |
 | E-Mail-Versand | SMTP-Server und Absender |
 | Bondrucker / Praxisdrucker (A4) | Modell, Verbindung, Warteschlange; Testdruck |
+| Umsatzsteuer | MwSt.-Satz, Kleinunternehmerregelung (§ 19 UStG), Steuernummer/USt-IdNr., Hinweistexte |
+| Export Steuerberatung | Excel-Tabelle aller Rechnungen aus dem Rechnungstool, je Jahr oder Monat |
 | Terminzettel | Starttext, Überschrift, Termine, Endtext mit eigener Schriftgröße; Kalender-QR (Position, Größe); Live-Vorschau; Testdruck |
 | Drucker einrichten | TM-m10, TM-m30III und A4-Netzwerkdrucker suchen, anlegen, übernehmen, entfernen |
 | Arbeitsplätze einrichten | Installationspaket für Windows, macOS und Linux herunterladen |
@@ -483,6 +485,42 @@ Angaben werden mit Klartext abgelehnt, nichts wird halb gespeichert. Gespeichert
 Schlüssel und Passwörter werden nie wieder angezeigt; ein leeres Feld behält den Wert.
 Die Werte liegen verschlüsselt (mit dem Verschlüsselungsschlüssel aus der TOML-Datei) in der
 Datenbank und haben Vorrang vor der TOML-Datei; diese bleibt die Grundlage.
+
+#### Mehrwertsteuer und Export für die Steuerberatung
+
+**Je Leistung:** Beim Anlegen oder Bearbeiten einer Leistung (Kassenseite → Leistungen verwalten)
+„mit 19 % MwSt. (im Preis enthalten)“ ankreuzen. Der eingetragene Preis bleibt der Endpreis, den der
+Patient zahlt; die Rechnung weist „inkl. 19 % MwSt.“ je Position sowie unter der Summe Netto und MwSt.
+je Satz aus, dazu „Ohne MwSt.“ für die übrigen Positionen. Leistungen ohne Häkchen (z. B. ärztliche
+Heilbehandlung) bleiben ohne MwSt.
+
+**Einstellungen → Umsatzsteuer:**
+
+- **MwSt.-Satz** (Standard 19 %). Er gilt für alle Leistungen „mit MwSt.“; bezahlte Rechnungen behalten
+  den Satz, der bei der Zahlung galt.
+- **Kleinunternehmerregelung (§ 19 UStG):** Dann wird auf keiner Rechnung MwSt. ausgewiesen, und unter
+  der Summe steht „Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.“ (Text anpassbar).
+- **Steuernummer oder USt-IdNr.** für den Rechnungskopf, ob „Sonstiger Betrag“ MwSt. enthält, und
+  optional ein Hinweis für Positionen ohne MwSt. (z. B. zur Steuerbefreiung nach § 4 Nr. 14 UStG).
+
+Den genauen Umgang (welche Leistungen steuerpflichtig sind, Hinweistexte) bitte mit der
+Steuerberatung abstimmen; die Anwendung rechnet nur nach den hinterlegten Angaben.
+
+**Einstellungen → Export für die Steuerberatung:** Jahr und Zeitraum (ganzes Jahr oder ein Monat) wählen
+und „Excel-Tabelle herunterladen“. Die Datei `Rechnungen-2026.xlsx` bzw. `Rechnungen-2026-03.xlsx` hat
+drei Blätter:
+
+| Blatt | Inhalt |
+| --- | --- |
+| Rechnungen | je Rechnung Datum, Rechnungsnummer (SumUp), Leistungsdatum, Art, Brutto, Netto und MwSt. je Satz, ohne MwSt., Zahlungsreferenz; Summenzeile |
+| Positionen | jede Leistung mit GOÄ-Ziffer, Faktor, Brutto, MwSt.-Satz, MwSt., Netto |
+| Monatssummen | Anzahl und Beträge je Monat (bei Monatsexport: „Summe“) |
+
+Enthalten sind alle per Karte bezahlten Rechnungen und Belege aus dem Rechnungstool, nach Zahlungsdatum.
+T2med-Rechnungen über den Drucker „SumUp-Rechnung“ stehen in T2med und sind nicht enthalten.
+Patientennamen kommen nur hinein, wenn „Patientennamen aufnehmen“ angekreuzt ist; Testzahlungen nur im
+Testmodus auf Wunsch. Die Tabelle öffnet sich in Excel, LibreOffice und Numbers mit Euro- und
+Datumsformat, Filter in der Kopfzeile und Summenformeln.
 
 #### T2med-Terminzettel
 

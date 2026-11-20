@@ -47,6 +47,8 @@ final class InvoiceReceipt {
         if ($payment['mock']) { $text('TESTBELEG', true); $text('KEINE ECHTE ZAHLUNG'); $rule(); }
         $text($invoice['practice']['name'], true, 24);
         foreach (['street','city','contact'] as $key) $text($invoice['practice'][$key] ?? '');
+        $tax = $invoice['tax'] ?? null;   // ältere Rechnungen ohne Steuerangaben bleiben unverändert
+        if ($tax && ($tax['tax_id'] ?? '') !== '') $text('St.-Nr./USt-IdNr.: ' . $tax['tax_id'], false, 20);
         $rule();
         $text($invoice['title'], true);
         $text('Rechnungsnummer (SumUp):'); $text($invoice['number'], false, 20);
@@ -63,10 +65,23 @@ final class InvoiceReceipt {
             $text($item['label']);
             $amount(($item['factor'] ?? '') !== '' ? 'Faktor '.str_replace('.', ',', $item['factor']) : 'Betrag', $item['price_cents']);
             if (!empty($item['on_request'])) $text('Auf Verlangen', false, 20);
+            if ((int)($item['vat_rate'] ?? 0) > 0) $text('inkl. ' . Tax::percent((int)$item['vat_rate']) . ' MwSt.', false, 20);
             if (!empty($item['reason'])) { $text('Begründung:', false, 20); $text($item['reason'], false, 20); }
             $y += 14;
         }
         $rule(); $amount('GESAMT', $invoice['total_cents'], true);
+        if ($tax) {
+            $totals = Tax::totals($invoice['items']);
+            if (array_filter(array_keys($totals))) {
+                foreach ($totals as $rate => $sum) {
+                    if ($rate === 0) { $amount('Ohne MwSt.', $sum['gross']); continue; }
+                    $amount('Netto ' . Tax::percent($rate), $sum['net']);
+                    $amount('MwSt. ' . Tax::percent($rate), $sum['vat']);
+                }
+            }
+            $note = !empty($tax['small_business']) ? ($tax['small_business_note'] ?? '') : (isset($totals[0]) ? ($tax['exempt_note'] ?? '') : '');
+            if ($note !== '') { $y += 6; $text($note, false, 20); }
+        }
         $rule();
         if ($sumupReceipt === null) {
             $text('ZAHLUNGSBESTÄTIGUNG', true);

@@ -13,6 +13,7 @@ const SHOW = {
   'terminzettel.header_size': v => !!(v.header_text || '').trim(), 'terminzettel.header_bold': v => !!(v.header_text || '').trim(),
   'terminzettel.heading_size': v => !!(v.heading || '').trim(), 'terminzettel.footer_size': v => !!(v.footer_text || '').trim(),
   'terminzettel.qr_position': v => v.qr_enabled, 'terminzettel.qr_size': v => v.qr_enabled, 'terminzettel.qr_summary': v => v.qr_enabled,
+  'tax.rate': v => !v.small_business, 'tax.manual_vat': v => !v.small_business, 'tax.exempt_note': v => !v.small_business, 'tax.small_business_note': v => v.small_business,
   'mail.password': v => !!v.username, 'invoice_export.password': v => !!v.username, 'invoice_export.domain': v => !!v.username,
 };
 
@@ -80,8 +81,9 @@ function render(data) {
   $('warning').hidden = !data.warning; $('warning').textContent = data.warning || '';
   $('invoice-printer-help').hidden = !data.invoice_printer;
   if (data.clients) renderClients(data.clients);
+  if (data.export_years) renderExport(data.export_years, data.mode);
   const tabs = $('tabs'), root = $('sections'); tabs.replaceChildren(); root.replaceChildren();
-  tabs.append(el('a', 'Drucker einrichten', 'tab-strong', {href: '#s-printers'}), el('a', 'Arbeitsplätze einrichten', 'tab-strong', {href: '#s-clients'}));
+  tabs.append(el('a', 'Drucker einrichten', 'tab-strong', {href: '#s-printers'}), el('a', 'Arbeitsplätze einrichten', 'tab-strong', {href: '#s-clients'}), el('a', 'Export Steuerberatung', 'tab-strong', {href: '#s-export'}));
   for (const section of data.sections) {
     tabs.append(el('a', section.label, null, {href: '#s-' + section.id}));
     const card = el('section', null, 'card settings-card', {id: 's-' + section.id});
@@ -284,6 +286,30 @@ $('printer-search').onclick = () => busy($('printer-search'), async () => {
     }
   } catch (error) { box.replaceChildren(); throw error; }
 });
+
+// ---- Export für die Steuerberatung ------------------------------------------------------
+const MONTH_NAMES = ['Ganzes Jahr', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+function renderExport(years, mode) {
+  const form = $('export-form'); if (form.dataset.ready) return; form.dataset.ready = '1';
+  const row = el('div', null, 'export-row');
+  const year = el('select', null, null, {name: 'year', 'aria-label': 'Jahr'}); for (const y of years) year.append(el('option', String(y), null, {value: String(y)}));
+  const month = el('select', null, null, {name: 'month', 'aria-label': 'Zeitraum'}); MONTH_NAMES.forEach((n, i) => month.append(el('option', n, null, {value: String(i)})));
+  const yearField = el('div', null, 'field'); yearField.append(el('label', 'Jahr'), year);
+  const monthField = el('div', null, 'field'); const ml = el('div', null, 'label-row'); ml.append(el('label', 'Zeitraum'));
+  const t = tip({label: 'Zeitraum', tip: 'Ganzes Jahr für den Jahresabschluss, ein Monat z. B. für die monatliche Umsatzsteuer-Voranmeldung. Maßgeblich ist das Zahlungsdatum.'}); if (t) ml.append(t);
+  monthField.append(ml, month); row.append(yearField, monthField); form.append(row);
+  const names = el('label', null, 'check'); const nameBox = el('input', null, null, {type: 'checkbox', name: 'names'}); names.append(nameBox, document.createTextNode(' Patientennamen aufnehmen'));
+  const nl = el('div', null, 'label-row'); nl.append(names);
+  const nt = tip({label: 'Patientennamen', tip: 'Nur ankreuzen, wenn die Steuerberatung die Namen braucht. Ohne Namen reichen Rechnungsnummer, Datum und Betrag für die Buchhaltung.'}); if (nt) nl.append(nt);
+  form.append(nl);
+  let testBox = null;
+  if (mode !== 'live') { const test = el('label', null, 'check'); testBox = el('input', null, null, {type: 'checkbox', name: 'test'}); test.append(testBox, document.createTextNode(' Testzahlungen einbeziehen (nur zum Ausprobieren)')); form.append(test); }
+  const now = new Date(); month.value = '0'; year.value = String(now.getFullYear());
+  const buttons = el('div', null, 'row-buttons'); const link = el('a', 'Excel-Tabelle herunterladen', 'button primary', {download: ''}); buttons.append(link); form.append(buttons);
+  const update = () => { link.href = '/tax-export.php?' + new URLSearchParams({year: year.value, month: month.value, names: nameBox.checked ? '1' : '0', test: testBox && testBox.checked ? '1' : '0'}); };
+  form.onchange = update; update();
+  link.onclick = () => message('Excel-Tabelle für ' + (month.value === '0' ? 'das Jahr ' + year.value : MONTH_NAMES[month.value] + ' ' + year.value) + ' wird geladen.');
+}
 
 // ---- Arbeitsplätze ---------------------------------------------------------------------
 const CLIENT_STEPS = {

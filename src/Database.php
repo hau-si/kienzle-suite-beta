@@ -13,11 +13,11 @@ final class Database {
     }
     public function migrate(): void {
         $version = (int)$this->pdo->query('PRAGMA user_version')->fetchColumn();
-        if ($version > 9) throw new \RuntimeException('Datenbank ist neuer als die Anwendung.');
-        if ($version === 9) return;
+        if ($version > 10) throw new \RuntimeException('Datenbank ist neuer als die Anwendung.');
+        if ($version === 10) return;
         $this->transaction(function (): void {
             $this->pdo->exec((string)file_get_contents(__DIR__ . '/schema.sql'));
-            foreach (['services' => ['goae_code' => "TEXT NOT NULL DEFAULT ''", 'factor' => "TEXT NOT NULL DEFAULT ''", 'fee_type' => "TEXT NOT NULL DEFAULT 'standard'", 'on_request' => 'INTEGER NOT NULL DEFAULT 0'],
+            foreach (['services' => ['goae_code' => "TEXT NOT NULL DEFAULT ''", 'factor' => "TEXT NOT NULL DEFAULT ''", 'fee_type' => "TEXT NOT NULL DEFAULT 'standard'", 'on_request' => 'INTEGER NOT NULL DEFAULT 0', 'vat' => 'INTEGER NOT NULL DEFAULT 0'],
                 'visits' => ['patient_address' => "TEXT NOT NULL DEFAULT '[]'"], 'payments' => ['invoice_json' => 'TEXT', 'inbox_id' => 'TEXT', 't2med_invoice' => 'TEXT',
                     'export_status' => "TEXT NOT NULL DEFAULT ''", 'export_error' => "TEXT NOT NULL DEFAULT ''", 'export_path' => "TEXT NOT NULL DEFAULT ''",
                     'auto_print' => 'INTEGER NOT NULL DEFAULT 0', 'print_status' => "TEXT NOT NULL DEFAULT ''", 'print_error' => "TEXT NOT NULL DEFAULT ''", 'print_info' => "TEXT NOT NULL DEFAULT ''"],
@@ -27,7 +27,7 @@ final class Database {
             }
             // Erst nach dem Ergänzen der Spalten: Index für bereits kassierte T2med-Rechnungen.
             $this->pdo->exec('CREATE INDEX IF NOT EXISTS payment_t2med_invoice ON payments(t2med_invoice)');
-            $this->pdo->exec('PRAGMA user_version=9');
+            $this->pdo->exec('PRAGMA user_version=10');
         });
     }
     public function query(string $sql, array $params = []): \PDOStatement {
