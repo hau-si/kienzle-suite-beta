@@ -297,17 +297,19 @@ function renderChecklist(data) {
       {done: !!value('printing', 'enabled'), optional: true, label: 'Bondrucker eingerichtet', card: 's-printers'},
       {done: !!value('office_printing', 'enabled'), optional: true, label: 'Praxisdrucker (A4) eingerichtet', card: 's-printers'},
       {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
+      {done: invoiceQueue, optional: true, label: invoiceQueue ? 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen auf dem Server angelegt' : 'Drucker „SumUp-Rechnung“ auf dem Server anlegen (T2med-Rechnungen übernehmen einschalten)', card: 's-invoice_inbox'},
       {info: true, label: 'Firewall: Zugriff auf das Praxisnetz beschränken (empfohlen)', card: 's-firewall'},
     ]},
     {title: 'Auf den Client-PCs', hint: 'Kassen- und Arbeitsplatzrechner', items: [
       {info: true, label: 'Starter-Paket auf jedem Kassen-PC einmal installieren (Windows, macOS oder Linux)', card: 's-clients'},
-      {info: true, label: 'Drucker „Terminzettel“ und „SumUp-Rechnung“ am Arbeitsplatz hinzufügen', card: 's-terminzettel', detail: tz.printer_url || ''},
+      {info: true, label: 'Drucker „Terminzettel“ am Arbeitsplatz installieren (Windows: IPP-Drucker hinzufügen)', card: 's-terminzettel', detail: tz.printer_url || ''},
+      ...(invoiceQueue ? [{info: true, label: 'Drucker „SumUp-Rechnung“ am Arbeitsplatz installieren (Windows: IPP-Drucker hinzufügen, Papier A4)', card: 'invoice-printer-help', detail: (data.invoice_printer && data.invoice_printer.url) || ''}] : []),
     ]},
     {title: 'In T2med', hint: 'Einstellungen in der Praxissoftware', items: [
       {done: data.fhir_mode === 'live', label: data.fhir_mode === 'live' ? 'FHIR-Schnittstelle eingerichtet (T2med-Anbindung live)' : 'FHIR-Schnittstelle einrichten: T2med-Anbindung noch im Testmodus', card: 's-fhir'},
       {info: true, label: 'Drittanbieter-Zugriff „Kienzle-SumUp“ mit Menüleisten-Button anlegen (Aufruf-Adresse steht bei der T2med-Anbindung)', card: 's-fhir'},
       {info: true, label: 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen', card: 's-terminzettel', detail: tz.printer_url || ''},
-      {done: invoiceQueue, optional: true, label: 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen (in T2med dorthin drucken)', card: 's-invoice_inbox'},
+      ...(invoiceQueue ? [{info: true, label: 'Rechnungen in T2med auf den zuvor installierten Drucker „SumUp-Rechnung“ drucken', card: 'invoice-printer-help'}] : []),
     ]},
   ];
   const items = groups.flatMap(g => g.items);
