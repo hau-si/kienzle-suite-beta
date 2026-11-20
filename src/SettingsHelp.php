@@ -56,6 +56,7 @@ final class SettingsHelp {
         'printing.cups_server' => ['tip' => 'Nur ausfüllen, wenn der Drucker auf einem anderen Rechner eingerichtet ist. Sonst leer.', 'example' => 'kienzlebox'],
         'printing.share' => ['tip' => 'Freigabe des Bondruckers auf dem Druckserver.', 'example' => '//kienzlebox/TMm10'],
         'printing.width_dots' => ['tip' => 'Normalerweise leer lassen; wird nach dem Modell gesetzt.', 'example' => '576'],
+        'printing.cash_receipt_auto' => ['tip' => 'Druckt bei „Bar bezahlt“ (T2med-Rechnung) sofort eine Quittung auf dem Bondrucker: Betrag, Name, Datum, Rechnungsnummer und „bar erhalten“. Der Bondrucker muss oben eingeschaltet sein. Die Quittung lässt sich auch nachträglich mit „Quittung drucken“ erzeugen.'],
         'printing.cut' => ['tip' => 'Schneidet den Bon nach dem Druck ab (wenn der Drucker einen Abschneider hat).'],
         'office_printing.enabled' => ['tip' => 'Rechnungen auf einem normalen A4-Drucker ausgeben. Den Drucker richten Sie unten unter „Drucker einrichten“ ein.'],
         'office_printing.queue' => ['tip' => 'Name des A4-Druckers in CUPS. Wird bei „Drucker einrichten“ automatisch eingetragen.', 'example' => 'Praxisdrucker'],

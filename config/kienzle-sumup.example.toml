@@ -55,6 +55,8 @@ cups_server = ""
 queue = "TMm10"
 width_dots = 420
 cut = true
+# Bei „Bar bezahlt“ (T2med-Rechnung) sofort eine Quittung drucken
+cash_receipt_auto = false
 
 # Optional: T2med-Rechnungen über den virtuellen Drucker „SumUp-Rechnung“ übernehmen.
 # Der Druckserver sendet die PDF mit diesem Schlüssel an /invoice-inbox.php.

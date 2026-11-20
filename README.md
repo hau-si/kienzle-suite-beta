@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.32**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.33**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -16,8 +16,13 @@ Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
 **Kassieren aus T2med**
 - Leistungen und Kombinationen auswählen, Betrag am SumUp Solo kassieren (Karte) oder bar buchen,
   danach bewusst in der Patientenakte dokumentieren (FHIR, Aktenkürzel einstellbar).
-- **Leistungsverwaltung im Adminpanel** (Reiter „Praxis & Rechnungen“): auswählbare Leistungen und Kombinationen
+- **Leistungsverwaltung im Adminpanel** (Reiter „Leistungen“): auswählbare Leistungen und Kombinationen
   anlegen, ändern und löschen, mit GOÄ-Ziffer, Gebührenrahmen und MwSt.; zusätzlich weiter an der Kasse möglich.
+- **Offene T2med-Rechnung mit drei Wegen:** *Mit Karte (EC) kassieren* am Solo, *Bar bezahlt* (sofort erfasst,
+  mit Akteneintrag und in der Liste der bezahlten Rechnungen) oder *Später (Überweisung)*, die Rechnung bleibt
+  dann offen. Neu gedruckte Rechnungen erscheinen auf der offenen Kasse-Seite ohne Neuladen. Bei Barzahlung
+  gibt es eine **Quittung** (Rechnungsnummer, Name, Datum, Betrag, „bar erhalten“) auf dem Bondrucker, auf
+  Wunsch automatisch (Einstellung „Quittung automatisch drucken bei Barzahlung“ unter Bondrucker).
 - **GOÄ-Angaben und GOÄ-Rechner:** Der Faktor wird so berechnet (bis zu vier Nachkommastellen), dass der
   gewünschte Euro-Betrag genau getroffen wird; Begründung ab dem Schwellenwert.
 - Eigener Beleg als PDF (Rechnung oder Leistungsbeleg, Mehrwertsteuer je Leistung oder Kleinunternehmer),
@@ -536,18 +541,17 @@ Erreichbar über den Link **Einstellungen** unten auf der Kartenzahlungsseite od
 (Sitzung 30 Minuten, nach 5 Fehlversuchen 5 Minuten Sperre); die Arbeitsplätze kassieren
 weiterhin ohne Passwort.
 
-Die Seite hat vier Reiter:
+Die Seite hat drei Reiter; die Aktualisierung steht als Leiste ganz oben, eine Glocke in der Reiterleiste zeigt auf jedem Reiter, wenn eine neue Version bereitsteht:
 
 | Reiter | Inhalt |
 | --- | --- |
-| **Abrechnung** (laufend) | T2med-Rechnungen als bezahlt abhaken, Export für die Steuerberatung |
-| **Praxis & Rechnungen** | Praxisdaten, Umsatzsteuer, Höchstbetrag, E-Mail-Versand, Ablage im Netzwerkordner |
-| **Drucker & Bons** | Bondrucker, Praxisdrucker (A4), Terminzettel mit Vorschau |
-| **Einrichtung** (einmalig) | Überblick mit offenen Schritten, Drucker einrichten, Arbeitsplätze, SumUp, T2med-Anbindung, Rechnungseingang, Admin-Passwort |
+| **Abrechnung** (laufend) | Rechnungseingang, T2med-Rechnungen als bezahlt abhaken, Export für die Steuerberatung |
+| **Leistungen** | Leistungen, GOÄ-Angaben und Kombinationen für die Kasse |
+| **Einrichtung** (einmalig) | Überblick mit offenen Schritten und einklappbare Blöcke: Praxis & Rechnungen (Praxisdaten, Umsatzsteuer, E-Mail, Ablage), Zahlung & T2med (SumUp, T2med-Anbindung, Rechnungseingang), Drucker (Drucker einrichten, Bondrucker, Praxisdrucker), **Terminzettel**, Arbeitsplätze & Netzwerk, Sicherheit (Protokoll, Admin-Passwort) |
 
 Solange Pflichtschritte der Einrichtung offen sind (Praxisdaten, SumUp live, T2med live), öffnet die Seite den
 Reiter „Einrichtung“, danach „Abrechnung“. Zahlen an den Reitern zeigen offene Punkte bzw. noch nicht
-abgehakte T2med-Rechnungen. Adressen wie `/settings.php#drucker` öffnen einen Reiter direkt.
+abgehakte T2med-Rechnungen. Adressen wie `/settings.php#s-printers` öffnen den passenden Reiter und Block direkt.
 
 | Bereich | Inhalt |
 | --- | --- |
@@ -965,7 +969,7 @@ sichert es trotzdem mehrfach ab:
   ab. Gegen Seitenangriffe schützen `SameSite=Strict`, ein CSRF-Schlüssel je Sitzung und die Prüfung, dass Anfragen
   von dieser Seite selbst kommen (`Sec-Fetch-Site`, `Origin`).
 - **Schlüssel:** Falsche Starter- oder Rechnungseingangs-Schlüssel werden je Absender gedrosselt (10 Fehler → 10 Minuten).
-- **Protokoll:** Unter Einstellungen → Einrichtung → Sicherheitsprotokoll stehen Anmeldungen, Fehlversuche und
+- **Protokoll:** Unter Einstellungen → Einrichtung → Sicherheit → Sicherheitsprotokoll stehen Anmeldungen, Fehlversuche und
   Änderungen mit Zeit und Geräteadresse – nie mit Passwörtern oder Patientendaten (Datei
   `/var/lib/kienzle-sumup/admin-audit.log`, auf 256 KB begrenzt).
 - **Webserver:** nur TLS 1.2/1.3 mit starken Verfahren, Schutz vor langsamen Verbindungen und überlangen Anfragen,
@@ -985,7 +989,7 @@ einspielen. Ein Sicherheitsproblem bitte nicht öffentlich melden, sondern per E
 
 ## Netzwerk und Firewall im Webinterface
 
-Unter **Einstellungen → Einrichtung → Netzwerk & Firewall** fragt der Server sein eigenes Netz ab (`ip`, `ss`):
+Unter **Einstellungen → Einrichtung → Arbeitsplätze & Netzwerk → Netzwerk & Firewall** fragt der Server sein eigenes Netz ab (`ip`, `ss`):
 Anschlüsse mit Adresse und Netz, Router, zuletzt gesehene Geräte und von außen erreichbare Ports. Das Netz, aus dem du
 gerade zugreifst, ist vorgewählt. Du kreuzt an, aus welchen Netzen zugegriffen werden darf (weitere Netze, z. B. ein
 VPN, trägst du als `192.168.2.0/24` ein), und klickst **Firewall anwenden**.
@@ -1025,9 +1029,9 @@ VPN, trägst du als `192.168.2.0/24` ein), und klickst **Firewall anwenden**.
 
 ## Aktualisieren im Webinterface
 
-Unter **Einstellungen → Einrichtung → Aktualisierung** steht die installierte Version, die Quelle und die
+In der Leiste **Aktualisierung** ganz oben auf der Einstellungsseite steht die installierte Version, die Quelle und die
 neueste Version auf GitHub (geprüft alle sechs Stunden oder mit „Jetzt auf neue Version prüfen“). Ist eine
-neuere Version da, erscheint oben auf der Seite ein Hinweis; die Karte listet die Neuerungen aus
+neuere Version da, erscheint eine Glocke in der Reiterleiste; die Karte listet die Neuerungen aus
 `docs/RELEASE.md`. **„Jetzt aktualisieren“** startet die Aktualisierung – ohne Terminal:
 
 1. Die Einstellungsseite legt nur eine Anfrage ab (`/var/lib/kienzle-sumup/update-request`).

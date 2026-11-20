@@ -6,7 +6,7 @@ let selected = new Set(), retrySelection = false, startRequest = null;
 let selectedGroups = new Set(), reasons = {};
 let readerTimer = null, readerChecking = false, readerMessage = '';
 let receiptShare = null, receiptRecipient = null, receiptMailRequest = null;
-let receiptPrintPayment = null;
+let receiptPrintPayment = null; const quittungNote = {};
 const exportTried = new Set();
 const printTried = new Set();
 let printTouched = false;
@@ -51,27 +51,46 @@ function updateTotal() {
   $('pay-method-note').textContent = 'Für Barzahlungen bitte zuerst Praxisname und Anschrift unter Einstellungen eintragen.';
   document.querySelectorAll('.invoice-pay').forEach(b => b.disabled = busy || !!state.reader_payment);
 }
+let invoiceSeen = null, invoiceLater = new Set();
+function invoiceRequest(invoice, method) {
+  const key = 'ks-invoice-'+visitId;
+  // Schlüssel vor dem Netzaufruf speichern; bei verlorener Antwort denselben Vorgang prüfen.
+  let request = null; try { request = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch {}
+  if (!request || request.invoice_id !== invoice.id || (request.method || 'card') !== method) request = {invoice_id: invoice.id, method, request_id: crypto.randomUUID(), ...printChoice()};
+  sessionStorage.setItem(key, JSON.stringify(request));
+  return [key, request];
+}
 function renderInvoices() {
-  const list = state.invoices || []; $('invoices').replaceChildren(); $('invoices-section').hidden = !list.length;
+  const all = state.invoices || [], list = all.filter(i => !invoiceLater.has(i.id));
+  const fresh = invoiceSeen === null ? new Set() : new Set(list.filter(i => !invoiceSeen.has(i.id)).map(i => i.id));
+  invoiceSeen = new Set(all.map(i => i.id));
+  $('invoices').replaceChildren(); $('invoices-section').hidden = !list.length;
   for (const invoice of list) {
     const box = element('div','','invoice'), line = element('div','','invoice-line');
-    line.append(element('span','Rechnung '+invoice.number+' vom '+invoice.invoice_date.split('-').reverse().join('.')), element('strong',euro(invoice.amount_cents)));
-    const button = element('button',euro(invoice.amount_cents)+' mit Karte kassieren','primary wide invoice-pay');
-    button.onclick = () => run(async() => {
-      const key = 'ks-invoice-'+visitId;
-      // Schlüssel vor dem Netzaufruf speichern; bei verlorener Antwort denselben Vorgang prüfen.
-      let request = null; try { request = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch {}
-      if (!request || request.invoice_id !== invoice.id) request = {invoice_id: invoice.id, request_id: crypto.randomUUID(), ...printChoice()};
-      sessionStorage.setItem(key, JSON.stringify(request));
+    if (fresh.has(invoice.id)) box.classList.add('invoice-new');
+    line.append(element('span','Rechnung '+invoice.number+' vom '+invoice.invoice_date.split('-').reverse().join('.')+(fresh.has(invoice.id)?' – neu':'')), element('strong',euro(invoice.amount_cents)));
+    const pay = method => () => run(async() => {
+      const [key, request] = invoiceRequest(invoice, method);
       try { state.payment = await api('start_invoice', request); }
       catch(error) { try { await load(); } catch {} throw error; }
       retrySelection = false; state.reader_payment = null; readerMessage = '';
       sessionStorage.removeItem(key); renderPayment();
     });
-    box.append(line, button); $('invoices').append(box);
+    const card = element('button',euro(invoice.amount_cents)+' mit Karte (EC) kassieren','primary wide invoice-pay');
+    card.onclick = pay('card');
+    const cash = element('button','Bar bezahlt','secondary wide invoice-cash');
+    cash.onclick = () => { if (confirm(euro(invoice.amount_cents)+' bar erhalten? Die Zahlung wird als bezahlt erfasst.')) pay('cash')(); };
+    const later = element('button','Später (Überweisung)','text-button invoice-later');
+    later.onclick = () => { invoiceLater.add(invoice.id); renderInvoices(); };
+    box.append(line, card, cash, later); $('invoices').append(box);
   }
   updateTotal();
 }
+// Neue gedruckte Rechnungen erscheinen ohne Neuladen, solange kein Zahlungsvorgang angezeigt wird.
+setInterval(async () => {
+  if (busy || document.hidden || !$('payment').hidden || !state?.patient) return;
+  try { const s = await api('state'); state.invoices = s.invoices; renderInvoices(); } catch {}
+}, 10000);
 function selectedIds() {
   const ids=new Set(selected);
   for(const group of state.groups) if(selectedGroups.has(group.id)) for(const id of group.services) ids.add(id);
@@ -220,10 +239,15 @@ function renderPayment() {
   }
   clearTimeout(timer);
   if (!showing) return;
+  // Bar bezahlte T2med-Rechnung: Quittung statt Rechnungsbeleg; kein SumUp-Link.
+  const quittung = p.method==='cash' && !p.local_receipt;
   $('receipt').hidden=p.payment_status!=='successful';
-  $('receipt').textContent=p.local_receipt ? 'Rechnung / Leistungsbeleg als PDF' : 'Zahlungsbeleg / PDF';
-  $('receipt-share').hidden=p.payment_status!=='successful';
+  $('receipt').textContent=quittung ? 'Quittung als PDF' : p.local_receipt ? 'Rechnung / Leistungsbeleg als PDF' : 'Zahlungsbeleg / PDF';
+  $('receipt-share').hidden=p.payment_status!=='successful' || quittung;
   $('receipt-print').hidden=p.payment_status!=='successful' || !state.printing_enabled;
+  if(quittung && !$('receipt-print').hidden) $('receipt-print').textContent='Quittung drucken';
+  if(p.quittung_message) quittungNote[p.id]=p.quittung_message;
+  if(quittung && quittungNote[p.id] && receiptPrintPayment!==p.id) { $('receipt-print-status').hidden=false; $('receipt-print-status').textContent='Quittung: '+quittungNote[p.id]; }
   if(p.payment_status==='successful') renderReceiptMail();
   renderInvoiceExport(p);
   renderInvoicePrint(p);

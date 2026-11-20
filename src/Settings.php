@@ -67,6 +67,7 @@ final class Settings {
             'share' => ['type' => 'string', 'label' => 'Samba-Freigabe', 'default' => '//kienzlebox/TMm10'],
             'width_dots' => ['type' => 'int', 'label' => 'Druckbreite in Punkten (leer: passend zum Modell)', 'optional' => true],
             'cut' => ['type' => 'bool', 'label' => 'Bon schneiden', 'default' => true],
+            'cash_receipt_auto' => ['type' => 'bool', 'label' => 'Quittung automatisch drucken bei Barzahlung', 'default' => false],
         ]],
         'office_printing' => ['label' => 'Praxisdrucker (A4)', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Praxisdrucker für Rechnungen verwenden'],

@@ -182,10 +182,15 @@ async function loadUpdate(force) {
 }
 function renderUpdate(info) {
   const box = $('update-box'); box.replaceChildren();
-  const banner = $('update-banner');
   const running = ['running', 'requested'].includes(info.status?.state);
-  banner.hidden = !(info.available && !running);
-  if (!banner.hidden) { banner.replaceChildren(document.createTextNode('Neue Version ' + info.remote + ' verfügbar. '), el('a', 'Ansehen und aktualisieren', null, {href: '#s-update'})); }
+  const failed = info.status?.state === 'failed';
+  // Kopfzeile immer sichtbar; die Glocke erscheint auf jedem Reiter, sobald eine neue Version bereitsteht.
+  $('update-summary').textContent = 'Aktualisierung · ' + (running ? 'läuft …' : info.available ? 'Neue Version ' + info.remote + ' verfügbar' : 'Version ' + (info.current || '?') + (info.remote ? ' ist aktuell' : ''));
+  const bell = $('update-bell'); bell.hidden = !(info.available && !running);
+  bell.title = info.available ? 'Neue Version ' + info.remote + ' verfügbar' : '';
+  bell.setAttribute('aria-label', bell.title || 'Aktualisierung');
+  $('s-update').classList.toggle('has-update', !!info.available || running || failed);
+  if (info.available || running || failed) $('s-update').open = true;
   if (running) { updateProgress(info.status); return; }
   const facts = el('dl', null, 'update-facts');
   const add = (k, v) => { facts.append(el('dt', k), el('dd', v)); };
@@ -228,30 +233,51 @@ function updateProgress(status) {
 }
 
 // ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
+// Einmalige Einrichtung in einklappbaren Themenblöcken (alles Weitere steht in den Reitern daneben).
+const GROUPS = [
+  {id: 'praxis', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
+  {id: 'zahlung', label: 'Zahlung & T2med', cards: ['s-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help']},
+  {id: 'drucker', label: 'Drucker', cards: ['s-printers', 's-printing', 's-office_printing']},
+  {id: 'terminzettel', label: 'Terminzettel', cards: ['s-terminzettel']},
+  {id: 'netz', label: 'Arbeitsplätze & Netzwerk', cards: ['s-clients', 's-firewall']},
+  {id: 'sicherheit', label: 'Sicherheit', cards: ['s-audit', 's-password']},
+];
 const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-inbox-list', 's-t2med-paid', 's-export']},
-  {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-catalog', 's-tax', 's-app', 's-mail', 's-invoice_export']},
-  {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
-  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-firewall', 's-audit', 's-password']},
+  {id: 'leistungen', label: 'Leistungen', hint: 'GOÄ', cards: ['s-catalog']},
+  {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', ...GROUPS.flatMap(g => g.cards)], groups: GROUPS},
 ];
+let lastOpenCards = [];
+function openGroupOf(cardId) { $(cardId)?.closest('details.setup-group')?.setAttribute('open', ''); }
 let activeTab = null;
 function tabOf(cardId) { return (TABS.find(t => t.cards.includes(cardId)) || {}).id; }
 function layoutTabs(data) {
   const panels = $('tab-panels'), bar = $('tabs');
-  if (!bar.childElementCount) {
+  if (!bar.querySelector('.tab')) {
     for (const tab of TABS) {
       const button = el('button', null, 'tab', {type: 'button', role: 'tab', id: 'tab-' + tab.id, 'aria-controls': 'panel-' + tab.id});
       button.append(el('span', tab.label));
       if (tab.hint) button.append(el('small', tab.hint));
       button.append(el('span', null, 'tab-badge', {id: 'badge-' + tab.id, hidden: ''}));
       button.onclick = () => { activate(tab.id); history.replaceState(null, '', '#' + tab.id); };
-      bar.append(button);
+      bar.insertBefore(button, $('update-bell'));
       panels.append(el('div', null, 'tab-panel', {id: 'panel-' + tab.id, role: 'tabpanel', 'aria-labelledby': 'tab-' + tab.id}));
     }
   }
-  for (const tab of TABS) for (const id of tab.cards) { const card = $(id); if (card) $('panel-' + tab.id).append(card); }
+  for (const tab of TABS) {
+    if (!tab.groups) { for (const id of tab.cards) { const card = $(id); if (card) $('panel-' + tab.id).append(card); } continue; }
+    const panel = $('panel-' + tab.id); const lead = $('s-checklist'); if (lead) panel.append(lead);
+    for (const group of tab.groups) {
+      let box = $('group-' + group.id);
+      if (!box) { box = el('details', null, 'setup-group', {id: 'group-' + group.id}); box.append(el('summary', group.label)); }
+      panel.append(box);
+      for (const id of group.cards) { const card = $(id); if (card) box.append(card); }
+    }
+  }
   const open = renderChecklist(data);
   if (!activeTab) {
+    for (const id of lastOpenCards) openGroupOf(id);
+    openGroupOf(location.hash.slice(1));
     const hash = location.hash.slice(1);
     activate(TABS.some(t => t.id === hash) ? hash : tabOf(hash) || (open ? 'einrichtung' : 'abrechnung'));
     if (tabOf(hash)) setTimeout(() => $(hash)?.scrollIntoView({block: 'start'}), 50);
@@ -267,8 +293,10 @@ function activate(id) {
 // Verweise wie #s-printers öffnen den passenden Reiter und springen zur Karte.
 window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1), tab = TABS.some(t => t.id === hash) ? hash : tabOf(hash);
+  if (hash === 's-update') { $('s-update').open = true; $('s-update').scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
   if (!tab) return;
   activate(tab);
+  openGroupOf(hash);
   if (tabOf(hash)) $(hash)?.scrollIntoView({behavior: 'smooth', block: 'start'});
 });
 function badge(tab, count) { const b = $('badge-' + tab); if (!b) return; b.hidden = !count; b.textContent = count ? String(count) : ''; }
@@ -329,6 +357,7 @@ function renderChecklist(data) {
     list.append(ul);
   }
   const open = items.filter(i => !i.done && !i.info && !i.optional).length;
+  lastOpenCards = items.filter(i => !i.done && !i.info && !i.optional).map(i => i.card);
   badge('einrichtung', open);
   return open;
 }

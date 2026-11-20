@@ -56,7 +56,7 @@ final class Config {
         }
         $entry = $this->get('fhir', 'entry_code', 'ZAHLUNG');
         if (!is_string($entry) || $entry === '' || mb_strlen($entry) > 20) throw new \RuntimeException('Aktenkürzel muss 1–20 Zeichen lang sein.');
-        foreach (['enabled' => false, 'cut' => true] as $key => $default) {
+        foreach (['enabled' => false, 'cut' => true, 'cash_receipt_auto' => false] as $key => $default) {
             if (!is_bool($this->get('printing', $key, $default))) throw new \RuntimeException('printing.' . $key . ' muss true oder false sein.');
         }
         if ($this->get('printing', 'enabled', false)) {

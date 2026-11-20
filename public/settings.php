@@ -26,9 +26,9 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted small">Passwort vergessen? Auf dem Server <code>sudo bash scripts/install-server.sh --admin-reset</code> ausführen.</p></section>
 
 <div id="settings" hidden>
-<nav id="tabs" class="tab-bar" role="tablist" aria-label="Bereiche"></nav>
+<details id="s-update" class="card update-bar"><summary><span id="update-summary">Aktualisierung</span></summary><div id="update-box"><p class="muted">Wird geprüft …</p></div></details>
+<nav id="tabs" class="tab-bar" role="tablist" aria-label="Bereiche"><a id="update-bell" class="bell" href="#s-update" hidden><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.5 16v1h15v-1L18 12.6V9a6 6 0 0 0-6-6zm-2 15a2 2 0 0 0 4 0z" fill="currentColor"/></svg><span class="bell-dot"></span></a></nav>
 <p id="warning" class="inline-error" hidden></p>
-<p id="update-banner" class="notice update-banner" hidden></p>
 <div id="tab-panels"></div>
 <div id="sections" hidden></div>
 <section class="card settings-card" id="s-checklist"><h2>Einrichtung – Überblick</h2><p class="muted">Diese Schritte sind nur einmal nötig, geordnet nach dem Ort, an dem sie erledigt werden. Ein Klick auf einen Punkt öffnet die passende Einstellung.</p><div id="checklist"></div></section>
@@ -66,7 +66,6 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <section class="card settings-card" id="s-catalog"><h2>Leistungen und GOÄ-Positionen</h2>
 <p class="muted">Die an der Kasse auswählbaren Leistungen. Mit GOÄ-Ziffer, Faktor und Gebührenrahmen für den Beleg; der GOÄ-Rechner stellt den Faktor so ein, dass der gewünschte Endbetrag genau erreicht wird. Gelöschte Leistungen verschwinden aus der Auswahl, frühere Zahlungen behalten ihre Angaben.</p>
 <div id="catalog-box"><p class="muted">Wird geladen …</p></div></section>
-<section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>
 <section class="card settings-card" id="s-firewall"><h2>Netzwerk &amp; Firewall</h2>
 <p class="muted">Der Server erkennt sein Netz selbst. Wähle, aus welchen Netzen Arbeitsplätze, Drucker und der T2med-Rechner zugreifen dürfen; alle anderen werden ausgesperrt. Nach dem Anwenden bestätigst du binnen 2 Minuten, dass diese Seite noch funktioniert – sonst stellt der Server die alten Regeln selbst wieder her.</p>
 <div id="fw-box"><p class="muted">Netzwerk wird abgefragt …</p></div></section>

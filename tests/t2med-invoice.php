@@ -167,6 +167,42 @@ try {
     // Neuer Behandlungskontext desselben Patienten: bezahlte Rechnung nicht erneut anbieten.
     [$v2, $b2] = visit($app, 'test-2');
     check($app->state($v2, $b2)['invoices'] === [], 'Bezahlte Rechnung in neuem Kontext angeboten');
+    // Bar bezahlt: sofort erfasst, ohne Terminal, ohne eigenen Beleg, mit Akteneintrag und in der Liste der bezahlten Rechnungen.
+    [$v3, $b3] = visit($app, 'test-3');
+    $app->storeInvoice(['number' => 'RE2026-0050', 'amount_cents' => 2000] + $parsed);
+    $cashOpen = $app->state($v3, $b3)['invoices'];
+    check(count($cashOpen) === 1 && $cashOpen[0]['number'] === 'RE2026-0050', 'Rechnung für Barzahlung nicht angeboten');
+    rejects(fn() => $app->startInvoice($v3, ['request_id' => App::id(), 'invoice_id' => $cashOpen[0]['id'], 'method' => 'lastschrift']), 'Ungültige Zahlungsart akzeptiert');
+    $cashRequest = ['request_id' => App::id(), 'invoice_id' => $cashOpen[0]['id'], 'method' => 'cash'];
+    $cash = $app->startInvoice($v3, $cashRequest);
+    check($cash['payment_status'] === 'successful' && $cash['method'] === 'cash' && $cash['amount_cents'] === 2000 && $cash['t2med_invoice'] === 'RE2026-0050' && $cash['local_receipt'] === false, 'Barzahlung nicht erfasst');
+    check($app->startInvoice($v3, $cashRequest)['id'] === $cash['id'], 'Wiederholte Barzahlung erzeugt zweite Zahlung');
+    check($app->state($v3, $b3)['invoices'] === [], 'Bar bezahlte Rechnung weiter angeboten');
+    check(str_starts_with($app->receipt($v3, $cash['id']), '%PDF'), 'Quittung als PDF fehlt');
+    $svg = (new ReflectionMethod($app, 'receiptSource'))->invoke($app, $app->db->one('SELECT * FROM payments WHERE id=?', [$cash['id']]));
+    foreach (['QUITTUNG', 'RE2026-0050', 'Erika Musterfrau', '20,00 €', 'bar erhalten', date('Y')] as $needle) check(str_contains($svg, $needle), 'Quittung ohne ' . $needle);
+    rejects(fn() => $app->receiptShare($v3, $cash['id']), 'SumUp-Link für Quittung', 409);
+    check(!isset($cash['quittung']), 'Quittung gedruckt, obwohl die Einstellung aus ist');
+    check($app->document($v3, $cash['id'])['doc_status'] === 'written', 'Barzahlung nicht dokumentiert');
+    $cashRecord = json_decode($app->db->one('SELECT resource_json FROM mock_records WHERE payment_id=?', [$cash['id']])['resource_json'], true);
+    check(str_starts_with($cashRecord['valueString'], 'Barzahlung – 20,00 €') && str_contains($cashRecord['valueString'], 'RE2026-0050'), 'Akteneintrag der Barzahlung falsch');
+    $paidList = array_values(array_filter((new KienzleSumup\TaxExport($app->db, $cfg))->t2medPaid('all', 0, 0, true), fn($r) => $r['number'] === 'RE2026-0050'));
+    check(count($paidList) === 1 && $paidList[0]['method'] === 'cash' && $paidList[0]['amount_cents'] === 2000, 'Barzahlung fehlt in der Liste der bezahlten Rechnungen');
+    // Quittung automatisch auf dem Bondrucker (Einstellung im Adminpanel), Testmodus: nur simuliert.
+    $autoValues = $cfg->values; $autoValues['printing'] = ['enabled' => true, 'model' => 'tm-m10', 'transport' => 'samba', 'share' => '//kienzlebox/TMm10', 'cups_server' => '', 'queue' => 'TMm10', 'cut' => true, 'cash_receipt_auto' => true];
+    $autoValues['app']['state_dir'] = sys_get_temp_dir() . '/ks-t2med-quittung-' . bin2hex(random_bytes(6)); $dirs[] = $autoValues['app']['state_dir'];
+    $autoApp = new App(new Config($autoValues)); $autoApp->db->migrate();
+    [$v4, $b4] = visit($autoApp);
+    $autoApp->storeInvoice(['number' => 'RE2026-0060', 'amount_cents' => 1550] + $parsed);
+    $quittung = $autoApp->startInvoice($v4, ['request_id' => App::id(), 'invoice_id' => $autoApp->state($v4, $b4)['invoices'][0]['id'], 'method' => 'cash']);
+    check(($quittung['quittung'] ?? '') === 'simulated' && str_contains($quittung['quittung_message'] ?? '', 'Testdruck'), 'Quittung bei Barzahlung nicht automatisch gedruckt');
+    check($autoApp->db->one("SELECT status FROM receipt_prints WHERE payment_id=?", [$quittung['id']])['status'] === 'simulated', 'Quittungsdruck nicht protokolliert');
+    // Kartenzahlung druckt keine Quittung, auch bei eingeschalteter Einstellung.
+    $autoApp->storeInvoice(['number' => 'RE2026-0061'] + $parsed);
+    $cardPay = $autoApp->startInvoice($v4, ['request_id' => App::id(), 'invoice_id' => $autoApp->state($v4, $b4)['invoices'][0]['id']]);
+    check(!isset($cardPay['quittung']), 'Quittung bei Kartenzahlung gedruckt');
+    $badValues = $autoValues; $badValues['printing']['cash_receipt_auto'] = 'ja';
+    try { new Config($badValues); throw new RuntimeException('Ungültiger Wert akzeptiert'); } catch (\RuntimeException $e) { check(str_contains($e->getMessage(), 'cash_receipt_auto'), 'Falsche Ablehnung: ' . $e->getMessage()); }
     // Abgelaufene, nie kassierte Rechnungen werden nicht angeboten und später entfernt.
     $app->db->query("UPDATE invoice_inbox SET received_at=? WHERE invoice_number='RE2026-0998'", [time() - 15 * 86400]);
     $app->storeInvoice(['number' => 'RE2026-0997'] + $parsed);

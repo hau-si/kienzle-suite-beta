@@ -69,7 +69,7 @@ final class TaxExport {
         }
         if (!$includeTest) $where[] = "p.reader_id<>'mock-reader'";
         $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
-        $rows = $this->db->query('SELECT p.id,p.t2med_invoice,p.amount_cents,p.paid_at,p.transaction_id,p.reader_id,p.t2med_done_at,p.corrected_cents,p.voided_at,p.correction_note,i.invoice_date,i.patient_name,i.patient_birthdate
+        $rows = $this->db->query('SELECT p.id,p.t2med_invoice,p.amount_cents,p.paid_at,p.transaction_id,p.reader_id,p.payment_method,p.t2med_done_at,p.corrected_cents,p.voided_at,p.correction_note,i.invoice_date,i.patient_name,i.patient_birthdate
             FROM payments p LEFT JOIN invoice_inbox i ON i.id=p.inbox_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.t2med_invoice', $params)->fetchAll();
         $date = static fn(?int $t): string => $t ? (new \DateTimeImmutable('@' . $t))->setTimezone($zone)->format('Y-m-d') : '';
         usort($rows, static fn($a, $b) => strnatcasecmp($a['t2med_invoice'], $b['t2med_invoice']));
@@ -82,7 +82,7 @@ final class TaxExport {
                 'amount_cents' => $voided ? 0 : ($corrected ? (int)$r['corrected_cents'] : (int)$r['amount_cents']), 'original_cents' => (int)$r['amount_cents'],
                 'voided' => $voided, 'corrected' => $corrected && !$voided, 'note' => (string)$r['correction_note'],
                 'paid_date' => $date((int)$r['paid_at']), 'paid_time' => (new \DateTimeImmutable('@' . $r['paid_at']))->setTimezone($zone)->format('H:i'),
-                'transaction_id' => (string)$r['transaction_id'], 'done_date' => $date($r['t2med_done_at'] !== null ? (int)$r['t2med_done_at'] : null),
+                'transaction_id' => (string)$r['transaction_id'], 'method' => ($r['payment_method'] ?? 'card') === 'cash' ? 'cash' : 'card', 'done_date' => $date($r['t2med_done_at'] !== null ? (int)$r['t2med_done_at'] : null),
                 'test' => $r['reader_id'] === 'mock-reader'];
         }, $rows);
     }
@@ -139,13 +139,13 @@ final class TaxExport {
     public function t2medWorkbook(string $status, int $year, int $month, bool $includeTest = false): string {
         $rows = [];
         foreach ($this->t2medPaid($status, $year, $month, $includeTest) as $r) {
-            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], 'Kartenzahlung', $r['transaction_id'], $r['done_date'] ?: null, $r['voided'] ? 'storniert' : ($r['corrected'] ? 'Betrag korrigiert (Original ' . Money::format($r['original_cents']) . ')' : ''), $r['note']];
+            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], $r['method'] === 'cash' ? 'Barzahlung' : 'Kartenzahlung', $r['transaction_id'], $r['done_date'] ?: null, $r['voided'] ? 'storniert' : ($r['corrected'] ? 'Betrag korrigiert (Original ' . Money::format($r['original_cents']) . ')' : ''), $r['note']];
             if ($includeTest) $row[] = $r['test'] ? 'ja' : '';
             $rows[] = $row;
         }
         $columns = [['title' => 'Rechnungsnummer', 'width' => 18], ['title' => 'Rechnungsdatum', 'type' => 'date', 'width' => 16], ['title' => 'Patient', 'width' => 28],
             ['title' => 'Geburtsdatum', 'type' => 'date', 'width' => 14], ['title' => 'Betrag', 'type' => 'money', 'width' => 12], ['title' => 'Bezahlt am', 'type' => 'date', 'width' => 13],
-            ['title' => 'Uhrzeit', 'width' => 8], ['title' => 'Zahlungsart', 'width' => 14], ['title' => 'SumUp-Transaktion', 'width' => 38], ['title' => 'In T2med abgehakt am', 'type' => 'date', 'width' => 20],
+            ['title' => 'Uhrzeit', 'width' => 8], ['title' => 'Zahlungsart', 'width' => 14], ['title' => 'SumUp-Transaktion / Barnummer', 'width' => 38], ['title' => 'In T2med abgehakt am', 'type' => 'date', 'width' => 20],
             ['title' => 'Korrektur', 'width' => 34], ['title' => 'Notiz', 'width' => 30]];
         if ($includeTest) $columns[] = ['title' => 'Testzahlung', 'width' => 12];
         $xlsx = new Xlsx();

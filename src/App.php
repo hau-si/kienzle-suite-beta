@@ -413,8 +413,10 @@ final class App {
         if (!preg_match('/^[A-Za-z0-9-]{16,64}$/D', $request)) throw new Problem('Ungültiger Vorgangsschlüssel.');
         $invoiceId = self::string($input, 'invoice_id', 32);
         if (!preg_match('/^[a-f0-9]{32}$/D', $invoiceId)) throw new Problem('Ungültige Rechnung.');
-        $hash = hash('sha256', json_encode(['t2med_invoice', $invoiceId], JSON_THROW_ON_ERROR));
-        return $this->db->locked('reader', function () use ($visit, $request, $hash, $invoiceId, $input): array {
+        $method = self::string($input, 'method', 8, false) ?: 'card';
+        if (!in_array($method, ['card', 'cash'], true)) throw new Problem('Ungültige Zahlungsart.');
+        $hash = hash('sha256', json_encode($method === 'cash' ? ['t2med_invoice', $invoiceId, 'cash'] : ['t2med_invoice', $invoiceId], JSON_THROW_ON_ERROR));
+        return $this->db->locked('reader', function () use ($visit, $request, $hash, $invoiceId, $input, $method): array {
             $existing = $this->db->one('SELECT * FROM payments WHERE request_id=?', [$request]);
             if ($existing) {
                 if ($existing['visit_id'] !== $visit['id'] || $existing['request_hash'] !== $hash) throw new Problem('Der Vorgangsschlüssel gehört zu einer anderen Zahlung.', 409);
@@ -424,8 +426,8 @@ final class App {
             $this->editable($fresh);
             $pending = $this->db->one("SELECT * FROM payments WHERE visit_id=? AND payment_status IN ('starting','pending','unknown','cancel_requested','successful')", [$visit['id']]);
             if ($pending) return $this->publicPayment($pending);
-            if ($this->readerPayment($visit)) throw new Problem('Das Terminal ist belegt. Du kannst den anderen Vorgang unten prüfen oder abbrechen.', 409);
-            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $invoiceId, $input): array {
+            if ($method === 'card' && $this->readerPayment($visit)) throw new Problem('Das Terminal ist belegt. Du kannst den anderen Vorgang unten prüfen oder abbrechen.', 409);
+            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $invoiceId, $input, $method): array {
                 // Erneut innerhalb der Transaktion prüfen: offen, aktuell und zum Patienten passend.
                 $open = array_column($this->openInvoices($fresh), null, 'id');
                 if (!isset($open[$invoiceId])) throw new Problem('Diese Rechnung ist nicht mehr offen oder gehört nicht zu diesem Patienten. Bitte Seite neu laden.', 409);
@@ -433,13 +435,28 @@ final class App {
                 $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $invoice['invoice_date'])->format('d.m.Y');
                 $items = [['id' => null, 'label' => 'T2med-Rechnung ' . $invoice['invoice_number'] . ' vom ' . $date, 'price_cents' => $invoice['amount_cents']]];
                 $id = self::id();
-                $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json,inbox_id,t2med_invoice) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                    [$id, $fresh['id'], $request, $hash, 'POS-' . strtoupper($id), $this->config->get('sumup', 'reader_id') ?: 'mock-reader', $invoice['amount_cents'],
-                    json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'starting', time(), null, $invoice['id'], $invoice['invoice_number']]);
+                $json = json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+                if ($method === 'cash') {
+                    // Bar bezahlt: sofort erfasst (kein Terminal). Die T2med-Rechnung bleibt die Rechnung; es gibt keinen eigenen Beleg.
+                    $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,paid_at,transaction_id,invoice_json,inbox_id,t2med_invoice,payment_method) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        [$id, $fresh['id'], $request, $hash, 'BAR-' . strtoupper($id), $this->config->get('sumup', 'mode') === 'mock' ? 'mock-reader' : 'cash', $invoice['amount_cents'], $json,
+                        'successful', time(), time(), $this->cashNumber(), null, $invoice['id'], $invoice['invoice_number'], 'cash']);
+                } else {
+                    $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json,inbox_id,t2med_invoice) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        [$id, $fresh['id'], $request, $hash, 'POS-' . strtoupper($id), $this->config->get('sumup', 'reader_id') ?: 'mock-reader', $invoice['amount_cents'],
+                        $json, 'starting', time(), null, $invoice['id'], $invoice['invoice_number']]);
+                }
                 $this->markAutoPrint($id, $input);
                 return $this->db->one('SELECT * FROM payments WHERE id=?', [$id]);
             });
-            return $this->begin($payment);
+            if ($method !== 'cash') return $this->begin($payment);
+            $result = $this->publicPayment($payment);
+            // Quittung automatisch auf dem Bondrucker; ein Druckfehler blockiert die Barzahlung nicht.
+            if ($this->config->get('printing', 'enabled', false) && $this->config->get('printing', 'cash_receipt_auto', false)) {
+                try { $r = $this->receiptPrint($fresh ?? $visit, ['payment_id' => $payment['id'], 'request_id' => 'quittung-' . $payment['id']]); $result['quittung'] = $r['status']; $result['quittung_message'] = $r['message']; }
+                catch (\Throwable $e) { $result['quittung'] = 'failed'; $result['quittung_message'] = $e instanceof Problem ? $e->getMessage() : 'Quittung konnte nicht gedruckt werden.'; }
+            }
+            return $result;
         });
     }
     private function payment(array $visit, string $id): array {
@@ -451,6 +468,7 @@ final class App {
         return ReceiptPdf::convert($this->receiptSource($payment));
     }
     private function receiptSource(array $payment): string {
+        if (!$payment['invoice_json'] && ($payment['payment_method'] ?? 'card') === 'cash') return $this->cashQuittung($payment);
         if (!$payment['invoice_json']) return $this->sumup->receiptSource($payment);
         $invoice = json_decode($payment['invoice_json'], true, 32, JSON_THROW_ON_ERROR);
         $number = $payment['transaction_id'] ?? '';
@@ -462,8 +480,21 @@ final class App {
             'reference' => $payment['reference'], 'transaction_id' => $number, 'mock' => $invoice['mock'], 'method' => $cash ? 'cash' : 'card'],
             !$cash && $this->config->get('practice', 'append_sumup_receipt', false) ? $this->sumup->receiptSource($payment) : null);
     }
+    /** Quittung für eine bar bezahlte T2med-Rechnung (Betrag, Name, Datum, Rechnungsnummer, „bar erhalten“). */
+    private function cashQuittung(array $payment): string {
+        $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
+        $visit = $this->db->one('SELECT patient_name FROM visits WHERE id=?', [$payment['visit_id']]);
+        $inbox = !empty($payment['inbox_id']) ? $this->db->one('SELECT invoice_date FROM invoice_inbox WHERE id=?', [$payment['inbox_id']]) : null;
+        $date = $inbox && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', (string)$inbox['invoice_date'], $m) ? "$m[3].$m[2].$m[1]" : '';
+        $practice = [];
+        if ($this->config->practiceReady()) foreach (['name', 'street', 'city', 'contact'] as $key) $practice[$key] = $this->config->get('practice', $key, '');
+        return InvoiceReceipt::quittung(['mock' => $this->config->get('sumup', 'mode') === 'mock', 'practice' => $practice, 'number' => (string)$payment['t2med_invoice'],
+            'invoice_date' => $date, 'patient' => (string)($visit['patient_name'] ?? ''), 'amount_cents' => (int)$payment['amount_cents'],
+            'paid_date' => (new \DateTimeImmutable('@' . $payment['paid_at']))->setTimezone($zone)->format('d.m.Y H:i')]);
+    }
     public function receiptShare(array $visit, string $id): array {
         $payment = $this->payment($visit, $id);
+        if (!$payment['invoice_json'] && ($payment['payment_method'] ?? 'card') === 'cash') throw new Problem('Für die Quittung gibt es keinen SumUp-Link.', 409);
         if ($payment['payment_status'] !== 'successful') throw new Problem('Ein Beleg ist erst nach bestätigter erfolgreicher Zahlung verfügbar.', 409);
         $url = $this->sumup->receiptLink($payment);
         $message = $url === '' ? ($this->config->get('sumup', 'mode') === 'mock'

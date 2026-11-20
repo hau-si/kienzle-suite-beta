@@ -1,9 +1,14 @@
-Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.33 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.33: Offene T2med-Rechnung mit „Bar bezahlt“ (sofort erfasst, Akteneintrag, Liste/Excel mit
+  Zahlungsart) und „Später (Überweisung)“; Quittung für Barzahlung auf dem Bondrucker, automatisch einstellbar
+  (`printing.cash_receipt_auto`); neue Rechnungen erscheinen ohne Neuladen. Einstellungsseite aufgeräumt:
+  Aktualisierungs-Leiste oben mit Glocke, Reiter Abrechnung/Leistungen/Einrichtung, Einrichtung in einklappbaren
+  Blöcken (Terminzettel eigenständig). README-Screenshots erneuert.
 - Neu in rechnung.32: PHPMailer 6.9.3 wird mitgeliefert (`src/vendor/phpmailer`, nur Exception/PHPMailer/SMTP, LGPL 2.1) und dient als Rückfall,
   wenn das Systempaket `libphp-phpmailer` fehlt; das Systempaket hat Vorrang. Der Installer richtet `unattended-upgrades`
   ein, falls keine automatischen Sicherheitsupdates konfiguriert sind. `tests/mail-mime.php` läuft damit auch ohne Systempaket.
