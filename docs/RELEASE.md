@@ -4,6 +4,7 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.25: Anleitung für Windows 11 mit PowerShell-Befehlen, um den „Microsoft IPP Class Driver“ (Internet-Druckclient) zu aktivieren und den Drucker anzulegen.
 - Neu in rechnung.24: Anleitung „Drucker auf den Arbeitsplätzen hinzufügen“ um Hinweise für andere Netze (VPN) ergänzt.
 - Neu in rechnung.23: Tooltexte: In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen.
 - Neu in rechnung.22: Rechnungserkennung robuster: eigene Textschnipsel je Feld (Nummer, Datum, Gesamtsumme, Überweisungsbetrag, Patient),
