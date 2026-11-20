@@ -144,7 +144,7 @@ final class App {
         $cents = Money::cents($input['price'] ?? '', $this->config->get('app', 'max_amount_cents'));
         $code = self::string($input, 'goae_code', 20, false);
         $type = $code !== '' ? self::string($input, 'fee_type', 16, false) ?: 'standard' : 'standard';
-        $factor = $code !== '' ? ServiceCatalog::factor(self::string($input, 'factor', 8), $type) : '';
+        $factor = $code !== '' ? ServiceCatalog::factor(self::string($input, 'factor', 10), $type) : '';
         $onRequest = $input['on_request'] ?? false;
         if (!is_bool($onRequest)) throw new Problem('Ungültige Angabe für Leistung auf Verlangen.');
         $vat = $input['vat'] ?? false;
@@ -153,7 +153,7 @@ final class App {
         $baseInput = $code !== '' ? self::string($input, 'base', 16, false) : '';
         $base = $baseInput !== '' ? Money::cents($baseInput, $this->config->get('app', 'max_amount_cents')) : 0;
         if ($base > 0) {
-            $expected = ServiceCatalog::fee($base, (int)round((float)$factor * 100));
+            $expected = ServiceCatalog::feeUnits($base, ServiceCatalog::units($factor));
             if (abs($expected - $cents) > 1) throw new Problem('Einfachsatz × Faktor ergibt ' . Money::format($expected) . ', eingetragen sind ' . Money::format($cents) . '. Bitte den Preis anpassen oder den GOÄ-Rechner verwenden.');
         }
         if ($id === '') {

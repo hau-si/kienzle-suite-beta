@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.18**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.19**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -519,10 +519,13 @@ dafür genügt, bitte mit der Steuerberatung klären.
 #### GOÄ-Rechner
 
 Beim Anlegen einer Leistung unter „GOÄ-Angaben ergänzen“ den **Einfachsatz (1,0-fach)** und den
-**gewünschten Endbetrag** eintragen. Der Rechner wählt den Faktor mit zwei Nachkommastellen, dessen
-Gebühr (Einfachsatz × Faktor, auf Cent gerundet) dem Endbetrag am nächsten kommt, und trägt Faktor und
-Preis ein. Beispiel: Einfachsatz 8,74 €, Endbetrag 25,00 € → Faktor 2,86 → 25,00 €. Geht der Betrag nicht
-exakt auf, zeigt er den nächstmöglichen an (10,72 € und 25,00 € → 2,33 → 24,98 €). Oberhalb des
+**gewünschten Endbetrag** eintragen. Der Rechner wählt den Faktor so, dass die Gebühr (Einfachsatz × Faktor,
+auf Cent gerundet) **genau** dem Endbetrag entspricht, und trägt Faktor und Preis ein. Er nimmt so wenige
+Nachkommastellen wie nötig: zuerst zwei, reicht das nicht, drei, und bei Bedarf vier. Beispiele: Einfachsatz
+8,74 €, Endbetrag 25,00 € → Faktor 2,86 → 25,00 €; 10,72 € und 25,00 € → Faktor **2,332** → 25,00 €. Bis zu
+einem Einfachsatz von 100 € ist damit jeder Endbetrag möglich; nur bei noch höheren Einfachsätzen zeigt er den
+nächstmöglichen. Der Faktor wird mit allen Stellen gespeichert und auf Belegen und in der Akte so ausgegeben.
+Wer in der Rechnungsverwaltung nur zwei Nachkommastellen zulässt, sollte einen passenden Endbetrag wählen. Oberhalb des
 Schwellenwerts weist er auf die nötige Begründung hin; über dem Höchstsatz des gewählten
 Gebührenrahmens nennt er den größtmöglichen Betrag und übernimmt nichts. Umgekehrt berechnet ein
 geänderter Faktor sofort den Preis. Mit Einfachsatz prüft auch der Server, dass der Preis

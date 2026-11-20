@@ -12,22 +12,44 @@ function problem(callable $fn, string $message, int $http): Problem {
 
 $dirs = [];
 try {
-    // Rechner: nächstliegender Faktor mit zwei Nachkommastellen, Gebühr auf Cent gerundet.
-    $r = ServiceCatalog::bestFactor(1072, 2500, 'standard');      // 25,00 / 10,72 = 2,332…
-    check($r['factor'] === '2.33' && $r['price_cents'] === 2498 && $r['over_threshold'] && !$r['over_max'], 'Faktor falsch: ' . json_encode($r));
+    // Rechner: Faktor so genau wie nötig (2, sonst 3, sonst 4 Nachkommastellen), damit der Endbetrag exakt stimmt.
+    $r = ServiceCatalog::bestFactor(1072, 2500, 'standard');      // 25,00 / 10,72 = 2,3321…
+    check($r['factor'] === '2.332' && $r['price_cents'] === 2500 && $r['exact'] && $r['over_threshold'] && !$r['over_max'], 'Faktor falsch: ' . json_encode($r));
     $r = ServiceCatalog::bestFactor(466, 1072, 'standard');       // GOÄ 1 (4,66 €) × 2,3 = 10,72
-    check($r['factor'] === '2.3' && $r['price_cents'] === 1072 && !$r['over_threshold'], 'Regelfall falsch: ' . json_encode($r));
+    check($r['factor'] === '2.3' && $r['price_cents'] === 1072 && $r['exact'] && !$r['over_threshold'], 'Regelfall falsch: ' . json_encode($r));
     $r = ServiceCatalog::bestFactor(466, 2000, 'standard');
     check($r['over_max'] && $r['max_price_cents'] === 1631, 'Höchstsatz nicht erkannt: ' . json_encode($r));
     check(ServiceCatalog::bestFactor(1000, 500, 'standard')['factor'] === '1', 'Faktor unter 1,0 zugelassen');
     check(ServiceCatalog::bestFactor(1000, 1800, 'technical')['factor'] === '1.8' && ServiceCatalog::bestFactor(1000, 1300, 'lab')['factor'] === '1.3', 'Gebührenrahmen falsch');
-    // Gegenprobe über viele Werte: kein anderer Faktor liegt näher am Ziel.
-    for ($i = 0; $i < 300; $i++) {
-        $base = random_int(100, 9000); $target = random_int($base, (int)($base * 3.5));
+    // Faktor mit bis zu 4 Nachkommastellen wird gespeichert und geprüft; 5 Stellen nicht.
+    check(ServiceCatalog::factor('2,332', 'standard') === '2.332' && ServiceCatalog::factor('2.3321', 'standard') === '2.3321' && ServiceCatalog::factor('2,30', 'standard') === '2.3', 'Faktor-Schreibweise');
+    foreach (['2,33211', '0,5', '3,5001', '2,', 'abc'] as $bad) { try { ServiceCatalog::factor($bad, 'standard'); throw new RuntimeException("Faktor $bad akzeptiert"); } catch (Problem) {} }
+    check(ServiceCatalog::needsReason(['goae_code' => '1', 'factor' => '2.301', 'fee_type' => 'standard']) && !ServiceCatalog::needsReason(['goae_code' => '1', 'factor' => '2.3', 'fee_type' => 'standard']), 'Begründungspflicht bei 2,301 nicht erkannt');
+    // Gegenprobe über viele Werte: bis 100 € Einfachsatz ist jeder Endbetrag exakt möglich, mit möglichst wenigen Nachkommastellen.
+    $cases = [];
+    for ($i = 0; $i < 400; $i++) {
+        $base = random_int(100, 10000); $target = random_int($base, (int)($base * 3.5));
         $best = ServiceCatalog::bestFactor($base, $target, 'standard');
-        $h = (int)round((float)$best['factor'] * 100);
-        for ($k = 100; $k <= 350; $k++) check(abs(ServiceCatalog::fee($base, $k) - $target) >= abs($best['price_cents'] - $target), "Besserer Faktor $k für $base/$target");
-        check(ServiceCatalog::fee($base, $h) === $best['price_cents'], 'Preis passt nicht zum Faktor');
+        check($best['exact'] && $best['price_cents'] === $target, "Endbetrag $target bei Einfachsatz $base nicht exakt: " . json_encode($best));
+        $units = ServiceCatalog::units($best['factor']);
+        check(ServiceCatalog::feeUnits($base, $units) === $best['price_cents'], 'Preis passt nicht zum Faktor');
+        $decimals = strlen(rtrim(substr(sprintf('%04d', $units % 10000), 0, 4), '0'));
+        foreach ([2 => 100, 3 => 10] as $d => $step) {
+            if ($decimals <= $d) continue;
+            for ($u = 10000; $u <= 35000; $u += $step) check(ServiceCatalog::feeUnits($base, $u) !== $target, "Mit $d Stellen wäre $target bei $base exakt möglich (Faktor " . ServiceCatalog::text($u) . "), gefunden: {$best['factor']}");
+        }
+        $cases[] = [$base, $target, $best['factor']];
+    }
+    // Sehr hoher Einfachsatz: nicht jeder Cent erreichbar, dann nächstliegender Betrag
+    $r = ServiceCatalog::bestFactor(25000, 61234, 'standard');
+    check(!$r['exact'] ? abs($r['price_cents'] - 61234) <= 1 : $r['price_cents'] === 61234, 'hoher Einfachsatz: ' . json_encode($r));
+    // Der Rechner im Browser (app.js) muss dieselben Faktoren liefern
+    if (trim((string)shell_exec('command -v node'))) {
+        $js = file_get_contents(dirname(__DIR__) . '/public/assets/app.js');
+        preg_match('/const fee=.*?\nfunction goaeResult/s', $js, $m);
+        $script = "const euro=x=>x;\n" . preg_replace('/function goaeResult$/', '', $m[0]) . "\nconst cases=" . json_encode($cases) . ";\nconst bad=cases.filter(([b,t,f])=>commaFactor(bestFactor(b,t)[0]).replace(',','.')!==f);\nconsole.log(bad.length?JSON.stringify(bad.slice(0,3)):'ok');";
+        $out = trim((string)shell_exec('node -e ' . escapeshellarg($script) . ' 2>&1'));
+        check($out === 'ok', 'Browser-Rechner weicht ab: ' . $out);
     }
 
     $v = Config::parse(file_get_contents(dirname(__DIR__) . '/config/kienzle-sumup.example.toml'));
@@ -48,6 +70,10 @@ try {
     check((int)$app->db->one("SELECT base_cents FROM services WHERE label='Beratung'")['base_cents'] === 1072, 'Einfachsatz nicht gespeichert');
     $e = problem(fn() => $app->saveService($vis, ['label' => 'Falsch', 'price' => '25,00', 'goae_code' => '3', 'factor' => '2,3', 'base' => '10,72']), 'Unpassender Preis akzeptiert', 400);
     check(str_contains($e->getMessage(), '24,66 €'), 'Fehlermeldung ohne richtigen Betrag: ' . $e->getMessage());
+    // Faktor mit 3 Nachkommastellen: genau 25,00 €; gespeichert und angezeigt mit allen Stellen
+    $app->saveService($vis, ['label' => 'Genau 25', 'price' => '25,00', 'goae_code' => '3', 'factor' => '2,332', 'base' => '10,72']);
+    check($app->db->one("SELECT factor FROM services WHERE label='Genau 25'")['factor'] === '2.332', 'Faktor 2,332 nicht gespeichert');
+    problem(fn() => $app->saveService($vis, ['label' => 'Zu genau', 'price' => '25,00', 'goae_code' => '3', 'factor' => '2,33211', 'base' => '10,72']), 'Faktor mit 5 Nachkommastellen akzeptiert', 400);
     $app->saveService($vis, ['label' => 'Ohne Rechner', 'price' => '25,00', 'goae_code' => '3', 'factor' => '2,3']);   // wie bisher ohne Einfachsatz
     check(in_array(1072, array_column($app->state($vis, ['csrf' => 'x'])['services'], 'base_cents'), true), 'Einfachsatz nicht an die Seite übergeben');
 

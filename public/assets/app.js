@@ -90,7 +90,7 @@ function renderBasket() {
     const row=element('div','','basket-line'), line=element('div','','position');
     line.append(element('span',s.label),element('strong',euro(s.price_cents))); row.append(line);
     if(serviceDescription(s)) row.append(element('small',serviceDescription(s),'muted'));
-    const needsReason=s.goae_code && Math.round(Number(s.factor)*100)>state.fee_types[s.fee_type].threshold;
+    const needsReason=s.goae_code && Math.round(Number(s.factor)*10000)>state.fee_types[s.fee_type].threshold*100;
     if(needsReason) {
       const label=element('label','Begründung für diese Abrechnung (erforderlich)');
       const input=document.createElement('textarea'); input.maxLength=800; input.required=true; input.value=reasons[s.id] || '';
@@ -156,11 +156,21 @@ function parseCents(value) {
   if(!/^\d+(\.\d{1,2})?$/.test(v)) return null;
   return Math.round(Number(v)*100);
 }
-const fee=(base,h)=>Math.floor((base*h+50)/100);
-const commaFactor=h=>(h/100).toFixed(2).replace(/0$/,'').replace(/\.0$/,'').replace('.',',');
+// Faktor in Zehntausendsteln (23000 = 2,3): bis zu 4 Nachkommastellen, damit Endbeträge immer exakt einstellbar sind.
+const fee=(base,u)=>Math.floor((base*u+5000)/10000);
+const commaFactor=u=>(u/10000).toFixed(4).replace(/0+$/,'').replace(/\.$/,'').replace('.',',');
+const factorUnits=text=>{ const [w,f='']=String(text).replace(',','.').split('.'); return Number(w)*10000+Number(f.padEnd(4,'0').slice(0,4)); };
 function bestFactor(base,target) {
-  const guess=Math.round(target*100/base); let best=null;
-  for(let h=Math.max(100,guess-2); h<=Math.max(100,guess+2); h++) { const p=fee(base,h); if(!best || Math.abs(p-target)<Math.abs(best[1]-target)) best=[h,p]; }
+  const ideal=target*10000/base; let best=null;
+  for(const step of [100,10,1]) {                 // 2, 3, dann 4 Nachkommastellen
+    const center=Math.round(ideal/step)*step; let exact=null;
+    for(let u=center-4*step; u<=center+4*step; u+=step) {
+      const unit=Math.max(10000,u), p=fee(base,unit);
+      if(p===target && (!exact || Math.abs(unit-ideal)<Math.abs(exact[0]-ideal))) exact=[unit,p];
+      if(!best || Math.abs(p-target)<Math.abs(best[1]-target) || (Math.abs(p-target)===Math.abs(best[1]-target) && Math.abs(unit-ideal)<Math.abs(best[0]-ideal))) best=[unit,p];
+    }
+    if(exact) { best=exact; break; }
+  }
   return best;
 }
 function goaeResult(text, level) { const r=$('goae-result'); r.hidden=!text; r.textContent=text||''; r.className='goae-result'+(level?' '+level:''); }
@@ -169,21 +179,22 @@ function goaeCalc(source) {
   if(!base) { goaeResult(''); return; }
   let h, price;
   if(source==='factor') {
-    const f=String($('service-factor').value).replace(',','.'); if(!/^\d(\.\d{1,2})?$/.test(f)) { goaeResult('Bitte einen Faktor wie 2,3 eingeben.','warn'); return; }
-    h=Math.round(Number(f)*100); price=fee(base,h); $('service-target').value=(price/100).toFixed(2).replace('.',',');
+    const f=String($('service-factor').value).replace(',','.'); if(!/^\d(\.\d{1,4})?$/.test(f)) { goaeResult('Bitte einen Faktor wie 2,3 oder 2,332 eingeben (höchstens 4 Nachkommastellen).','warn'); return; }
+    h=factorUnits(f); price=fee(base,h); $('service-target').value=(price/100).toFixed(2).replace('.',',');
   } else {
     const target=parseCents($('service-target').value); if(!target) { goaeResult('Gewünschten Endbetrag eintragen, dann wird der Faktor berechnet.'); return; }
     [h,price]=bestFactor(base,target);
-    if(h>limits.max) { goaeResult('Über dem Höchstsatz ('+commaFactor(limits.max)+'-fach): höchstens '+euro(fee(base,limits.max))+' möglich. Bitte anderen Endbetrag oder Gebührenrahmen wählen.','error'); return; }
+    if(h>limits.max*100) { goaeResult('Über dem Höchstsatz ('+commaFactor(limits.max*100)+'-fach): höchstens '+euro(fee(base,limits.max*100))+' möglich. Bitte anderen Endbetrag oder Gebührenrahmen wählen.','error'); return; }
     $('service-factor').value=commaFactor(h);
   }
-  if(h>limits.max) { goaeResult('Faktor über dem Höchstsatz ('+commaFactor(limits.max)+').','error'); return; }
+  if(h>limits.max*100) { goaeResult('Faktor über dem Höchstsatz ('+commaFactor(limits.max*100)+').','error'); return; }
   $('service-price').value=(price/100).toFixed(2).replace('.',',');
   const target=parseCents($('service-target').value);
   const parts=['Faktor '+commaFactor(h)+' × '+euro(base)+' = '+euro(price)+' → als Preis übernommen.'];
-  if(source!=='factor' && target && price!==target) parts.push('Genau '+euro(target)+' ist mit zwei Nachkommastellen beim Faktor nicht möglich.');
-  if(h>limits.threshold) parts.push('Über dem Schwellenwert '+commaFactor(limits.threshold)+': Bei der Abrechnung ist eine Begründung nötig.');
-  goaeResult(parts.join(' '), h>limits.threshold?'warn':'ok');
+  if(source!=='factor' && target && price!==target) parts.push('Genau '+euro(target)+' ist auch mit vier Nachkommastellen beim Faktor nicht möglich.');
+  else if(source!=='factor' && h%100!==0) parts.push('Der Faktor hat '+(h%10===0?'3':'4')+' Nachkommastellen, damit der Betrag genau '+euro(price)+' ergibt.');
+  if(h>limits.threshold*100) parts.push('Über dem Schwellenwert '+commaFactor(limits.threshold*100)+': Bei der Abrechnung ist eine Begründung nötig.');
+  goaeResult(parts.join(' '), h>limits.threshold*100?'warn':'ok');
 }
 for(const [id,source] of [['service-base','target'],['service-target','target'],['service-factor','factor'],['service-fee-type','target']]) $(id).addEventListener('input',()=>goaeCalc(source));
 $('service-fee-type').addEventListener('change',()=>goaeCalc('target'));

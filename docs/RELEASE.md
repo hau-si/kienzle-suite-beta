@@ -1,9 +1,13 @@
-Version 1.4.1-rechnung.18 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.19: GOÄ-Rechner trifft den gewünschten Endbetrag immer genau: Der Faktor bekommt bei Bedarf eine
+  3. oder 4. Nachkommastelle (10,72 € → 25,00 € = Faktor 2,332). Bis 100 € Einfachsatz ist jeder Betrag möglich.
+  Faktor wird mit allen Stellen gespeichert, geprüft, auf Belegen ausgegeben; Begründungspflicht über dem
+  Schwellenwert gilt auch bei 2,301. Rechner im Browser und auf dem Server liefern dieselben Faktoren (Test).
 - Neu in rechnung.18: Einrichtungs-Überblick in drei Teile gegliedert: „In diesem Webfenster“, „Auf den Client-PCs“
   und „In T2med“ (FHIR-Schnittstelle, Button „Kienzle-SumUp“, Drucker „Terminzettel“ mit Papierformat A6,
   Drucker „SumUp-Rechnung“). Bei der T2med-Anbindung steht jetzt die Aufruf-Adresse für den Button zum Kopieren.
