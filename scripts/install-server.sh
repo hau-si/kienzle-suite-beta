@@ -16,11 +16,14 @@ for arg in "$@"; do
   esac
 done
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
 if ! id kienzle-sumup >/dev/null 2>&1; then useradd --system --home-dir /var/lib/kienzle-sumup --shell /usr/sbin/nologin kienzle-sumup; fi
 install -d -m 750 -o root -g kienzle-sumup /etc/kienzle-sumup
 install -d -m 700 -o kienzle-sumup -g kienzle-sumup /var/lib/kienzle-sumup
+# Drucker im Browser einrichten: CUPS-Verwaltung über die Gruppe lpadmin (nur lokaler Druckdienst).
+usermod -aG lpadmin kienzle-sumup
+systemctl enable --now cups.service >/dev/null 2>&1 || true
 install -d -m 750 -o kienzle-sumup -g kienzle-sumup /var/log/kienzle-sumup
 python3 scripts/configure.py $ask_flag
 chown root:kienzle-sumup /etc/kienzle-sumup/kienzle-sumup.toml
@@ -186,6 +189,29 @@ for file in install-linux.sh install-macos.command install-windows.ps1 install-w
   install -m 700 "client/$file" "/root/kienzle-sumup-clients/$file"
 done
 if [ -d dist ]; then cp dist/kienzle-sumup-* dist/SHA256SUMS /root/kienzle-sumup-clients/; fi
+# Starterprogramme für die Download-Pakete der Einstellungsseite (öffentliche Release-Dateien,
+# per SHA256SUMS geprüft). Ohne Internet laden die Arbeitsplätze sie bei der Einrichtung selbst.
+starter_version=v1.4.1
+install -d -m 755 /opt/kienzle-sumup/client-dist
+if [ -d dist ] && [ -f dist/SHA256SUMS ]; then
+  cp dist/kienzle-sumup-* dist/SHA256SUMS /opt/kienzle-sumup/client-dist/
+elif ! (cd /opt/kienzle-sumup/client-dist && test -f SHA256SUMS && sha256sum --quiet --ignore-missing -c SHA256SUMS >/dev/null 2>&1 && grep -q "$starter_version" .version 2>/dev/null); then
+  starter_tmp=$(mktemp -d)
+  if curl -fsSL --proto '=https' --tlsv1.2 --max-time 60 "https://github.com/thomaskien/t2med-sumup/releases/download/$starter_version/SHA256SUMS" -o "$starter_tmp/SHA256SUMS"; then
+    for asset in kienzle-sumup-windows-amd64.exe kienzle-sumup-windows-arm64.exe kienzle-sumup-darwin-amd64 kienzle-sumup-darwin-arm64 kienzle-sumup-linux-amd64 kienzle-sumup-linux-arm64 kienzle-sumup-linux-arm; do
+      curl -fsSL --proto '=https' --tlsv1.2 --max-time 120 "https://github.com/thomaskien/t2med-sumup/releases/download/$starter_version/$asset" -o "$starter_tmp/$asset" || rm -f "$starter_tmp/$asset"
+    done
+    if (cd "$starter_tmp" && sha256sum --quiet --ignore-missing -c SHA256SUMS); then
+      cp "$starter_tmp"/* /opt/kienzle-sumup/client-dist/ && echo "$starter_version" > /opt/kienzle-sumup/client-dist/.version
+    else
+      echo 'Warnung: Prüfsumme der Starterprogramme stimmt nicht; Pakete ohne Starterprogramme.'
+    fi
+  else
+    echo 'Hinweis: Starterprogramme nicht geladen (kein Internet?). Die Arbeitsplätze laden sie bei der Einrichtung selbst.'
+  fi
+  rm -rf "$starter_tmp"
+fi
+chmod 644 /opt/kienzle-sumup/client-dist/* 2>/dev/null || true
 # Stündliche Nachholung der Rechnungsablage (ohne aktivierte Ablage ohne Wirkung).
 if true; then
   cat > /etc/systemd/system/kienzle-sumup-export.service <<'UNIT'

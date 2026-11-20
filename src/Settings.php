@@ -129,7 +129,7 @@ final class Settings {
                 elseif ($field['type'] === 'pem') $value = ['set' => is_string($config->get('fhir', 'ca_file', '')) && $config->get('fhir', 'ca_file', '') !== ''];
                 elseif ($field['type'] === 'money') $value = intdiv((int)$value, 100);
                 elseif ($field['type'] === 'list') $value = implode("\n", (array)$value);
-                $fields[] = ['key' => $key, 'value' => $value] + $field;
+                $fields[] = ['key' => $key, 'value' => $value] + SettingsHelp::for($section, $key) + $field;
             }
             $sections[] = ['id' => $section, 'label' => $definition['label'], 'fields' => $fields];
         }

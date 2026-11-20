@@ -29,6 +29,21 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <nav id="tabs" class="settings-tabs" aria-label="Bereiche"></nav>
 <p id="warning" class="inline-error" hidden></p>
 <div id="sections"></div>
+<section class="card settings-card" id="s-printers"><h2>Drucker einrichten</h2>
+<p class="muted">Bondrucker (Epson TM-m10, TM-m30III) und A4-Drucker im Netzwerk oder per USB an diesem Server einrichten – ohne Terminal.</p>
+<div id="printers-unavailable" class="inline-error" hidden>Der Druckdienst fehlt auf diesem Server. Bitte einmal <code>sudo bash scripts/install-server.sh</code> ausführen.</div>
+<div id="printers-body">
+<h3>Eingerichtete Drucker</h3><div id="printer-list"></div>
+<h3>Neuen Drucker hinzufügen</h3>
+<div class="row-buttons"><button id="printer-search" class="secondary" type="button">Drucker im Netzwerk und per USB suchen</button></div>
+<div id="printer-found"></div>
+<form id="printer-form" class="settings-form"></form>
+</div></section>
+<section class="card settings-card" id="s-clients"><h2>Arbeitsplätze einrichten</h2>
+<p>Auf dem Arbeitsplatz diese Seite öffnen, anmelden und das passende Paket laden. Es enthält den Starter, mit dem T2med die Kartenzahlung öffnet.</p>
+<div id="client-downloads" class="row-buttons"></div>
+<div id="client-steps" class="steps"></div>
+<p class="muted small">Die Pakete enthalten den Starter-Schlüssel der Praxis: nicht per E-Mail verschicken, nach der Einrichtung löschen.</p></section>
 <section class="card" id="invoice-printer-help" hidden><h2>Drucker „SumUp-Rechnung“ einrichten</h2>
 <p>Auf dem Server, auf dem T2med-Rechnungen gedruckt werden sollen (meist dieser Server), im Projektordner ausführen:</p>
 <pre class="code">sudo bash scripts/install-invoice-printer.sh</pre>

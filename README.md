@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.5**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.6**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -469,14 +469,41 @@ weiterhin ohne Passwort.
 | Praxisdaten | Rechnungsaussteller und Anschrift |
 | E-Mail-Versand | SMTP-Server und Absender |
 | Bondrucker / Praxisdrucker (A4) | Modell, Verbindung, Warteschlange; Testdruck |
+| Drucker einrichten | TM-m10, TM-m30III und A4-Netzwerkdrucker suchen, anlegen, übernehmen, entfernen |
+| Arbeitsplätze einrichten | Installationspaket für Windows, macOS und Linux herunterladen |
 | T2med-Rechnungen übernehmen | virtueller Drucker „SumUp-Rechnung“, Einrichtungsdatei für den Druckserver |
 | Ablage im Netzwerkordner | Freigabe, Unterordner, Benutzer, Passwort; „Schreibzugriff prüfen“ |
+
+Jedes Feld hat ein Info-Symbol (ⓘ) mit Erklärung, Beispielwert und – bei Auswahllisten –
+der Bedeutung jeder Möglichkeit; Beispielwerte stehen zusätzlich grau im leeren Feld.
 
 Jeder Bereich wird einzeln gespeichert und gilt sofort für alle Arbeitsplätze. Ungültige
 Angaben werden mit Klartext abgelehnt, nichts wird halb gespeichert. Gespeicherte
 Schlüssel und Passwörter werden nie wieder angezeigt; ein leeres Feld behält den Wert.
 Die Werte liegen verschlüsselt (mit dem Verschlüsselungsschlüssel aus der TOML-Datei) in der
 Datenbank und haben Vorrang vor der TOML-Datei; diese bleibt die Grundlage.
+
+#### Drucker im Browser einrichten
+
+Unter **Einstellungen → Drucker einrichten** lassen sich Drucker an diesem Server ohne
+Terminal anlegen:
+
+1. **„Drucker im Netzwerk und per USB suchen“** – gefundene Drucker mit „Auswählen“ übernehmen,
+   oder Art und IP-Adresse von Hand eintragen.
+2. **Art wählen:** Bondrucker Epson TM-m10, Bondrucker Epson TM-m30III oder A4-Drucker
+   (IPP/AirPrint, z. B. Brother, HP, Canon, Kyocera).
+3. **„Drucker einrichten“** – die CUPS-Warteschlange entsteht (Bondrucker als RAW-Warteschlange,
+   A4-Drucker treiberlos über IPP Everywhere, nicht im Netz freigegeben) und wird automatisch
+   als Bon- bzw. Praxisdrucker eingetragen. Danach „Testdruck“.
+
+Vorher prüft die Seite, ob der Drucker unter der Adresse antwortet (Port 9100 bzw. 631), und
+meldet Fehler im Klartext. Vorhandene Warteschlangen (z. B. von Hand angelegt) können mit
+„Verwenden“ übernommen werden; „Entfernen“ gibt es nur für hier angelegte. Beim TM-m30III im
+Webmenü des Druckers „Sicherer Druck“ ausschalten. Ein Bondrucker per Bluetooth an einem
+anderen Rechner bleibt eine Samba-Freigabe (Einstellungen → Bondrucker → Verbindung).
+
+Dafür installiert der Server-Installer den Druckdienst `cups` und nimmt den Dienstbenutzer
+`kienzle-sumup` in die Gruppe `lpadmin` auf (Verwaltung des lokalen Druckdienstes).
 
 Admin-Passwort vergessen: `sudo bash scripts/install-server.sh --admin-reset` gibt einen neuen
 Einrichtungslink aus. Die gespeicherten Einstellungen bleiben dabei erhalten.
@@ -530,19 +557,28 @@ Die Firewall für TCP 7868 nur im Praxisnetz öffnen. Der Installer ändert kein
 
 ## Starter auf den Arbeitsplätzen
 
-Den Ordner `/root/kienzle-sumup-clients` geschützt auf die Arbeitsplätze kopieren.
-Er enthält `client.json` mit Serveradresse, Starter-Schlüssel und Zertifikat-Fingerabdruck
-sowie das öffentliche Serverzertifikat. **Diesen Ordner nicht ins Repository oder unter
-den Webroot legen.** Er ist ausschließlich für berechtigte Praxisarbeitsplätze vorgesehen.
+Am einfachsten: auf dem Arbeitsplatz die Einstellungsseite öffnen, anmelden und unter
+**Arbeitsplätze einrichten** das Paket für Windows, macOS oder Linux laden. Die ZIP-Datei
+enthält `client.json` (Serveradresse, Starter-Schlüssel, Zertifikat-Fingerabdruck), das
+öffentliche Serverzertifikat, das Installationsskript, eine `LIESMICH.txt` und – sofern der
+Server-Installer sie laden konnte – die geprüften Starterprogramme, sodass der Arbeitsplatz
+nichts aus dem Internet laden muss. **Das Paket enthält den Starter-Schlüssel: nicht per
+E-Mail verschicken, nach der Einrichtung löschen.**
 
-Die Installer laden den passenden fertigen Starter aus GitHub Release `v1.4.1` und prüfen
-seine SHA-256-Prüfsumme. Python, Go und PHP werden auf dem Arbeitsplatz nicht benötigt.
-Alternativ vorab die Release-Dateien und `SHA256SUMS` in diesen Ordner legen.
+Alternativ liegt derselbe Inhalt im Ordner `/root/kienzle-sumup-clients` auf dem Server
+(geschützt kopieren, nicht ins Repository oder unter den Webroot legen).
 
-- **Windows 10/11:** `install-windows.cmd` ausführen. Der Starter wird pro Benutzer unter
+Fehlen die Starterprogramme im Paket, laden die Installer den passenden Starter aus GitHub
+Release `v1.4.1` und prüfen seine SHA-256-Prüfsumme. Python, Go und PHP werden auf dem
+Arbeitsplatz nicht benötigt.
+
+- **Windows 10/11:** ZIP mit Rechtsklick → „Alle extrahieren …“ entpacken, dann
+  `install-windows.cmd` doppelklicken (SmartScreen: „Weitere Informationen“ → „Trotzdem
+  ausführen“). Die Zertifikatsfrage mit „Ja“ bestätigen – dieses Fenster liegt manchmal hinter
+  anderen Fenstern; scheint die Einrichtung zu hängen, in der Taskleiste nachsehen. Der Starter wird pro Benutzer unter
   `%LOCALAPPDATA%\Kienzle-SumUp` installiert. Das Zertifikat kommt in den Zertifikatsspeicher
   des aktuellen Benutzers.
-- **macOS:** `install-macos.command` ausführen (falls nötig `chmod +x install-macos.command`).
+- **macOS:** ZIP doppelklicken, `install-macos.command` mit Rechtsklick → „Öffnen“ starten.
   Eintrag in `~/Applications/Kienzle-SumUp.app`, Starter und Konfiguration in
   `~/Library/Application Support/Kienzle-SumUp`. Der Installer fügt das Zertifikat dem
   Anmeldeschlüsselbund hinzu; macOS kann eine Bestätigung verlangen.

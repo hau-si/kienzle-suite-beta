@@ -1,9 +1,15 @@
-Version 1.4.1-rechnung.5 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.6 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.6: Info-Symbol mit Erklärung und Beispielwert zu jeder Einstellung und jeder
+  Auswahlmöglichkeit. „Drucker einrichten“ im Browser: TM-m10, TM-m30III und A4-Netzwerkdrucker
+  (IPP Everywhere) suchen, als CUPS-Warteschlange anlegen, automatisch übernehmen, testen und
+  entfernen; der Installer ergänzt dafür `cups` und die Gruppe `lpadmin`. „Arbeitsplätze
+  einrichten“: Installationspaket (ZIP) für Windows, macOS und Linux zum Herunterladen, mit den
+  vom Server geladenen und geprüften Starterprogrammen.
 - Neu in rechnung.5: Einstellungen im Browser (`/settings.php`, Link „Einstellungen“ auf der
   Kartenzahlungsseite), geschützt durch ein Admin-Passwort. Der Server-Installer stellt keine
   Fragen mehr (alte Abfragen mit `--fragen`), installiert alle Zusatzpakete und gibt einen

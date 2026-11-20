@@ -1,0 +1,75 @@
+<?php
+declare(strict_types=1);
+namespace KienzleSumup;
+
+/**
+ * Hilfetexte für die Einstellungsseite: Erklärung (tip), Beispielwert (example) und
+ * eine Erklärung je Auswahlmöglichkeit (options). Nur Beispieldaten, keine echten Praxiswerte.
+ */
+final class SettingsHelp {
+    public const FIELDS = [
+        'sumup.mode' => ['tip' => 'Im Testmodus wird keine Karte belastet; der Ablauf lässt sich gefahrlos ausprobieren.',
+            'options' => ['mock' => 'Für die Einrichtung und Schulung. Zahlungen werden nur simuliert, kein Solo nötig.',
+                'live' => 'Echter Betrieb: Der Betrag geht an das SumUp Solo und wird von der Karte abgebucht. Alle SumUp-Felder müssen ausgefüllt sein.']],
+        'sumup.api_key' => ['tip' => 'Geheimer Schlüssel aus dem SumUp-Händlerkonto. Wird nach dem Speichern nie wieder angezeigt.', 'example' => 'sup_sk_…'],
+        'sumup.affiliate_key' => ['tip' => 'Kennzeichnet diese Anbindung bei SumUp. Im Händlerkonto unter „Für Entwickler → Affiliate Keys“ zur App-ID anlegen.', 'example' => 'sup_afk_…'],
+        'sumup.app_id' => ['tip' => 'Die App-ID, die beim Anlegen des Affiliate-Keys eingetragen wurde. Beide müssen zusammenpassen.', 'example' => 'de.kienzle.sumup'],
+        'sumup.merchant_code' => ['tip' => 'Kennung der Praxis bei SumUp, steht im Händlerkonto unter „Profil“ oder oben im Menü.', 'example' => 'MK01A8C2'],
+        'sumup.reader_id' => ['tip' => 'Kennung des gekoppelten SumUp Solo. Nach dem Koppeln mit „Verbindung zu SumUp prüfen“ kontrollieren.', 'example' => 'rdr_1JHCGHNM3095NBKJP2CMDWJTDC'],
+        'app.max_amount_cents' => ['tip' => 'Schutz vor Tippfehlern: höhere Beträge werden nicht an das Terminal geschickt. Ganze Euro.', 'example' => '1000'],
+        'fhir.mode' => ['tip' => 'Wie die Kartenzahlungsseite mit T2med spricht.',
+            'options' => ['mock' => 'Testpatient „Max Mustermann“, es wird nichts in eine Akte geschrieben.',
+                'live' => 'Patient aus dem T2med-Aufruf, Zahlungen werden in der Akte dokumentiert. Nur zusammen mit SumUp „Live“.']],
+        'fhir.base_url' => ['tip' => 'Adresse der T2med-FHIR-Schnittstelle, wie sie dieser Server erreicht. Rechnername oder IP des T2med-Servers, Port meist 16567.', 'example' => 'https://t2med-server:16567/aps/fhir/api/r4'],
+        'fhir.launch_urls' => ['tip' => 'Nur nötig, wenn T2med beim Aufruf eine andere Adresse übergibt als oben (z. B. IP statt Rechnername). Eine Adresse pro Zeile.', 'example' => "https://192.168.1.10:16567/aps/fhir/api/r4"],
+        'fhir.api_key' => ['tip' => 'Schlüssel für die T2med-Schnittstelle. Leer lassen, dann wird der T2med-Demo-Schlüssel verwendet.', 'example' => '(leer lassen)'],
+        'fhir.entry_code' => ['tip' => 'Kürzel, unter dem die Zahlung in der Patientenakte erscheint.', 'example' => 'ZAHLUNG'],
+        'fhir.ca_pem' => ['tip' => 'Nur nötig, wenn der T2med-Server ein eigenes Zertifikat hat und die Verbindung sonst abgelehnt wird. Inhalt der .pem/.crt-Datei einfügen; „-“ entfernt es.', 'example' => '-----BEGIN CERTIFICATE----- …'],
+        'fhir.pin_certificate' => ['tip' => 'Nur ankreuzen, wenn das T2med-Zertifikat nicht zum Rechnernamen passt. Dann wird genau dieses Zertifikat akzeptiert.'],
+        'practice.name' => ['tip' => 'Erscheint als Rechnungsaussteller auf Rechnung und Beleg.', 'example' => 'Praxis Dr. med. Erika Musterfrau'],
+        'practice.street' => ['tip' => 'Anschrift der Praxis auf Rechnung und Beleg.', 'example' => 'Musterstraße 1'],
+        'practice.city' => ['tip' => 'Postleitzahl und Ort.', 'example' => '12345 Musterstadt'],
+        'practice.contact' => ['tip' => 'Zusätzliche Zeile, z. B. Telefon oder Internetseite.', 'example' => 'Tel. 01234 567890'],
+        'practice.append_sumup_receipt' => ['tip' => 'Statt der eigenen Zahlungsbestätigung wird der originale SumUp-Beleg an die Rechnung angehängt.'],
+        'mail.enabled' => ['tip' => 'Patientinnen und Patienten können sich den Beleg per E-Mail schicken lassen.'],
+        'mail.host' => ['tip' => 'Postausgangsserver Ihres E-Mail-Anbieters.', 'example' => 'smtp.example.de'],
+        'mail.encryption' => ['tip' => 'Wie die Verbindung zum Mailserver verschlüsselt wird. Steht in den Angaben des Anbieters.',
+            'options' => ['starttls' => 'Am häufigsten, Port 587.', 'smtps' => 'Ältere Variante, Port 465.']],
+        'mail.port' => ['tip' => 'Passend zur Verschlüsselung: 587 bei STARTTLS, 465 bei SMTPS.', 'example' => '587'],
+        'mail.username' => ['tip' => 'Anmeldename beim Mailserver, meist die E-Mail-Adresse.', 'example' => 'praxis@example.de'],
+        'mail.password' => ['tip' => 'Passwort des E-Mail-Postfachs. Wird nach dem Speichern nie wieder angezeigt.'],
+        'mail.from_address' => ['tip' => 'Absender der Belege.', 'example' => 'praxis@example.de'],
+        'mail.from_name' => ['tip' => 'Name, der beim Empfänger als Absender erscheint.', 'example' => 'Praxis Dr. Musterfrau'],
+        'printing.enabled' => ['tip' => 'Zeigt nach der Zahlung „Beleg drucken“. Einen Bondrucker im Netzwerk oder per USB richten Sie am einfachsten unten unter „Drucker einrichten“ ein.'],
+        'printing.model' => ['tip' => 'Bestimmt Papierbreite und Druckbreite.',
+            'options' => ['tm-m10' => 'Schmale 58-mm-Rolle, 420 Punkte Druckbreite.', 'tm-m30iii' => 'Breite 80-mm-Rolle, 576 Punkte Druckbreite.']],
+        'printing.transport' => ['tip' => 'Wie der Bon zum Drucker kommt.',
+            'options' => ['cups' => 'Drucker per Netzwerkkabel, WLAN oder USB. Wird bei „Drucker einrichten“ automatisch gewählt.',
+                'samba' => 'Drucker per Bluetooth an einem anderen Rechner (z. B. kienzlebox), der ihn als Freigabe anbietet.']],
+        'printing.queue' => ['tip' => 'Name des Druckers in CUPS. Wird bei „Drucker einrichten“ automatisch eingetragen.', 'example' => 'TM-m30III'],
+        'printing.cups_server' => ['tip' => 'Nur ausfüllen, wenn der Drucker auf einem anderen Rechner eingerichtet ist. Sonst leer.', 'example' => 'kienzlebox'],
+        'printing.share' => ['tip' => 'Freigabe des Bondruckers auf dem Druckserver.', 'example' => '//kienzlebox/TMm10'],
+        'printing.width_dots' => ['tip' => 'Normalerweise leer lassen; wird nach dem Modell gesetzt.', 'example' => '576'],
+        'printing.cut' => ['tip' => 'Schneidet den Bon nach dem Druck ab (wenn der Drucker einen Abschneider hat).'],
+        'office_printing.enabled' => ['tip' => 'Rechnungen auf einem normalen A4-Drucker ausgeben. Den Drucker richten Sie unten unter „Drucker einrichten“ ein.'],
+        'office_printing.queue' => ['tip' => 'Name des A4-Druckers in CUPS. Wird bei „Drucker einrichten“ automatisch eingetragen.', 'example' => 'Praxisdrucker'],
+        'office_printing.cups_server' => ['tip' => 'Nur ausfüllen, wenn der Drucker auf einem anderen Rechner eingerichtet ist. Sonst leer.', 'example' => 'druckserver'],
+        'office_printing.media' => ['tip' => 'Papierformat im Drucker.', 'options' => ['A4' => 'Standard in Deutschland.', 'Letter' => 'US-Format, nur bei entsprechendem Papier.']],
+        'office_printing.duplex' => ['tip' => 'Mehrseitige Rechnungen beidseitig drucken, wenn der Drucker es kann.'],
+        'invoice_inbox.enabled' => ['tip' => 'In T2med die Rechnung auf den Drucker „SumUp-Rechnung“ drucken; sie erscheint dann auf der Kartenzahlungsseite zum Kassieren.'],
+        'invoice_inbox.max_age_days' => ['tip' => 'Wie lange eine gedruckte, noch unbezahlte Rechnung angeboten wird.', 'example' => '14'],
+        'invoice_export.enabled' => ['tip' => 'Legt die Rechnungs-PDF zusätzlich in einem Netzwerkordner ab, z. B. für die Steuerberatung.'],
+        'invoice_export.share' => ['tip' => 'Nur Rechner und Freigabe, ohne Unterordner. Unter Windows sieht das so aus: \\\\nas\\steuerberater.', 'example' => '//nas/steuerberater'],
+        'invoice_export.directory' => ['tip' => 'Ordner innerhalb der Freigabe. {jahr} und {monat} werden automatisch ersetzt; leer = direkt in die Freigabe.', 'example' => 'Rechnungen/{jahr}/{monat}'],
+        'invoice_export.username' => ['tip' => 'Benutzer mit Schreibrecht auf die Freigabe.', 'example' => 'scanner'],
+        'invoice_export.password' => ['tip' => 'Passwort dieses Benutzers. Wird nach dem Speichern nie wieder angezeigt.'],
+        'invoice_export.domain' => ['tip' => 'Nur bei Windows-Domänen nötig, sonst leer.', 'example' => 'WORKGROUP'],
+        'invoice_export.app_invoices' => ['tip' => 'Auch die direkt auf der Kartenzahlungsseite erstellten Rechnungen ablegen.'],
+        'invoice_export.when' => ['tip' => 'Welche T2med-Rechnungen abgelegt werden.',
+            'options' => ['paid' => 'Erst nach erfolgreicher Kartenzahlung.', 'received' => 'Sofort beim Drucken auf „SumUp-Rechnung“, auch ohne Zahlung.']],
+    ];
+
+    public static function for(string $section, string $key): array {
+        return self::FIELDS[$section . '.' . $key] ?? [];
+    }
+}
