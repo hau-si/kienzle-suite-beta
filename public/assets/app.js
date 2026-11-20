@@ -86,21 +86,25 @@ function renderInvoices() {
     if (state.letter?.enabled && invoice.letter?.postable) {
       const sent = invoice.letter || {};
       const when = sent.sent_at ? new Date(sent.sent_at * 1000).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '';
-      const note = sent.status === 'unknown' ? 'Postversand unklar – bitte den Postausgang bei Letterxpress prüfen.'
+      const stamp = sent.status === 'unknown' ? 'Postversand unklar – bitte den Postausgang bei Letterxpress prüfen.'
         : sent.status === 'sent' ? (sent.mode === 'live' ? 'Per Post gesendet am ' : 'Testbrief an Letterxpress am ') + when : '';
-      if (note) box.append(element('p', note, 'muted invoice-letter-note'));
-      const post = element('button', sent.status ? 'Erneut per Post senden …' : 'Per Post senden (Letterxpress)', 'text-button invoice-letter');
-      post.onclick = () => run(async() => {
-        const again = !!sent.status;
-        const live = state.letter.mode === 'live';
-        const text = (again ? 'Diese Rechnung wurde schon einmal gesendet. Wirklich NOCHMAL senden?\n\n' : '')
-          + 'Rechnung ' + invoice.number + ' über ' + euro(invoice.amount_cents) + ' für ' + state.patient.name + ' ' + (live ? 'jetzt per Post über Letterxpress versenden?' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)?')
-          + '\n\nDabei gehen die Rechnung mit Patientendaten an Letterxpress.' + (live ? ' Das kostet Porto und Druck.' : '');
-        if (!confirm(text)) return;
-        const result = await api('invoice_letter', {invoice_id: invoice.id, again});
-        message(result.message); await load();
-      });
-      box.append(post);
+      if (stamp) {
+        const icon = element('p', '', 'invoice-letter-note post-icon ' + (sent.status === 'unknown' ? 'post-unknown' : sent.mode === 'live' ? 'post-sent' : 'post-test'));
+        icon.append(element('span', sent.status === 'unknown' ? '✉ ?' : '✉', 'post-glyph'), document.createTextNode(' ' + stamp));
+        icon.title = stamp; box.append(icon);
+      }
+      if (!sent.locked) {
+        const post = element('button', 'Per Post senden (Letterxpress)', 'text-button invoice-letter');
+        post.onclick = () => run(async() => {
+          const live = state.letter.mode === 'live';
+          const text = 'Rechnung ' + invoice.number + ' über ' + euro(invoice.amount_cents) + ' für ' + state.patient.name + ' ' + (live ? 'jetzt per Post über Letterxpress versenden?' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)?')
+            + '\n\nDabei gehen die Rechnung mit Patientendaten an Letterxpress.' + (live ? ' Das kostet Porto und Druck. Ein zweiter Versand ist nicht möglich.' : '');
+          if (!confirm(text)) return;
+          const result = await api('invoice_letter', {invoice_id: invoice.id});
+          message(result.message); await load();
+        });
+        box.append(post);
+      }
     }
     $('invoices').append(box);
   }

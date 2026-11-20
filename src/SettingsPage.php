@@ -271,7 +271,7 @@ final class SettingsPage {
     /** Rechnung aus dem Eingang per Post senden (nur mit Admin-Sitzung, CSRF und ausdrücklicher Bestätigung in der Oberfläche). */
     private function inboxLetter(array $input): array {
         $config = $this->config();
-        $result = (new Letterxpress($config, $this->http ?? new HttpClient(), $this->db))->send(App::string($input, 'id', 32), ($input['again'] ?? false) === true);
+        $result = (new Letterxpress($config, $this->http ?? new HttpClient(), $this->db))->send(App::string($input, 'id', 32));
         return InboxOverview::build($this->db, $config) + ['message' => $result['message']];
     }
     /** Mehrere Rechnungen auf einmal senden oder löschen; jede einzeln, Fehler werden gezählt statt abzubrechen. */

@@ -56,24 +56,28 @@ final class Letterxpress {
     }
 
     /** Status einer Rechnung für Anzeige: sent_at, mode, status, error. */
+    /** Live gesendet oder unklar: kein zweiter Versand. */
+    public static function locked(array $row): bool { return ($row['lxp_status'] ?? '') !== '' && ($row['lxp_mode'] ?? '') === 'live'; }
+
     public static function state(array $row): array {
-        return ['status' => (string)($row['lxp_status'] ?? ''), 'sent_at' => isset($row['lxp_sent_at']) ? (int)$row['lxp_sent_at'] : null,
+        return ['locked' => self::locked($row), 'status' => (string)($row['lxp_status'] ?? ''), 'sent_at' => isset($row['lxp_sent_at']) ? (int)$row['lxp_sent_at'] : null,
             'mode' => (string)($row['lxp_mode'] ?? ''), 'job_id' => (string)($row['lxp_job_id'] ?? ''), 'error' => (string)($row['lxp_error'] ?? '')];
     }
 
     /**
-     * Rechnung versenden. $again nur nach ausdrücklicher Bestätigung, wenn schon einmal gesendet wurde.
+     * Rechnung versenden. Eine live gesendete (oder in ihrem Ausgang unklare) Rechnung wird nie ein zweites Mal gesendet;
+     * Testbriefe sperren nicht.
      * Bei unklarem Ausgang (Zeitüberschreitung) wird nichts wiederholt; der Postausgang bei Letterxpress zeigt den Stand.
      */
-    public function send(string $inboxId, bool $again = false): array {
+    public function send(string $inboxId): array {
         if (!$this->enabled()) throw new Problem('Der Versand per Post ist nicht eingeschaltet (Einstellungen → Letterxpress).', 409);
         if (!preg_match('/^[a-f0-9]{32}$/D', $inboxId)) throw new Problem('Ungültige Rechnung.', 422);
-        return $this->db->locked('letterxpress-' . $inboxId, function () use ($inboxId, $again): array {
+        return $this->db->locked('letterxpress-' . $inboxId, function () use ($inboxId): array {
             $row = $this->db->one('SELECT * FROM invoice_inbox WHERE id=?', [$inboxId]);
             if (!$row) throw new Problem('Diese Rechnung gibt es nicht (mehr).', 404);
             if ($this->db->one("SELECT 1 AS x FROM payments WHERE (inbox_id=? OR t2med_invoice=?) AND payment_status IN ('starting','pending','unknown','cancel_requested','successful') LIMIT 1", [$inboxId, $row['invoice_number']]))
                 throw new Problem('Diese Rechnung ist bezahlt oder wird gerade kassiert und wird nicht mehr per Post verschickt.', 409);
-            if ($row['lxp_status'] !== '' && !$again) throw new Problem($row['lxp_status'] === 'unknown'
+            if (self::locked($row)) throw new Problem($row['lxp_status'] === 'unknown'
                 ? 'Der Versand dieser Rechnung ist unklar. Bitte zuerst den Postausgang bei Letterxpress prüfen.' : 'Diese Rechnung wurde bereits per Post gesendet.', 409);
             if ($row['pdf'] === null || !str_starts_with((string)$row['pdf'], '%PDF-')) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut auf „SumUp-Rechnung“ drucken.', 409);
             $file = base64_encode(self::unprotected((string)$row['pdf']));

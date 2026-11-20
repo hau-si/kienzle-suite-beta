@@ -473,7 +473,7 @@ final class App {
         $this->editable($fresh);
         $open = array_column($this->openInvoices($fresh), null, 'id');
         if (!isset($open[$invoiceId])) throw new Problem('Diese Rechnung ist nicht mehr offen oder gehört nicht zu diesem Patienten. Bitte Seite neu laden.', 409);
-        return $this->letter->send($invoiceId, ($input['again'] ?? false) === true);
+        return $this->letter->send($invoiceId);
     }
     private function payment(array $visit, string $id): array {
         return $this->db->one('SELECT * FROM payments WHERE id=? AND visit_id=?', [$id, $visit['id']]) ?? throw new Problem('Zahlung nicht gefunden.', 404);

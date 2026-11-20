@@ -331,6 +331,7 @@ function renderChecklist(data) {
       {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
       {done: invoiceQueue, optional: true, label: invoiceQueue ? 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen auf dem Server angelegt' : 'Drucker „SumUp-Rechnung“ auf dem Server anlegen (T2med-Rechnungen übernehmen einschalten)', card: 's-invoice_inbox'},
       {done: !!value('letterxpress', 'enabled'), optional: true, label: value('letterxpress', 'enabled') ? 'Rechnung per Post (Letterxpress) angebunden' : 'Rechnung per Post über Letterxpress versenden (optional: Zugang eintragen)', card: 's-letterxpress'},
+      {done: !!value('invoice_export', 'enabled'), optional: true, label: value('invoice_export', 'enabled') ? 'Rechnungen werden in einen Netzwerkordner abgelegt (Steuerberatung)' : 'Rechnungen in einen Netzwerkordner ablegen (optional, z. B. für die Steuerberatung)', card: 's-invoice_export'},
       {info: true, label: 'Firewall: Zugriff auf das Praxisnetz beschränken (empfohlen)', card: 's-firewall'},
     ]},
     {title: 'Auf den Client-PCs', hint: 'Kassen- und Arbeitsplatzrechner', items: [
@@ -838,8 +839,8 @@ function renderInbox(data) {
       return b;
     };
     if (data.letter_enabled) bar.append(bulk('Auswahl per Post senden', 'inbox_letter_many',
-      rows => rows.length + ' Rechnung(en) (' + euro(rows.reduce((a, r) => a + r.amount_cents, 0)) + ') ' + (data.letter_mode === 'live' ? 'jetzt per Post verschicken' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)') + '?\n\nDabei gehen die Rechnungen mit Patientendaten an Letterxpress. Bereits gesendete Rechnungen werden nicht erneut gesendet.',
-      r => r.postable && !(r.letter || {}).status));
+      rows => rows.length + ' Rechnung(en) (' + euro(rows.reduce((a, r) => a + r.amount_cents, 0)) + ') ' + (data.letter_mode === 'live' ? 'jetzt per Post verschicken' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)') + '?\n\nDabei gehen die Rechnungen mit Patientendaten an Letterxpress. Bereits live gesendete Rechnungen werden nicht erneut gesendet.',
+      r => r.postable && !(r.letter || {}).locked));
     bar.append(bulk('Auswahl löschen', 'inbox_delete_many', rows => rows.length + ' Rechnung(en) aus dem Eingang löschen?', r => r.deletable), countText);
     box.append(bar);
     const first = el('th'); first.append(toggleAll); head.append(first);
@@ -857,17 +858,23 @@ function renderInbox(data) {
       for (const v of [when(r.received_at), r.number, euro(r.amount_cents), r.patient, born, inboxState[r.status] || r.status]) tr.append(el('td', v));
       if (data.letter_enabled) {
         const l = r.letter || {};
-        tr.append(el('td', l.status === 'unknown' ? 'unklar' : l.status === 'sent' ? (l.mode === 'live' ? 'gesendet ' : 'Test ') + when(l.sent_at) : ''));
+        const cell = el('td');
+        if (l.status) {
+          const text = l.status === 'unknown' ? 'Postversand unklar – bitte den Postausgang bei Letterxpress prüfen' : (l.mode === 'live' ? 'Per Post gesendet am ' : 'Testbrief an Letterxpress am ') + when(l.sent_at);
+          const icon = el('span', l.status === 'unknown' ? '✉ ?' : '✉', 'post-glyph ' + (l.status === 'unknown' ? 'post-unknown' : l.mode === 'live' ? 'post-sent' : 'post-test'), {title: text, 'aria-label': text, role: 'img'});
+          cell.append(icon);
+        }
+        tr.append(cell);
       }
       const last = el('td');
-      if (data.letter_enabled && r.postable) {
+      if (data.letter_enabled && r.postable && !(r.letter || {}).locked) {
         const l = r.letter || {};
-        const post = el('button', l.status ? 'Nochmal per Post' : 'Per Post', 'secondary small-button', {type: 'button', 'aria-label': 'Rechnung ' + r.number + ' per Post senden'});
+        const post = el('button', 'Per Post', 'secondary small-button', {type: 'button', 'aria-label': 'Rechnung ' + r.number + ' per Post senden'});
         post.onclick = () => {
           const live = data.letter_mode === 'live';
-          const text = (l.status ? 'Diese Rechnung wurde schon einmal gesendet. Wirklich NOCHMAL senden?\n\n' : '') + 'Rechnung ' + r.number + ' (' + r.patient + ', ' + euro(r.amount_cents) + ') ' + (live ? 'jetzt per Post über Letterxpress versenden?' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)?') + '\n\nDabei gehen die Rechnung mit Patientendaten an Letterxpress.' + (live ? ' Das kostet Porto und Druck.' : '');
+          const text = 'Rechnung ' + r.number + ' (' + r.patient + ', ' + euro(r.amount_cents) + ') ' + (live ? 'jetzt per Post über Letterxpress versenden?' : 'im TESTMODUS an Letterxpress übergeben (es wird nichts verschickt)?') + '\n\nDabei gehen die Rechnung mit Patientendaten an Letterxpress.' + (live ? ' Das kostet Porto und Druck.' : '');
           if (!confirm(text)) return;
-          busy(post, async () => { const res = await api('inbox_letter', {id: r.id, again: !!l.status}); renderInbox(res); message(res.message); });
+          busy(post, async () => { const res = await api('inbox_letter', {id: r.id}); renderInbox(res); message(res.message); });
         };
         last.append(post, ' ');
       }

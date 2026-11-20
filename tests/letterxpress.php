@@ -75,9 +75,15 @@ try {
     $state = $app->state($vi, $br)['invoices'][0]['letter'];
     check($state['status'] === 'sent' && $state['mode'] === 'test' && $state['job_id'] === '4711' && $state['sent_at'] > 0, 'Versandstatus nicht gespeichert');
 
-    // 3. Doppelter Versand nur nach ausdrücklicher Bestätigung.
-    rejects(fn() => $app->invoiceLetter($vi, ['invoice_id' => $id]), 'Doppelter Versand ohne Bestätigung', 409);
-    check($app->invoiceLetter($vi, ['invoice_id' => $id, 'again' => true])['status'] === 'sent' && count($http->calls) === 2, 'Erneuter Versand nach Bestätigung fehlgeschlagen');
+    // 3. Testbriefe sperren nicht; live gesendete Rechnungen nie ein zweites Mal.
+    check($app->invoiceLetter($vi, ['invoice_id' => $id])['status'] === 'sent' && count($http->calls) === 2, 'Zweiter Testbrief nicht möglich');
+    $app->db->query("UPDATE invoice_inbox SET lxp_mode='live' WHERE id=?", [$id]);
+    $locked = $app->state($vi, $br)['invoices'][0]['letter'];
+    check($locked['locked'] === true, 'Live gesendete Rechnung nicht gesperrt');
+    rejects(fn() => $app->invoiceLetter($vi, ['invoice_id' => $id]), 'Doppelter Versand', 409);
+    rejects(fn() => $app->invoiceLetter($vi, ['invoice_id' => $id, 'again' => true]), 'Doppelter Versand trotz again', 409);
+    check(count($http->calls) === 2, 'Doppelter Versand erreichte Letterxpress');
+    $app->db->query("UPDATE invoice_inbox SET lxp_mode='test' WHERE id=?", [$id]);
 
     // 4. Fremder Patient und bezahlte Rechnung.
     [$other, $otherBrowser] = visit($app, 'test-2');
@@ -89,7 +95,7 @@ try {
     rejects(fn() => $app->invoiceLetter($vi, ['invoice_id' => $id, 'again' => true]), 'Bezahlte Rechnung gesendet', 409);
 
     // 5. Fehler der API und unklarer Ausgang.
-    $v2 = values(); $v2['letterxpress'] = $v['letterxpress']; $v2['app']['state_dir'] = sys_get_temp_dir() . '/ks-lxp-' . bin2hex(random_bytes(6)); $dirs[] = $v2['app']['state_dir'];
+    $v2 = values(); $v2['letterxpress'] = ['mode' => 'live'] + $v['letterxpress']; $v2['app']['state_dir'] = sys_get_temp_dir() . '/ks-lxp-' . bin2hex(random_bytes(6)); $dirs[] = $v2['app']['state_dir'];
     $http2 = new LxpFakeHttp(); $app2 = new App(new Config($v2), $http2); $app2->db->migrate();
     [$w, $wb] = visit($app2);
     $app2->storeInvoice($parsed, $pdf); $wid = $app2->state($w, $wb)['invoices'][0]['id'];
