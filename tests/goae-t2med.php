@@ -36,7 +36,7 @@ try {
     $v['sumup'] = ['mode' => 'mock']; $v['fhir'] = ['mode' => 'mock', 'entry_code' => 'ZAHLUNG'];
     $v['practice'] = ['name' => 'Praxis Beispiel', 'street' => 'Musterstraße 1', 'city' => '12345 Musterstadt'];
     $app = new App(new Config($v)); $app->db->migrate();
-    check((int)$app->db->query('PRAGMA user_version')->fetchColumn() === 11, 'Datenbank nicht auf Version 11');
+    check((int)$app->db->query('PRAGMA user_version')->fetchColumn() === 12, 'Datenbank nicht auf Version 12');
     $visit = function () use ($app): array {
         $launch = $app->launch(['context_id' => 'ctx-' . bin2hex(random_bytes(4)), 'oauth_token' => '', 'fhir_base_url' => '']);
         parse_str(parse_url($launch['url'], PHP_URL_FRAGMENT), $f); $e = $app->exchange($f['launch'], null);

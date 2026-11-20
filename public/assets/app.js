@@ -35,13 +35,20 @@ function manualCents() {
   const match = /^(0|[1-9]\d{0,6})(?:[,.](\d{1,2}))?$/.exec(value);
   return match ? Number(match[1])*100 + Number((match[2] || '').padEnd(2,'0')) : NaN;
 }
+function payMethod() { return document.querySelector('input[name="pay-method"]:checked')?.value || 'card'; }
+document.querySelectorAll('input[name="pay-method"]').forEach(r => r.addEventListener('change', () => { startRequest=null; updateTotal(); }));
 function updateTotal() {
   if (!state) return;
   const ids=selectedIds();
   const sum = state.services.filter(s => ids.has(s.id)).reduce((total,s) => total+s.price_cents, 0) + manualCents();
   $('total').textContent = Number.isFinite(sum) ? euro(sum) : '—';
-  $('pay').textContent = sum > 0 ? euro(sum) + ' mit Karte kassieren' : 'Mit Karte kassieren';
-  $('pay').disabled = busy || !!state.reader_payment || !(sum > 0 && sum <= state.max_amount_cents);
+  const cash = payMethod() === 'cash';
+  $('pay').textContent = cash ? (sum > 0 ? euro(sum) + ' bar erhalten – Rechnung erstellen' : 'Bar kassieren') : (sum > 0 ? euro(sum) + ' mit Karte kassieren' : 'Mit Karte kassieren');
+  $('pay').classList.toggle('cash', cash);
+  // Barzahlung braucht kein freies Terminal, aber Praxisdaten für die Rechnung.
+  $('pay').disabled = busy || (!cash && !!state.reader_payment) || (cash && !state.local_receipts) || !(sum > 0 && sum <= state.max_amount_cents);
+  $('pay-method-note').hidden = !(cash && !state.local_receipts);
+  $('pay-method-note').textContent = 'Für Barzahlungen bitte zuerst Praxisname und Anschrift unter Einstellungen eintragen.';
   document.querySelectorAll('.invoice-pay').forEach(b => b.disabled = busy || !!state.reader_payment);
 }
 function renderInvoices() {
@@ -238,7 +245,7 @@ function renderPayment() {
     title='Vorgang abgeschlossen'; symbol='✓';
     description=state.fhir_mock ? 'Testdokumentation gespeichert. Es wurde nichts in t2med geschrieben. Dieses Fenster kann geschlossen werden.' : 'Die Zahlung wurde in t2med dokumentiert. Dieses Fenster kann geschlossen werden.';
   } else if(p.payment_status==='successful') {
-    title='Zahlung erfolgreich'; symbol='✓';
+    title=p.method==='cash' ? 'Barzahlung erfasst' : 'Zahlung erfolgreich'; symbol='✓';
     description='Mit „Dokumentation in der Akte“ wird die Zahlung in t2med dokumentiert und der Vorgang abgeschlossen.';
     $('document').hidden=false;
     $('document').textContent=p.doc_status==='unknown' || p.doc_status==='writing' ? 'Dokumentation prüfen / erneut versuchen' : 'Dokumentation in der Akte';
@@ -345,14 +352,15 @@ $('pay').onclick=()=>run(async()=>{
   if(!$('service-date').reportValidity()) return;
   for(const input of $('basket').querySelectorAll('textarea')) if(!input.reportValidity()) return;
   const ids=selectedIds();
-  const data={services:[...selected].sort(),groups:[...selectedGroups].sort(),reasons:Object.fromEntries(Object.entries(reasons).filter(([id,value])=>ids.has(id) && value.trim())),service_date:$('service-date').value,manual_amount:$('manual').value.trim(),...printChoice()};
+  const data={services:[...selected].sort(),groups:[...selectedGroups].sort(),reasons:Object.fromEntries(Object.entries(reasons).filter(([id,value])=>ids.has(id) && value.trim())),service_date:$('service-date').value,manual_amount:$('manual').value.trim(),method:payMethod(),...printChoice()};
   // Schlüssel und Anfrage vor dem Netzaufruf speichern; bei verlorener Antwort wiederverwenden.
   if(!startRequest) startRequest={...data,request_id:crypto.randomUUID()};
   sessionStorage.setItem('ks-start-'+visitId,JSON.stringify(startRequest));
   try { state.payment=await api('start',startRequest); }
   catch(error) { try { await load(); } catch {} throw error; }
   retrySelection=false; state.reader_payment=null; readerMessage='';
-  sessionStorage.removeItem('ks-start-'+visitId); startRequest=null; renderPayment();
+  sessionStorage.removeItem('ks-start-'+visitId); startRequest=null;
+  document.querySelector('input[name="pay-method"][value="card"]').checked=true; renderPayment();
 });
 $('retry').onclick=()=>{ retrySelection=true; startRequest=null; renderPayment(); updateTotal(); };
 $('cancel').onclick=()=>run(async()=>{ state.payment=await api('cancel',{payment_id:state.payment.id}); });
@@ -470,7 +478,7 @@ async function init() {
   }
   if(visitId) {
     const saved=sessionStorage.getItem('ks-start-'+visitId);
-    if(saved) { try { startRequest=JSON.parse(saved); selected=new Set(startRequest.services); selectedGroups=new Set(startRequest.groups || []); reasons=startRequest.reasons || {}; $('service-date').value=startRequest.service_date || ''; $('manual').value=startRequest.manual_amount; } catch { sessionStorage.removeItem('ks-start-'+visitId); } }
+    if(saved) { try { startRequest=JSON.parse(saved); selected=new Set(startRequest.services); selectedGroups=new Set(startRequest.groups || []); reasons=startRequest.reasons || {}; $('service-date').value=startRequest.service_date || ''; $('manual').value=startRequest.manual_amount; if(startRequest.method==='cash') document.querySelector('input[name="pay-method"][value="cash"]').checked=true; } catch { sessionStorage.removeItem('ks-start-'+visitId); } }
     await load();
   } else if(['localhost','127.0.0.1'].includes(location.hostname)) $('demo').hidden=false;
 }

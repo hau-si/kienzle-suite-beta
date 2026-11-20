@@ -39,6 +39,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <button id="reader-cancel" class="secondary wide">Anderen Vorgang abbrechen</button>
 <button id="reader-status" class="text-button">Status prüfen</button>
 </div>
+<div id="pay-method" class="pay-method" role="radiogroup" aria-label="Zahlungsart"><label><input type="radio" name="pay-method" value="card" checked><span>💳 Karte (SumUp)</span></label><label><input type="radio" name="pay-method" value="cash"><span>💶 Bar</span></label></div><p id="pay-method-note" class="muted small" hidden></p>
 <button id="pay" class="primary wide" disabled>Mit Karte kassieren</button></section>
 <section id="manager" class="card" hidden><div class="section-heading"><h2>Leistungen verwalten</h2><button id="manage-close" class="text-button">Fertig</button></div><div id="manage-list"></div>
 <form id="service-form"><input id="service-id" type="hidden"><label for="service-label">Bezeichnung</label><input id="service-label" required maxlength="160" placeholder="z. B. Attest"><label for="service-price">Preis in Euro</label><input id="service-price" required inputmode="decimal" placeholder="10,00" maxlength="12">

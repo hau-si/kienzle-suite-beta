@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.9**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.10**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -487,6 +487,22 @@ Schlüssel und Passwörter werden nie wieder angezeigt; ein leeres Feld behält 
 Die Werte liegen verschlüsselt (mit dem Verschlüsselungsschlüssel aus der TOML-Datei) in der
 Datenbank und haben Vorrang vor der TOML-Datei; diese bleibt die Grundlage.
 
+#### Barzahlung oder Kartenzahlung
+
+Über dem Kassieren-Knopf stehen **„Karte (SumUp)“** (vorausgewählt) und **„Bar“**. Ein Klick auf „Bar“
+macht daraus „… bar erhalten – Rechnung erstellen“: Die Rechnung entsteht sofort, ohne Terminal, mit
+eigener fortlaufender Nummer je Jahr (`BAR-2026-0001`, im Testmodus `TEST-BAR-…`). Beleg und Akteneintrag
+lauten „Bar bezahlt“ bzw. „Barzahlung“; Drucken, E-Mail, Ablage und Dokumentation funktionieren wie bei
+Karte. Ein belegtes Terminal blockiert Barzahlungen nicht. Nach jedem Vorgang steht die Auswahl wieder
+auf Karte. Für Barzahlungen müssen Praxisdaten eingetragen sein (es wird immer eine Rechnung erstellt).
+
+Im Export für die Steuerberatung steht in der Spalte „Zahlungsart“ **„Bar“** oder **„Kartenzahlung“**,
+die Monatssummen zeigen zusätzlich „davon bar“ und „davon Kartenzahlung“.
+
+Hinweis: Wer Bareinnahmen elektronisch erfasst, unterliegt den Regeln zur Kassenführung (u. a.
+Kassenbuch, ggf. § 146a AO zu elektronischen Aufzeichnungssystemen und TSE). Ob und wie diese Erfassung
+dafür genügt, bitte mit der Steuerberatung klären.
+
 #### GOÄ-Rechner
 
 Beim Anlegen einer Leistung unter „GOÄ-Angaben ergänzen“ den **Einfachsatz (1,0-fach)** und den
@@ -540,7 +556,8 @@ drei Blätter:
 | Positionen | jede Leistung mit GOÄ-Ziffer, Faktor, Brutto, MwSt.-Satz, MwSt., Netto |
 | Monatssummen | Anzahl und Beträge je Monat (bei Monatsexport: „Summe“) |
 
-Enthalten sind alle per Karte bezahlten Rechnungen und Belege aus dem Rechnungstool, nach Zahlungsdatum.
+Enthalten sind alle bezahlten Rechnungen und Belege aus dem Rechnungstool, nach Zahlungsdatum; die Spalte
+„Zahlungsart“ zeigt „Bar“ oder „Kartenzahlung“, die Monatssummen weisen „davon bar“ und „davon Kartenzahlung“ aus.
 T2med-Rechnungen über den Drucker „SumUp-Rechnung“ stehen in T2med und sind nicht enthalten.
 Patientennamen kommen nur hinein, wenn „Patientennamen aufnehmen“ angekreuzt ist; Testzahlungen nur im
 Testmodus auf Wunsch. Die Tabelle öffnet sich in Excel, LibreOffice und Numbers mit Euro- und

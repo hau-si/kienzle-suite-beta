@@ -1,9 +1,13 @@
-Version 1.4.1-rechnung.9 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.10 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.10: Zahlungsart Bar oder Karte im Rechnungstool (Karte vorausgewählt, ein Klick für
+  Bar). Barzahlungen ohne Terminal, sofort bezahlt, eigene Rechnungsnummer `BAR-JJJJ-NNNN`, Beleg und
+  Akteneintrag als Barzahlung. Export kennzeichnet „Bar“ bzw. „Kartenzahlung“, Monatssummen mit
+  „davon bar“/„davon Kartenzahlung“. Datenbank-Version 12.
 - Neu in rechnung.9: GOÄ-Rechner beim Anlegen von Leistungen (Einfachsatz + gewünschter Endbetrag →
   nächstliegender Faktor mit zwei Nachkommastellen, Preis = Einfachsatz × Faktor; Hinweise zu
   Schwellenwert und Höchstsatz; Serverprüfung). Liste aller bezahlten T2med-Rechnungen zum Abhaken in

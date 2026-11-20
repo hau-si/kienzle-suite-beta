@@ -47,7 +47,8 @@ final class TaxExport {
                 'service_date' => $invoice['service_date'] ?? '', 'patient' => $invoice['patient']['name'] ?? '',
                 'kind' => $invoice ? ($invoice['title'] === 'PRIVATÄRZTLICHE RECHNUNG' ? 'Privatärztliche Rechnung' : 'Leistungsbeleg') : 'Zahlung ohne Beleg',
                 'small_business' => !empty($invoice['tax']['small_business']), 'test' => $test,
-                'gross' => (int)$payment['amount_cents'], 'items' => $items, 'totals' => Tax::totals($items), 'reference' => $payment['reference']];
+                'gross' => (int)$payment['amount_cents'], 'items' => $items, 'totals' => Tax::totals($items), 'reference' => $payment['reference'],
+                'cash' => ($payment['payment_method'] ?? 'card') === 'cash'];
         }
         return $out;
     }
@@ -100,7 +101,7 @@ final class TaxExport {
     public function t2medWorkbook(string $status, int $year, int $month, bool $includeTest = false): string {
         $rows = [];
         foreach ($this->t2medPaid($status, $year, $month, $includeTest) as $r) {
-            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], 'Karte (SumUp)', $r['transaction_id'], $r['done_date'] ?: null];
+            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], 'Kartenzahlung', $r['transaction_id'], $r['done_date'] ?: null];
             if ($includeTest) $row[] = $r['test'] ? 'ja' : '';
             $rows[] = $row;
         }
@@ -133,7 +134,7 @@ final class TaxExport {
             if ($names) $row[] = $invoice['patient'];
             array_push($row, $invoice['kind'], $invoice['gross']);
             foreach ($rates as $rate) array_push($row, $invoice['totals'][$rate]['net'] ?? null, $invoice['totals'][$rate]['vat'] ?? null);
-            array_push($row, $invoice['totals'][0]['gross'] ?? null, $invoice['small_business'] ? 'Kleinunternehmer § 19 UStG' : '', 'Karte (SumUp)', $invoice['reference']);
+            array_push($row, $invoice['totals'][0]['gross'] ?? null, $invoice['small_business'] ? 'Kleinunternehmer § 19 UStG' : '', $invoice['cash'] ? 'Bar' : 'Kartenzahlung', $invoice['reference']);
             if ($includeTest) $row[] = $invoice['test'] ? 'ja' : '';
             $rows[] = $row;
         }
@@ -153,14 +154,15 @@ final class TaxExport {
 
         $sumColumns = [['title' => 'Monat', 'width' => 14], ['title' => 'Anzahl', 'type' => 'int', 'width' => 9], ['title' => 'Brutto', 'type' => 'money', 'width' => 13]];
         foreach ($rates as $rate) array_push($sumColumns, ['title' => 'Netto ' . Tax::percent($rate), 'type' => 'money', 'width' => 13], ['title' => 'MwSt. ' . Tax::percent($rate), 'type' => 'money', 'width' => 13]);
-        $sumColumns[] = ['title' => 'Ohne MwSt.', 'type' => 'money', 'width' => 13];
+        array_push($sumColumns, ['title' => 'Ohne MwSt.', 'type' => 'money', 'width' => 13], ['title' => 'davon bar', 'type' => 'money', 'width' => 13], ['title' => 'davon Kartenzahlung', 'type' => 'money', 'width' => 19]);
         $months = [];
-        foreach ($month ? [$month] : range(1, 12) as $m) $months[$m] = array_merge([self::MONTHS[$m] . ' ' . $year, 0, 0], array_fill(0, count($rates) * 2 + 1, 0));
+        foreach ($month ? [$month] : range(1, 12) as $m) $months[$m] = array_merge([self::MONTHS[$m] . ' ' . $year, 0, 0], array_fill(0, count($rates) * 2 + 3, 0));
         foreach ($invoices as $invoice) {
             $row = &$months[$invoice['month']];
             $row[1]++; $row[2] += $invoice['gross'];
             foreach ($rates as $i => $rate) { $row[3 + 2 * $i] += $invoice['totals'][$rate]['net'] ?? 0; $row[4 + 2 * $i] += $invoice['totals'][$rate]['vat'] ?? 0; }
             $row[3 + 2 * count($rates)] += $invoice['totals'][0]['gross'] ?? 0;
+            $row[4 + 2 * count($rates) + ($invoice['cash'] ? 0 : 1)] += $invoice['gross'];
             unset($row);
         }
         $xlsx->sheet($month ? 'Summe' : 'Monatssummen', $sumColumns, array_values($months), true);

@@ -43,7 +43,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p>Alle über den Drucker „SumUp-Rechnung“ übernommenen und per Karte bezahlten T2med-Rechnungen, nach Rechnungsnummer sortiert. In T2med unter Rechnungen die Nummern als bezahlt markieren und hier anschließend abhaken – dann erscheinen beim nächsten Mal nur die neuen.</p>
 <div id="t2med-paid" class="settings-form"></div></section>
 <section class="card settings-card" id="s-export"><h2>Export für die Steuerberatung</h2>
-<p>Alle hier im Rechnungstool erstellten und per Karte bezahlten Rechnungen als Excel-Tabelle – für ein ganzes Jahr oder einen Monat. T2med-Rechnungen sind nicht enthalten; sie stehen in T2med.</p>
+<p>Alle hier im Rechnungstool erstellten und bezahlten Rechnungen (bar und Karte, in der Spalte „Zahlungsart“ gekennzeichnet) als Excel-Tabelle – für ein ganzes Jahr oder einen Monat. T2med-Rechnungen sind nicht enthalten; sie stehen in T2med.</p>
 <form id="export-form" class="settings-form export-form"></form>
 <p class="muted small">Die Datei hat drei Blätter: <strong>Rechnungen</strong> (je Rechnung Brutto, Netto und MwSt. je Satz), <strong>Positionen</strong> (jede Leistung einzeln) und <strong>Monatssummen</strong>. Patientennamen nur, wenn angekreuzt.</p></section>
 <section class="card settings-card" id="s-clients"><h2>Arbeitsplätze einrichten</h2>

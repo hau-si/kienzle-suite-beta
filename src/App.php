@@ -205,11 +205,14 @@ final class App {
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         if (!$parsed || $parsed->format('Y-m-d') !== $date || $date > $today) throw new Problem('Bitte ein gültiges Leistungsdatum bis einschließlich heute angeben.');
         $manual = self::string($input, 'manual_amount', 16, false);
+        $method = self::string($input, 'method', 8, false) ?: 'card';
+        if (!in_array($method, ['card', 'cash'], true)) throw new Problem('Ungültige Zahlungsart.');
         // Alte gespeicherte Startanfragen behalten ihren bisherigen Idempotenzschlüssel.
         $payload = [$ids, $manual];
         if (array_key_exists('groups', $input) || array_key_exists('reasons', $input) || array_key_exists('service_date', $input)) $payload = [...$payload, $groups, $reasons, $dateInput];
+        if ($method === 'cash') $payload[] = 'cash';
         $hash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
-        return $this->db->locked('reader', function () use ($visit, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input): array {
+        return $this->db->locked('reader', function () use ($visit, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input, $method): array {
             $existing = $this->db->one('SELECT * FROM payments WHERE request_id=?', [$request]);
             if ($existing) {
                 if ($existing['visit_id'] !== $visit['id'] || $existing['request_hash'] !== $hash) throw new Problem('Der Vorgangsschlüssel gehört zu einer anderen Zahlung.', 409);
@@ -219,8 +222,9 @@ final class App {
             $this->editable($fresh);
             $pending = $this->db->one("SELECT * FROM payments WHERE visit_id=? AND payment_status IN ('starting','pending','unknown','cancel_requested','successful')", [$visit['id']]);
             if ($pending) return $this->publicPayment($pending);
-            if ($this->readerPayment($visit)) throw new Problem('Das Terminal ist belegt. Du kannst den anderen Vorgang unten prüfen oder abbrechen.', 409);
-            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input): array {
+            // Barzahlung braucht kein Terminal.
+            if ($method === 'card' && $this->readerPayment($visit)) throw new Problem('Das Terminal ist belegt. Du kannst den anderen Vorgang unten prüfen oder abbrechen.', 409);
+            $payment = $this->db->transaction(function () use ($fresh, $request, $hash, $ids, $manual, $groups, $reasons, $date, $input, $method): array {
                 $visit = $fresh;
                 $items = []; $amount = 0; $max = $this->config->get('app', 'max_amount_cents');
                 $tax = Tax::settings($this->config);
@@ -250,6 +254,7 @@ final class App {
                 $hasGoae = count(array_filter($items, static fn($s) => ($s['goae_code'] ?? '') !== ''));
                 if ($hasGoae && !$this->config->practiceReady()) throw new Problem('Für GOÄ-Belege bitte zuerst Praxisname und Anschrift in den Einstellungen eintragen.');
                 $invoice = null;
+                if ($method === 'cash' && !$this->config->practiceReady()) throw new Problem('Für Barzahlungen wird eine Rechnung erstellt. Bitte zuerst Praxisname und Anschrift in den Einstellungen eintragen.', 409);
                 if ($this->config->practiceReady()) {
                     $practice = [];
                     foreach (['name','street','city','contact'] as $key) $practice[$key] = $this->config->get('practice', $key, '');
@@ -261,13 +266,29 @@ final class App {
                         JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
                 }
                 $id = self::id();
-                $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-                    [$id, $visit['id'], $request, $hash, 'POS-' . strtoupper($id), $this->config->get('sumup', 'reader_id') ?: 'mock-reader', $amount, json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'starting', time(), $invoice]);
+                if ($method === 'cash') {
+                    // Bar: sofort bezahlt, eigene fortlaufende Rechnungsnummer je Jahr (Testmodus getrennt).
+                    $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,paid_at,transaction_id,invoice_json,payment_method) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        [$id, $visit['id'], $request, $hash, 'BAR-' . strtoupper($id), 'cash', $amount, json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'successful', time(), time(), $this->cashNumber(), $invoice, 'cash']);
+                } else {
+                    $this->db->query('INSERT INTO payments(id,visit_id,request_id,request_hash,reference,reader_id,amount_cents,services_json,payment_status,created_at,invoice_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                        [$id, $visit['id'], $request, $hash, 'POS-' . strtoupper($id), $this->config->get('sumup', 'reader_id') ?: 'mock-reader', $amount, json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'starting', time(), $invoice]);
+                }
                 $this->markAutoPrint($id, $input);
                 return $this->db->one('SELECT * FROM payments WHERE id=?', [$id]);
             });
-            return $this->begin($payment);
+            return $payment['payment_method'] === 'cash' ? $this->publicPayment($payment) : $this->begin($payment);
         });
+    }
+    /** Nächste Rechnungsnummer für Barzahlungen: BAR-2026-0001 (im Testmodus TEST-BAR-…). Aufruf in der Transaktion. */
+    private function cashNumber(): string {
+        $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
+        $prefix = ($this->config->get('sumup', 'mode') === 'mock' ? 'TEST-BAR-' : 'BAR-') . (new \DateTimeImmutable('now', $zone))->format('Y') . '-';
+        $last = 0;
+        foreach ($this->db->query("SELECT transaction_id FROM payments WHERE payment_method='cash' AND transaction_id LIKE ?", [$prefix . '%'])->fetchAll(\PDO::FETCH_COLUMN) as $number) {
+            $last = max($last, (int)substr($number, strlen($prefix)));
+        }
+        return $prefix . str_pad((string)($last + 1), 4, '0', STR_PAD_LEFT);
     }
     // Aufrufer hält die Terminalsperre; die Zahlung ist bereits als 'starting' gespeichert.
     private function begin(array $payment): array {
@@ -460,9 +481,10 @@ final class App {
         if ($number === '') throw new Problem('Die SumUp-Transaktions-ID für die Rechnungsnummer fehlt. Bitte den Zahlungsstatus prüfen.', 409);
         $paid = (new \DateTimeImmutable('@' . $payment['paid_at']))->setTimezone(new \DateTimeZone($invoice['timezone']));
         $invoice['number'] = $number; $invoice['issued_date'] = $paid->format('Y-m-d');
+        $cash = ($payment['payment_method'] ?? 'card') === 'cash';
         return InvoiceReceipt::source($invoice, ['status' => $payment['payment_status'], 'paid_date' => $paid->format('d.m.Y H:i'),
-            'reference' => $payment['reference'], 'transaction_id' => $number, 'mock' => $invoice['mock']],
-            $this->config->get('practice', 'append_sumup_receipt', false) ? $this->sumup->receiptSource($payment) : null);
+            'reference' => $payment['reference'], 'transaction_id' => $number, 'mock' => $invoice['mock'], 'method' => $cash ? 'cash' : 'card'],
+            !$cash && $this->config->get('practice', 'append_sumup_receipt', false) ? $this->sumup->receiptSource($payment) : null);
     }
     public function receiptShare(array $visit, string $id): array {
         $payment = $this->payment($visit, $id);
@@ -796,7 +818,7 @@ final class App {
     }
     private function publicPayment(array $p): array {
         return array_intersect_key($p, array_flip(['id', 'amount_cents', 'currency', 'reference', 'payment_status', 'doc_status', 'paid_at', 'error_message'])) +
-            ['local_receipt' => !empty($p['invoice_json']), 'invoice_number' => !empty($p['invoice_json']) && $p['payment_status'] === 'successful' ? $p['transaction_id'] : null,
+            ['method' => $p['payment_method'] ?? 'card', 'local_receipt' => !empty($p['invoice_json']), 'invoice_number' => !empty($p['invoice_json']) && $p['payment_status'] === 'successful' ? $p['transaction_id'] : null,
              't2med_invoice' => $p['t2med_invoice'] ?? null, 'invoice_export' => $this->exportState($p), 'invoice_print' => $this->printState($p)];
     }
     private function exportState(array $p): ?array {

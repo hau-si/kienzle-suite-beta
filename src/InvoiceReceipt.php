@@ -51,7 +51,8 @@ final class InvoiceReceipt {
         if ($tax && ($tax['tax_id'] ?? '') !== '') $text('St.-Nr./USt-IdNr.: ' . $tax['tax_id'], false, 20);
         $rule();
         $text($invoice['title'], true);
-        $text('Rechnungsnummer (SumUp):'); $text($invoice['number'], false, 20);
+        $cash = ($payment['method'] ?? 'card') === 'cash';
+        $text($cash ? 'Rechnungsnummer:' : 'Rechnungsnummer (SumUp):'); $text($invoice['number'], false, 20);
         $text('Rechnungsdatum:'); $text($date($invoice['issued_date']));
         $y += 10;
         $text('Patient:', true); $text($invoice['patient']['name']);
@@ -85,10 +86,12 @@ final class InvoiceReceipt {
         $rule();
         if ($sumupReceipt === null) {
             $text('ZAHLUNGSBESTÄTIGUNG', true);
-            $amount('Bezahlt per Karte', $invoice['total_cents'], true);
-            $text('Status: ERFOLGREICH'); $text($payment['paid_date']);
-            $y += 8; $text('Zahlungsreferenz:', false, 20); $text($payment['reference'], false, 20);
-            $y += 8; $text('SumUp-Transaktion:', false, 20); $text($payment['transaction_id'], false, 20);
+            $amount($cash ? 'Bar bezahlt' : 'Bezahlt per Karte', $invoice['total_cents'], true);
+            $text($cash ? 'Betrag bar erhalten' : 'Status: ERFOLGREICH'); $text($payment['paid_date']);
+            if (!$cash) {
+                $y += 8; $text('Zahlungsreferenz:', false, 20); $text($payment['reference'], false, 20);
+                $y += 8; $text('SumUp-Transaktion:', false, 20); $text($payment['transaction_id'], false, 20);
+            }
             $rule();
         }
         $text('Vielen Dank.');
