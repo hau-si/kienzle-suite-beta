@@ -46,14 +46,47 @@ final class Letterxpress {
             finally { @unlink($file); }
         };
         $clean = $rewrite($pdf, ['--decrypt', '--object-streams=disable']) ?? $pdf;
-        $fixed = preg_replace_callback('#/(MediaBox|CropBox)(\s*)\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', function (array $m): string {
-            [$x0, $y0, $x1, $y1] = [(float)$m[3], (float)$m[4], (float)$m[5], (float)$m[6]];
+        $resize = function (array $m): ?array {
+            // Neue Seitenbox für Hochformat anderer Größe: obere linke Ecke bleibt; sonst null.
+            [$x0, $y0, $x1, $y1] = array_map('floatval', $m);
             $w = $x1 - $x0; $h = $y1 - $y0;
-            if ($h <= $w || abs($w - 595) <= 2 && abs($h - 842) <= 2 || $w < 400 || $w > 700 || $h < 600 || $h > 1000) return $m[0];
-            return '/' . $m[1] . $m[2] . '[' . round($x0, 2) . ' ' . round($y1 - 842, 2) . ' ' . round($x0 + 595, 2) . ' ' . round($y1, 2) . ']';
+            if ($h <= $w || abs($w - 595) <= 2 && abs($h - 842) <= 2 || $w < 400 || $w > 700 || $h < 600 || $h > 1000) return null;
+            return [round($x0, 2), round($y1 - 842, 2), round($x0 + 595, 2), round($y1, 2)];
+        };
+        // Bevorzugt über qpdf-JSON: unabhängig von Dateiaufbau (Objektströme, Verweisströme, vererbte Seitenboxen).
+        $viaJson = (function () use ($binary, $clean, $resize): ?string {
+            $in = tempnam(sys_get_temp_dir(), 'ks-lxp-'); $update = tempnam(sys_get_temp_dir(), 'ks-lxp-');
+            if ($in === false || $update === false) return null;
+            try {
+                chmod($in, 0600); chmod($update, 0600);
+                if (file_put_contents($in, $clean) !== strlen($clean)) return null;
+                $dump = Command::run([$binary, '--json=2', '--json-key=qpdf', '--warning-exit-0', $in], '', 30);
+                $json = $dump['code'] === 0 ? json_decode($dump['output'], true, 64) : null;
+                if (!is_array($json) || !isset($json['qpdf'][1]) || !is_array($json['qpdf'][1])) return null;
+                $changes = [];
+                foreach ($json['qpdf'][1] as $key => $object) {
+                    $value = is_array($object) ? ($object['value'] ?? null) : null;
+                    if (!is_array($value)) continue;
+                    $changed = false;
+                    foreach (['/MediaBox', '/CropBox'] as $box) {
+                        if (isset($value[$box]) && is_array($value[$box]) && count($value[$box]) === 4 && ($new = $resize($value[$box]))) { $value[$box] = $new; $changed = true; }
+                    }
+                    if ($changed) $changes[$key] = ['value' => $value];
+                }
+                if (!$changes) return null;
+                file_put_contents($update, json_encode(['version' => 2, 'qpdf' => [new \stdClass(), $changes]], JSON_UNESCAPED_SLASHES));
+                $out = Command::run([$binary, '--update-from-json=' . $update, '--object-streams=disable', '--warning-exit-0', $in, '-'], '', 30);
+                return $out['code'] === 0 && str_starts_with($out['output'], '%PDF-') ? $out['output'] : null;
+            } catch (\Throwable) { return null; }
+            finally { @unlink($in); @unlink($update); }
+        })();
+        if ($viaJson !== null) return $viaJson;
+        // Rückfall: Seitenboxen im Text ersetzen und Verweistabelle von qpdf neu aufbauen lassen.
+        $fixed = preg_replace_callback('#/(MediaBox|CropBox)(\s*)\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]#', function (array $m) use ($resize): string {
+            $new = $resize([$m[3], $m[4], $m[5], $m[6]]);
+            return $new ? '/' . $m[1] . $m[2] . '[' . implode(' ', $new) . ']' : $m[0];
         }, $clean);
         if ($fixed === null || $fixed === $clean) return $clean;
-        // Beschriebene Seitengrößen ändern die Dateilängen: qpdf baut Verweistabelle neu auf.
         return $rewrite($fixed, ['--object-streams=disable']) ?? $clean;
     }
 

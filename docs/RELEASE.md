@@ -1,9 +1,11 @@
-Version 1.4.1-rechnung.40 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.41 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.41: Letterxpress: Umwandlung auf A4 über qpdf-JSON (robust bei Objekt- und Verweisströmen, vererbten Seitenboxen), Textersatz nur noch als Rückfall.
+  Der Eingangsdrucker „SumUp-Rechnung“ bietet nur noch A4 an (kein US Letter mehr), damit Windows die Rechnung nicht auf Letter umrechnet.
 - Neu in rechnung.40: Letterxpress: fehlt qpdf auf dem Server, sagen Fehlermeldung und Verbindungstest das ausdrücklich.
 - Neu in rechnung.39: Letterxpress: Vorabprüfung des PDFs (A4 hoch, unverschlüsselt, ungedreht) nach der Umwandlung; bei Abweichung kein Versand und klare Meldung statt Ablehnung durch Letterxpress.
 - Neu in rechnung.38: Letterxpress: Hochformat-PDFs in anderer Größe (z. B. US Letter 612×792 aus dem Druckertreiber) werden auf A4 gebracht (obere linke Ecke bleibt, nichts wird skaliert).
