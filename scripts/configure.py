@@ -41,6 +41,16 @@ def write_private(path, text, mode=0o600):
     os.replace(temp, path)
 
 
+def port_free(port):
+    """True, wenn kein Programm auf dem Port lauscht. SO_REUSEADDR: kürzlich geschlossene Verbindungen (TIME_WAIT)
+    – z. B. vom Browser der Aktualisierungsseite – dürfen die Prüfung nicht fälschlich scheitern lassen."""
+    with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try: probe.bind(('0.0.0.0', port))
+        except OSError: return False
+    return True
+
+
 def main():
     os.umask(0o077)
     ROOT.mkdir(parents=True, exist_ok=True)
@@ -63,9 +73,7 @@ def main():
     # Bei Updates kann der eigene Dienst bereits auf dem gewünschten Port laufen.
     own_active = subprocess.run(['systemctl','is-active','--quiet','kienzle-sumup-apache.service']).returncode == 0
     if not (own_active and port == get('app','port')):
-        with socket.socket() as probe:
-            try: probe.bind(('0.0.0.0',port))
-            except OSError: raise ValueError(f'Port {port} ist bereits belegt.')
+        if not port_free(port): raise ValueError(f'Port {port} ist bereits belegt.')
     base = f'https://{parsed.hostname}:{port}'
     mode = ask('Betrieb: mock oder live', get('sumup','mode','mock'))
     if mode not in ('mock','live'): raise ValueError('Bitte mock oder live wählen.')

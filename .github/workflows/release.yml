@@ -40,6 +40,7 @@ jobs:
       - run: php tests/updater.php
       - run: php tests/security.php
       - run: php tests/firewall.php
+      - run: python3 tests/configure-port.py
       - run: bash tests/firewall-apply.sh
       - run: sudo bash tests/self-update.sh
       - run: php tests/print-format.php
