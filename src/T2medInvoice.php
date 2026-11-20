@@ -28,9 +28,9 @@ final class T2medInvoice {
         $text = str_replace(["\u{00a0}", "\r"], [' ', ''], $text);
         if (trim($text) === '') throw new Problem('Die Rechnung enthält keinen Text. Bitte als Text-PDF aus T2med drucken.', 422);
 
-        $number = self::single($text, '/Re\.-Nr\.:[ \t]*([A-Za-z0-9][A-Za-z0-9\/._-]{0,39})/u', 'Rechnungsnummer');
-        $date = self::date(self::single($text, '/Re\.-Datum:[ \t]*(\d{2}\.\d{2}\.\d{4})/u', 'Rechnungsdatum'));
-        $total = self::cents(self::single($text, '/Gesamtsumme:[ \t]*(-?[\d.]+,\d{2})[ \t]*€/u', 'Gesamtsumme'));
+        $number = self::single($text, '/Re\.-Nr\.:[ \t]*([A-Za-z0-9][A-Za-z0-9\/._-]{0,39})/u', 'Rechnungsnummer', 'Re.-Nr.:');
+        $date = self::date(self::single($text, '/Re\.-Datum:[ \t]*(\d{2}\.\d{2}\.\d{4})/u', 'Rechnungsdatum', 'Re.-Datum:'));
+        $total = self::cents(self::single($text, '/Gesamtsumme:[ \t]*(-?[\d.]+,\d{2})[ \t]*€/u', 'Gesamtsumme', 'Gesamtsumme: … €'));
         // Gegenprobe mit dem Überweisungssatz, falls vorhanden.
         if (preg_match_all('/Betrag von[ \t]*(-?[\d.]+,\d{2})[ \t]*€/u', $text, $m)) {
             foreach ($m[1] as $value) if (self::cents($value) !== $total) throw new Problem('Gesamtsumme und Zahlbetrag der Rechnung widersprechen sich.', 422);
@@ -62,10 +62,11 @@ final class T2medInvoice {
         return $fhir !== '' && ($pdf === $fhir || str_ends_with($pdf, ' ' . $fhir));
     }
 
-    private static function single(string $text, string $pattern, string $label): string {
+    private static function single(string $text, string $pattern, string $label, string $hint): string {
         preg_match_all($pattern, $text, $m);
         $values = array_values(array_unique($m[1] ?? []));
-        if (count($values) !== 1) throw new Problem($label . ' der Rechnung ist nicht eindeutig lesbar.', 422);
+        if (count($values) === 0) throw new Problem($label . ' der Rechnung nicht gefunden (im PDF-Text fehlt die Bezeichnung „' . $hint . '“).', 422);
+        if (count($values) > 1) throw new Problem($label . ' der Rechnung ist nicht eindeutig (' . count($values) . ' verschiedene Werte).', 422);
         return $values[0];
     }
     private static function cents(string $value): int {
