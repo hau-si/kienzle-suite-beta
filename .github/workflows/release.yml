@@ -35,6 +35,7 @@ jobs:
           python3 -B -m unittest discover -s terminzettel/tests -v
       - run: php tests/terminzettel.php
       - run: python3 -m pip install --user --break-system-packages openpyxl && php tests/tax.php
+      - run: php tests/goae-t2med.php
       - run: php tests/print-format.php
       - run: php tests/mail-mime.php
       - run: python3 tests/tls-pin.py

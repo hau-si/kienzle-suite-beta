@@ -82,8 +82,9 @@ function render(data) {
   $('invoice-printer-help').hidden = !data.invoice_printer;
   if (data.clients) renderClients(data.clients);
   if (data.export_years) renderExport(data.export_years, data.mode);
+  if (data.export_years) t2medPaidSetup(data.export_years, data.mode);
   const tabs = $('tabs'), root = $('sections'); tabs.replaceChildren(); root.replaceChildren();
-  tabs.append(el('a', 'Drucker einrichten', 'tab-strong', {href: '#s-printers'}), el('a', 'Arbeitsplätze einrichten', 'tab-strong', {href: '#s-clients'}), el('a', 'Export Steuerberatung', 'tab-strong', {href: '#s-export'}));
+  tabs.append(el('a', 'Drucker einrichten', 'tab-strong', {href: '#s-printers'}), el('a', 'Arbeitsplätze einrichten', 'tab-strong', {href: '#s-clients'}), el('a', 'T2med abhaken', 'tab-strong', {href: '#s-t2med-paid'}), el('a', 'Export Steuerberatung', 'tab-strong', {href: '#s-export'}));
   for (const section of data.sections) {
     tabs.append(el('a', section.label, null, {href: '#s-' + section.id}));
     const card = el('section', null, 'card settings-card', {id: 's-' + section.id});
@@ -309,6 +310,57 @@ function renderExport(years, mode) {
   const update = () => { link.href = '/tax-export.php?' + new URLSearchParams({year: year.value, month: month.value, names: nameBox.checked ? '1' : '0', test: testBox && testBox.checked ? '1' : '0'}); };
   form.onchange = update; update();
   link.onclick = () => message('Excel-Tabelle für ' + (month.value === '0' ? 'das Jahr ' + year.value : MONTH_NAMES[month.value] + ' ' + year.value) + ' wird geladen.');
+}
+
+// ---- Bezahlte T2med-Rechnungen abhaken -------------------------------------------------
+let t2medFilter = {status: 'open', year: 0, month: 0, test: false};
+function t2medPaidSetup(years, mode) {
+  const box = $('t2med-paid'); if (box.dataset.ready) return; box.dataset.ready = '1';
+  const bar = el('div', null, 'export-row t2med-bar');
+  const status = el('select', null, null, {'aria-label': 'Anzeigen'}); status.append(el('option', 'Noch nicht abgehakt', null, {value: 'open'}), el('option', 'Alle', null, {value: 'all'}));
+  const year = el('select', null, null, {'aria-label': 'Jahr'}); year.append(el('option', 'Alle Jahre', null, {value: '0'})); for (const y of years) year.append(el('option', String(y), null, {value: String(y)}));
+  const month = el('select', null, null, {'aria-label': 'Monat'}); MONTH_NAMES.forEach((n, i) => month.append(el('option', i ? n : 'Alle Monate', null, {value: String(i)})));
+  for (const [label, input] of [['Anzeigen', status], ['Jahr', year], ['Monat', month]]) { const f = el('div', null, 'field'); f.append(el('label', label), input); bar.append(f); }
+  box.append(bar);
+  let test = null;
+  if (mode !== 'live') { const l = el('label', null, 'check'); test = el('input', null, null, {type: 'checkbox'}); l.append(test, document.createTextNode(' Testzahlungen anzeigen (nur zum Ausprobieren – nie in T2med abhaken)')); box.append(l); }
+  const summary = el('p', null, 'muted small', {id: 't2med-summary'}); const table = el('div', null, 't2med-table', {id: 't2med-table'});
+  const buttons = el('div', null, 'row-buttons');
+  const done = el('button', 'Markierte als in T2med abgehakt', 'primary', {type: 'button'});
+  const undo = el('button', 'Markierte wieder öffnen', 'secondary', {type: 'button'});
+  const link = el('a', 'Liste als Excel herunterladen', 'button secondary', {download: ''});
+  buttons.append(done, undo, link); box.append(summary, table, buttons);
+  const read = () => { t2medFilter = {status: status.value, year: Number(year.value), month: year.value === '0' ? 0 : Number(month.value), test: !!(test && test.checked)}; month.disabled = year.value === '0';
+    link.href = '/tax-export.php?' + new URLSearchParams({kind: 't2med', status: t2medFilter.status, year: t2medFilter.year, month: t2medFilter.month, test: t2medFilter.test ? '1' : '0'}); };
+  const load = async () => { read(); try { renderT2medPaid(await api('t2med_paid', t2medFilter)); } catch (error) { summary.textContent = error.message; } };
+  const mark = (flag, button) => busy(button, async () => {
+    const ids = [...table.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+    if (!ids.length) throw new Error('Bitte zuerst Rechnungen ankreuzen.');
+    const result = await api('t2med_done', {ids, done: flag, filter: t2medFilter}); renderT2medPaid(result); message(result.message);
+  });
+  done.onclick = () => mark(true, done); undo.onclick = () => mark(false, undo);
+  for (const input of [status, year, month, test].filter(Boolean)) input.onchange = load;
+  load();
+}
+function renderT2medPaid(data) {
+  const table = $('t2med-table'); table.replaceChildren();
+  const sum = data.rows.reduce((t, r) => t + r.amount_cents, 0);
+  const euro = c => (c / 100).toLocaleString('de-DE', {style: 'currency', currency: 'EUR'});
+  const date = d => d ? d.split('-').reverse().join('.') : '';
+  $('t2med-summary').textContent = data.rows.length ? data.rows.length + ' Rechnungen, zusammen ' + euro(sum) + '. Noch nicht abgehakt insgesamt: ' + data.open_total + '.' : 'Keine Rechnungen für diese Auswahl.' + (data.open_total ? '' : ' Alles abgehakt.');
+  if (!data.rows.length) return;
+  const t = el('table'); const head = el('tr');
+  const all = el('input', null, null, {type: 'checkbox', 'aria-label': 'Alle auswählen'}); const th = el('th'); th.append(all); head.append(th);
+  for (const h of ['Re.-Nr.', 'Re.-Datum', 'Patient', 'Geb.', 'Betrag', 'Bezahlt', 'Abgehakt']) head.append(el('th', h));
+  t.append(head);
+  for (const r of data.rows) {
+    const tr = el('tr', null, r.done_date ? 'done' : ''); const td = el('td'); const c = el('input', null, null, {type: 'checkbox', value: r.id, 'aria-label': 'Rechnung ' + r.number}); td.append(c); tr.append(td);
+    for (const v of [r.number + (r.test ? ' (Test)' : ''), date(r.invoice_date), r.patient, date(r.birthdate), euro(r.amount_cents), date(r.paid_date) + ' ' + r.paid_time, date(r.done_date) || '–']) tr.append(el('td', v));
+    tr.onclick = e => { if (e.target !== c) c.checked = !c.checked; };
+    t.append(tr);
+  }
+  all.onchange = () => t.querySelectorAll('td input').forEach(c => { c.checked = all.checked; });
+  table.append(t);
 }
 
 // ---- Arbeitsplätze ---------------------------------------------------------------------

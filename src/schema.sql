@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS services (
     active INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL,
     goae_code TEXT NOT NULL DEFAULT '', factor TEXT NOT NULL DEFAULT '',
     fee_type TEXT NOT NULL DEFAULT 'standard', on_request INTEGER NOT NULL DEFAULT 0,
-    vat INTEGER NOT NULL DEFAULT 0
+    vat INTEGER NOT NULL DEFAULT 0, base_cents INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS service_groups (
     id TEXT PRIMARY KEY, label TEXT NOT NULL, service_ids_json TEXT NOT NULL,
@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS payments (
     fhir_resource_id TEXT, fhir_written_at INTEGER, error_message TEXT NOT NULL DEFAULT '',
     invoice_json TEXT, inbox_id TEXT, t2med_invoice TEXT,
     export_status TEXT NOT NULL DEFAULT '', export_error TEXT NOT NULL DEFAULT '', export_path TEXT NOT NULL DEFAULT '',
-    auto_print INTEGER NOT NULL DEFAULT 0, print_status TEXT NOT NULL DEFAULT '', print_error TEXT NOT NULL DEFAULT '', print_info TEXT NOT NULL DEFAULT ''
+    auto_print INTEGER NOT NULL DEFAULT 0, print_status TEXT NOT NULL DEFAULT '', print_error TEXT NOT NULL DEFAULT '', print_info TEXT NOT NULL DEFAULT '',
+    t2med_done_at INTEGER
 );
 CREATE UNIQUE INDEX IF NOT EXISTS reader_busy ON payments(reader_id)
     WHERE payment_status IN ('starting','pending','unknown','cancel_requested');

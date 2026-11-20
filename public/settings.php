@@ -39,6 +39,9 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <div id="printer-found"></div>
 <form id="printer-form" class="settings-form"></form>
 </div></section>
+<section class="card settings-card" id="s-t2med-paid"><h2>T2med-Rechnungen als bezahlt abhaken</h2>
+<p>Alle über den Drucker „SumUp-Rechnung“ übernommenen und per Karte bezahlten T2med-Rechnungen, nach Rechnungsnummer sortiert. In T2med unter Rechnungen die Nummern als bezahlt markieren und hier anschließend abhaken – dann erscheinen beim nächsten Mal nur die neuen.</p>
+<div id="t2med-paid" class="settings-form"></div></section>
 <section class="card settings-card" id="s-export"><h2>Export für die Steuerberatung</h2>
 <p>Alle hier im Rechnungstool erstellten und per Karte bezahlten Rechnungen als Excel-Tabelle – für ein ganzes Jahr oder einen Monat. T2med-Rechnungen sind nicht enthalten; sie stehen in T2med.</p>
 <form id="export-form" class="settings-form export-form"></form>

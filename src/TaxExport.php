@@ -52,6 +52,67 @@ final class TaxExport {
         return $out;
     }
 
+    /**
+     * Per Karte bezahlte T2med-Rechnungen (virtueller Drucker „SumUp-Rechnung“) zum Abhaken in T2med.
+     * $status: 'open' = noch nicht als erledigt markiert, 'all' = alle im Zeitraum (Jahr 0 = alle Jahre).
+     */
+    public function t2medPaid(string $status = 'open', int $year = 0, int $month = 0, bool $includeTest = false): array {
+        if (!in_array($status, ['open', 'all'], true) || ($year !== 0 && ($year < 2000 || $year > 2100)) || $month < 0 || $month > 12 || ($month && !$year)) throw new Problem('Ungültige Auswahl.', 422);
+        $where = ["p.payment_status='successful'", 'p.t2med_invoice IS NOT NULL']; $params = [];
+        if ($status === 'open') $where[] = 'p.t2med_done_at IS NULL';
+        if ($year) {
+            $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
+            $from = new \DateTimeImmutable(sprintf('%04d-%02d-01 00:00:00', $year, $month ?: 1), $zone);
+            $to = $month ? $from->modify('+1 month') : $from->modify('+1 year');
+            $where[] = 'p.paid_at>=? AND p.paid_at<?'; array_push($params, $from->getTimestamp(), $to->getTimestamp());
+        }
+        if (!$includeTest) $where[] = "p.reader_id<>'mock-reader'";
+        $zone = new \DateTimeZone($this->config->get('app', 'timezone'));
+        $rows = $this->db->query('SELECT p.id,p.t2med_invoice,p.amount_cents,p.paid_at,p.transaction_id,p.reader_id,p.t2med_done_at,i.invoice_date,i.patient_name,i.patient_birthdate
+            FROM payments p LEFT JOIN invoice_inbox i ON i.id=p.inbox_id WHERE ' . implode(' AND ', $where) . ' ORDER BY p.t2med_invoice', $params)->fetchAll();
+        $date = static fn(?int $t): string => $t ? (new \DateTimeImmutable('@' . $t))->setTimezone($zone)->format('Y-m-d') : '';
+        usort($rows, static fn($a, $b) => strnatcasecmp($a['t2med_invoice'], $b['t2med_invoice']));
+        return array_map(static fn($r) => ['id' => $r['id'], 'number' => $r['t2med_invoice'], 'invoice_date' => (string)($r['invoice_date'] ?? ''),
+            'patient' => (string)($r['patient_name'] ?? ''), 'birthdate' => (string)($r['patient_birthdate'] ?? ''), 'amount_cents' => (int)$r['amount_cents'],
+            'paid_date' => $date((int)$r['paid_at']), 'paid_time' => (new \DateTimeImmutable('@' . $r['paid_at']))->setTimezone($zone)->format('H:i'),
+            'transaction_id' => (string)$r['transaction_id'], 'done_date' => $date($r['t2med_done_at'] !== null ? (int)$r['t2med_done_at'] : null),
+            'test' => $r['reader_id'] === 'mock-reader'], $rows);
+    }
+
+    /** Ausgewählte T2med-Zahlungen als „in T2med abgehakt“ markieren (oder zurücknehmen). */
+    public function markT2medDone(array $ids, bool $done): int {
+        if (!array_is_list($ids) || count($ids) > 2000) throw new Problem('Ungültige Auswahl.', 422);
+        $count = 0;
+        $this->db->transaction(function () use ($ids, $done, &$count): void {
+            foreach ($ids as $id) {
+                if (!is_string($id) || !preg_match('/^[a-f0-9]{32}$/D', $id)) throw new Problem('Ungültige Auswahl.', 422);
+                $count += $this->db->query("UPDATE payments SET t2med_done_at=? WHERE id=? AND t2med_invoice IS NOT NULL AND payment_status='successful'", [$done ? time() : null, $id])->rowCount();
+            }
+        });
+        return $count;
+    }
+
+    public static function t2medFilename(string $status, int $year, int $month): string {
+        return 'T2med-Rechnungen-bezahlt' . ($status === 'open' ? '-offen' : '') . ($year ? '-' . $year : '') . ($month ? '-' . str_pad((string)$month, 2, '0', STR_PAD_LEFT) : '') . '.xlsx';
+    }
+
+    /** Excel-Liste der bezahlten T2med-Rechnungen, nach Rechnungsnummer sortiert. */
+    public function t2medWorkbook(string $status, int $year, int $month, bool $includeTest = false): string {
+        $rows = [];
+        foreach ($this->t2medPaid($status, $year, $month, $includeTest) as $r) {
+            $row = [$r['number'], $r['invoice_date'] ?: null, $r['patient'], $r['birthdate'] ?: null, $r['amount_cents'], $r['paid_date'], $r['paid_time'], 'Karte (SumUp)', $r['transaction_id'], $r['done_date'] ?: null];
+            if ($includeTest) $row[] = $r['test'] ? 'ja' : '';
+            $rows[] = $row;
+        }
+        $columns = [['title' => 'Rechnungsnummer', 'width' => 18], ['title' => 'Rechnungsdatum', 'type' => 'date', 'width' => 16], ['title' => 'Patient', 'width' => 28],
+            ['title' => 'Geburtsdatum', 'type' => 'date', 'width' => 14], ['title' => 'Betrag', 'type' => 'money', 'width' => 12], ['title' => 'Bezahlt am', 'type' => 'date', 'width' => 13],
+            ['title' => 'Uhrzeit', 'width' => 8], ['title' => 'Zahlungsart', 'width' => 14], ['title' => 'SumUp-Transaktion', 'width' => 38], ['title' => 'In T2med abgehakt am', 'type' => 'date', 'width' => 20]];
+        if ($includeTest) $columns[] = ['title' => 'Testzahlung', 'width' => 12];
+        $xlsx = new Xlsx();
+        $xlsx->sheet('T2med bezahlt', $columns, $rows, true);
+        return $xlsx->build();
+    }
+
     /** XLSX mit den Blättern Rechnungen, Positionen und Monatssummen. */
     public function workbook(int $year, int $month, bool $names = false, bool $includeTest = false): string {
         $invoices = $this->invoices($year, $month, $includeTest);

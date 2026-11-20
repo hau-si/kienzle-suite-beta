@@ -12,6 +12,28 @@ final class ServiceCatalog {
         if ($hundredths > self::FEES[$type]['max']) throw new Problem('Der Faktor überschreitet den gewählten Gebührenrahmen.');
         return rtrim(rtrim(number_format($hundredths / 100, 2, '.', ''), '0'), '.');
     }
+    /**
+     * GOÄ-Rechner: Faktor mit zwei Nachkommastellen, dessen Gebühr (Einfachsatz × Faktor,
+     * auf Cent gerundet) dem gewünschten Endbetrag am nächsten kommt. Mindestens 1,0-fach.
+     */
+    public static function bestFactor(int $baseCents, int $targetCents, string $type): array {
+        if (!isset(self::FEES[$type])) throw new Problem('Ungültiger Gebührenrahmen.');
+        if ($baseCents <= 0 || $targetCents <= 0) throw new Problem('Einfachsatz und Endbetrag müssen größer als 0 sein.');
+        $guess = (int)round($targetCents * 100 / $baseCents);
+        $best = null;
+        for ($h = max(100, $guess - 2); $h <= max(100, $guess + 2); $h++) {
+            $price = self::fee($baseCents, $h);
+            if ($best === null || abs($price - $targetCents) < abs($best[1] - $targetCents)) $best = [$h, $price];
+        }
+        [$h, $price] = $best;
+        $max = self::FEES[$type]['max'];
+        return ['factor' => rtrim(rtrim(number_format($h / 100, 2, '.', ''), '0'), '.'), 'price_cents' => $price,
+            'over_threshold' => $h > self::FEES[$type]['threshold'], 'over_max' => $h > $max, 'max_price_cents' => self::fee($baseCents, $max)];
+    }
+    /** Gebühr = Einfachsatz × Faktor (Hundertstel), kaufmännisch auf Cent gerundet. */
+    public static function fee(int $baseCents, int $hundredths): int {
+        return intdiv($baseCents * $hundredths + 50, 100);
+    }
     public static function needsReason(array $service): bool {
         return ($service['goae_code'] ?? '') !== '' && (int)round((float)$service['factor'] * 100) > self::FEES[$service['fee_type']]['threshold'];
     }

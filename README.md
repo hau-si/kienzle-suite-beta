@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.8**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.9**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -470,6 +470,7 @@ weiterhin ohne Passwort.
 | E-Mail-Versand | SMTP-Server und Absender |
 | Bondrucker / Praxisdrucker (A4) | Modell, Verbindung, Warteschlange; Testdruck |
 | Umsatzsteuer | MwSt.-Satz, Kleinunternehmerregelung (§ 19 UStG), Steuernummer/USt-IdNr., Hinweistexte |
+| T2med abhaken | bezahlte T2med-Rechnungen nach Nummer, in T2med erledigt markieren, Excel-Liste |
 | Export Steuerberatung | Excel-Tabelle aller Rechnungen aus dem Rechnungstool, je Jahr oder Monat |
 | Terminzettel | Starttext, Überschrift, Termine, Endtext mit eigener Schriftgröße; Kalender-QR (Position, Größe); Live-Vorschau; Testdruck |
 | Drucker einrichten | TM-m10, TM-m30III und A4-Netzwerkdrucker suchen, anlegen, übernehmen, entfernen |
@@ -485,6 +486,29 @@ Angaben werden mit Klartext abgelehnt, nichts wird halb gespeichert. Gespeichert
 Schlüssel und Passwörter werden nie wieder angezeigt; ein leeres Feld behält den Wert.
 Die Werte liegen verschlüsselt (mit dem Verschlüsselungsschlüssel aus der TOML-Datei) in der
 Datenbank und haben Vorrang vor der TOML-Datei; diese bleibt die Grundlage.
+
+#### GOÄ-Rechner
+
+Beim Anlegen einer Leistung unter „GOÄ-Angaben ergänzen“ den **Einfachsatz (1,0-fach)** und den
+**gewünschten Endbetrag** eintragen. Der Rechner wählt den Faktor mit zwei Nachkommastellen, dessen
+Gebühr (Einfachsatz × Faktor, auf Cent gerundet) dem Endbetrag am nächsten kommt, und trägt Faktor und
+Preis ein. Beispiel: Einfachsatz 8,74 €, Endbetrag 25,00 € → Faktor 2,86 → 25,00 €. Geht der Betrag nicht
+exakt auf, zeigt er den nächstmöglichen an (10,72 € und 25,00 € → 2,33 → 24,98 €). Oberhalb des
+Schwellenwerts weist er auf die nötige Begründung hin; über dem Höchstsatz des gewählten
+Gebührenrahmens nennt er den größtmöglichen Betrag und übernimmt nichts. Umgekehrt berechnet ein
+geänderter Faktor sofort den Preis. Mit Einfachsatz prüft auch der Server, dass der Preis
+Einfachsatz × Faktor entspricht; ohne Einfachsatz bleibt alles wie bisher.
+
+#### Bezahlte T2med-Rechnungen in T2med abhaken
+
+Unter **Einstellungen → T2med-Rechnungen als bezahlt abhaken** stehen alle über den Drucker
+„SumUp-Rechnung“ übernommenen und per Karte bezahlten T2med-Rechnungen, sortiert nach
+Rechnungsnummer: Rechnungsdatum, Patient, Geburtsdatum, Betrag, Zahlungszeitpunkt. Diese Rechnungen in
+der T2med-Rechnungsverwaltung als bezahlt markieren, hier ankreuzen und „Markierte als in T2med
+abgehakt“ wählen – beim nächsten Mal erscheinen nur die neuen. „Alle“, Jahr und Monat zeigen auch
+bereits abgehakte; „Markierte wieder öffnen“ nimmt ein Abhaken zurück. „Liste als Excel herunterladen“
+liefert dieselbe Auswahl als `T2med-Rechnungen-bezahlt-offen.xlsx` (mit Summenzeile). Testzahlungen
+erscheinen nur im Testmodus und nur auf Wunsch.
 
 #### Mehrwertsteuer und Export für die Steuerberatung
 

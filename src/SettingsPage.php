@@ -33,7 +33,7 @@ final class SettingsPage {
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
-        if (!in_array($action, ['get', 'printer_setup', 'printers'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        if (!in_array($action, ['get', 'printer_setup', 'printers', 't2med_paid'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
         return match ($action) {
             'get' => $this->view(),
             'save' => $this->save(App::string($input, 'section', 40), is_array($input['values'] ?? null) ? $input['values'] : []),
@@ -42,6 +42,8 @@ final class SettingsPage {
             'logout' => $this->logout($sessionToken),
             'printer_setup' => $this->printerSetup(),
             'printers' => $this->printerList(),
+            't2med_paid' => $this->t2medPaid($input),
+            't2med_done' => $this->t2medDone($input),
             'terminzettel_preview' => $this->terminzettelPreview(is_array($input['values'] ?? null) ? $input['values'] : []),
             'printer_discover' => ['found' => $this->printerReady()->discover()],
             'printer_add' => $this->printerAdd($input),
@@ -180,15 +182,40 @@ final class SettingsPage {
         ClientPackage::zip($files, $write);
     }
 
-    /** Excel-Liste für die Steuerberatung; nur mit Admin-Sitzung. */
+    private function t2medFilter(array $input): array {
+        $status = ($input['status'] ?? 'open') === 'all' ? 'all' : 'open';
+        $year = filter_var($input['year'] ?? 0, FILTER_VALIDATE_INT); $month = filter_var($input['month'] ?? 0, FILTER_VALIDATE_INT);
+        if ($year === false || $month === false) throw new Problem('Ungültiger Zeitraum.', 422);
+        return [$status, $year, $month, ($input['test'] ?? false) === true || ($input['test'] ?? '') === '1'];
+    }
+    private function t2medPaid(array $input): array {
+        [$status, $year, $month, $test] = $this->t2medFilter($input);
+        $export = new TaxExport($this->db, $this->config());
+        return ['rows' => $export->t2medPaid($status, $year, $month, $test), 'open_total' => count($export->t2medPaid('open', 0, 0, $test))];
+    }
+    private function t2medDone(array $input): array {
+        $done = ($input['done'] ?? true) !== false;
+        $count = (new TaxExport($this->db, $this->config()))->markT2medDone(is_array($input['ids'] ?? null) ? $input['ids'] : [], $done);
+        return $this->t2medPaid($input['filter'] ?? []) + ['message' => $count . ($count === 1 ? ' Rechnung' : ' Rechnungen') . ($done ? ' als in T2med abgehakt markiert.' : ' wieder als offen markiert.')];
+    }
+
+    /** Excel-Listen (Steuerberatung bzw. bezahlte T2med-Rechnungen); nur mit Admin-Sitzung. */
     public function taxExport(?string $sessionToken, array $query, callable $header, callable $write): void {
         if (!$this->admin->session($sessionToken)) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
-        $year = filter_var($query['year'] ?? '', FILTER_VALIDATE_INT);
-        $month = filter_var($query['month'] ?? '0', FILTER_VALIDATE_INT);
-        if ($year === false || $month === false) throw new Problem('Ungültiger Zeitraum.', 422);
-        $data = (new TaxExport($this->db, $this->config()))->workbook($year, $month, ($query['names'] ?? '') === '1', ($query['test'] ?? '') === '1');
+        $export = new TaxExport($this->db, $this->config());
+        if (($query['kind'] ?? '') === 't2med') {
+            [$status, $year, $month, $test] = $this->t2medFilter($query);
+            $data = $export->t2medWorkbook($status, $year, $month, $test);
+            $name = TaxExport::t2medFilename($status, $year, $month);
+        } else {
+            $year = filter_var($query['year'] ?? '', FILTER_VALIDATE_INT);
+            $month = filter_var($query['month'] ?? '0', FILTER_VALIDATE_INT);
+            if ($year === false || $month === false) throw new Problem('Ungültiger Zeitraum.', 422);
+            $data = $export->workbook($year, $month, ($query['names'] ?? '') === '1', ($query['test'] ?? '') === '1');
+            $name = TaxExport::filename($year, $month);
+        }
         $header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        $header('Content-Disposition: attachment; filename="' . TaxExport::filename($year, $month) . '"');
+        $header('Content-Disposition: attachment; filename="' . $name . '"');
         $header('Content-Length: ' . strlen($data));
         $write($data);
     }

@@ -117,7 +117,7 @@ final class App {
         return ['visit_id' => $visit['id'], 'csrf' => $browser['csrf'],
             'patient' => ['name' => $visit['patient_name'], 'birthdate' => $visit['patient_birthdate']],
             'completed' => $visit['completed_at'] !== null,
-            'services' => array_map(static fn($s) => ['vat' => (bool)$s['vat']] + $s, $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
+            'services' => array_map(static fn($s) => ['vat' => (bool)$s['vat']] + $s, $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
             'tax' => array_intersect_key(Tax::settings($this->config), ['small_business' => 1, 'rate' => 1, 'manual_vat' => 1]),
             'groups' => array_map(static fn($g) => ['id' => $g['id'], 'label' => $g['label'], 'services' => json_decode($g['service_ids_json'], true, 32, JSON_THROW_ON_ERROR)], $this->db->query('SELECT * FROM service_groups WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
             'local_receipts' => $this->config->practiceReady(),
@@ -149,10 +149,17 @@ final class App {
         if (!is_bool($onRequest)) throw new Problem('Ungültige Angabe für Leistung auf Verlangen.');
         $vat = $input['vat'] ?? false;
         if (!is_bool($vat)) throw new Problem('Ungültige Angabe zur Mehrwertsteuer.');
+        // GOÄ-Rechner: Mit Einfachsatz muss der Preis Einfachsatz × Faktor entsprechen (±1 Cent Rundung).
+        $baseInput = $code !== '' ? self::string($input, 'base', 16, false) : '';
+        $base = $baseInput !== '' ? Money::cents($baseInput, $this->config->get('app', 'max_amount_cents')) : 0;
+        if ($base > 0) {
+            $expected = ServiceCatalog::fee($base, (int)round((float)$factor * 100));
+            if (abs($expected - $cents) > 1) throw new Problem('Einfachsatz × Faktor ergibt ' . Money::format($expected) . ', eingetragen sind ' . Money::format($cents) . '. Bitte den Preis anpassen oder den GOÄ-Rechner verwenden.');
+        }
         if ($id === '') {
-            $this->db->query('INSERT INTO services(id,label,price_cents,goae_code,factor,fee_type,on_request,vat,updated_at) VALUES(?,?,?,?,?,?,?,?,?)', [self::id(), $label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, time()]);
+            $this->db->query('INSERT INTO services(id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)', [self::id(), $label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, $base, time()]);
         } else {
-            if ($this->db->query('UPDATE services SET label=?,price_cents=?,goae_code=?,factor=?,fee_type=?,on_request=?,vat=?,updated_at=? WHERE id=? AND active=1', [$label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, time(), $id])->rowCount() !== 1) throw new Problem('Leistung nicht gefunden.', 404);
+            if ($this->db->query('UPDATE services SET label=?,price_cents=?,goae_code=?,factor=?,fee_type=?,on_request=?,vat=?,base_cents=?,updated_at=? WHERE id=? AND active=1', [$label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, $base, time(), $id])->rowCount() !== 1) throw new Problem('Leistung nicht gefunden.', 404);
         }
     }
     public function deleteService(array $visit, string $id): void {

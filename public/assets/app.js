@@ -109,6 +109,7 @@ function renderServices() {
       $('service-id').value=service.id; $('service-label').value=service.label; $('service-price').value=(service.price_cents/100).toFixed(2).replace('.',',');
       $('service-goae').value=service.goae_code; $('service-factor').value=(service.factor || '2.3').replace('.',','); $('service-fee-type').value=service.fee_type;
       $('service-on-request').checked=!!service.on_request; $('goae-fields').open=!!service.goae_code; $('service-vat').checked=!!service.vat;
+      $('service-base').value=service.base_cents?(service.base_cents/100).toFixed(2).replace('.',','):''; $('service-target').value=service.base_cents?$('service-price').value:''; goaeResult('');
       $('service-save').textContent='Änderung speichern'; $('edit-reset').hidden=false; $('service-label').focus();
     };
     const del = element('button','Löschen','text-button danger'); del.onclick=() => run(async() => { if(!confirm('„'+service.label+'“ aus der Auswahl löschen? Frühere Zahlungen bleiben erhalten.')) return; await api('service_delete',{id:service.id}); resetForm(); await load(); });
@@ -142,7 +143,45 @@ function renderVatOption() {
   $('service-vat').disabled=tax.small_business; $('service-vat-note').hidden=!tax.small_business;
   $('service-vat-note').textContent='Kleinunternehmerregelung ist eingeschaltet: Rechnungen werden ohne MwSt. erstellt (Einstellungen → Umsatzsteuer).';
 }
-function resetForm() { $('service-form').reset(); $('service-id').value=''; $('goae-fields').open=false; $('service-save').textContent='Leistung hinzufügen'; $('edit-reset').hidden=true; }
+// ---- GOÄ-Rechner: Einfachsatz + Endbetrag → Faktor und Preis -------------------------
+function parseCents(value) {
+  const v=String(value||'').trim().replace(/\s|€/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.');
+  if(!/^\d+(\.\d{1,2})?$/.test(v)) return null;
+  return Math.round(Number(v)*100);
+}
+const fee=(base,h)=>Math.floor((base*h+50)/100);
+const commaFactor=h=>(h/100).toFixed(2).replace(/0$/,'').replace(/\.0$/,'').replace('.',',');
+function bestFactor(base,target) {
+  const guess=Math.round(target*100/base); let best=null;
+  for(let h=Math.max(100,guess-2); h<=Math.max(100,guess+2); h++) { const p=fee(base,h); if(!best || Math.abs(p-target)<Math.abs(best[1]-target)) best=[h,p]; }
+  return best;
+}
+function goaeResult(text, level) { const r=$('goae-result'); r.hidden=!text; r.textContent=text||''; r.className='goae-result'+(level?' '+level:''); }
+function goaeCalc(source) {
+  const base=parseCents($('service-base').value), limits=state.fee_types[$('service-fee-type').value];
+  if(!base) { goaeResult(''); return; }
+  let h, price;
+  if(source==='factor') {
+    const f=String($('service-factor').value).replace(',','.'); if(!/^\d(\.\d{1,2})?$/.test(f)) { goaeResult('Bitte einen Faktor wie 2,3 eingeben.','warn'); return; }
+    h=Math.round(Number(f)*100); price=fee(base,h); $('service-target').value=(price/100).toFixed(2).replace('.',',');
+  } else {
+    const target=parseCents($('service-target').value); if(!target) { goaeResult('Gewünschten Endbetrag eintragen, dann wird der Faktor berechnet.'); return; }
+    [h,price]=bestFactor(base,target);
+    if(h>limits.max) { goaeResult('Über dem Höchstsatz ('+commaFactor(limits.max)+'-fach): höchstens '+euro(fee(base,limits.max))+' möglich. Bitte anderen Endbetrag oder Gebührenrahmen wählen.','error'); return; }
+    $('service-factor').value=commaFactor(h);
+  }
+  if(h>limits.max) { goaeResult('Faktor über dem Höchstsatz ('+commaFactor(limits.max)+').','error'); return; }
+  $('service-price').value=(price/100).toFixed(2).replace('.',',');
+  const target=parseCents($('service-target').value);
+  const parts=['Faktor '+commaFactor(h)+' × '+euro(base)+' = '+euro(price)+' → als Preis übernommen.'];
+  if(source!=='factor' && target && price!==target) parts.push('Genau '+euro(target)+' ist mit zwei Nachkommastellen beim Faktor nicht möglich.');
+  if(h>limits.threshold) parts.push('Über dem Schwellenwert '+commaFactor(limits.threshold)+': Bei der Abrechnung ist eine Begründung nötig.');
+  goaeResult(parts.join(' '), h>limits.threshold?'warn':'ok');
+}
+for(const [id,source] of [['service-base','target'],['service-target','target'],['service-factor','factor'],['service-fee-type','target']]) $(id).addEventListener('input',()=>goaeCalc(source));
+$('service-fee-type').addEventListener('change',()=>goaeCalc('target'));
+
+function resetForm() { goaeResult(''); $('service-form').reset(); $('service-id').value=''; $('goae-fields').open=false; $('service-save').textContent='Leistung hinzufügen'; $('edit-reset').hidden=true; }
 function resetGroup() { $('group-form').reset(); $('group-id').value=''; $('group-save').textContent='Kombination hinzufügen'; $('group-reset').hidden=true; }
 function manage(show) { $('manager').hidden=!show; $('manage-toggle').setAttribute('aria-expanded',String(show)); if(show) $('manager').scrollIntoView({behavior:'smooth',block:'nearest'}); }
 function renderReader() {
@@ -296,7 +335,7 @@ $('service-fee-type').onchange=()=>{
   const fee=state.fee_types[$('service-fee-type').value];
   if(Number($('service-factor').value.replace(',','.'))*100>fee.max) $('service-factor').value=String(fee.threshold/100).replace('.',',');
 };
-$('service-form').onsubmit=e=>{ e.preventDefault(); run(async()=>{ await api('service_save',{id:$('service-id').value,label:$('service-label').value,price:$('service-price').value,goae_code:$('service-goae').value,factor:$('service-factor').value,fee_type:$('service-fee-type').value,on_request:$('service-on-request').checked,vat:$('service-vat').checked}); resetForm(); await load(); }); };
+$('service-form').onsubmit=e=>{ e.preventDefault(); run(async()=>{ await api('service_save',{id:$('service-id').value,label:$('service-label').value,price:$('service-price').value,goae_code:$('service-goae').value,factor:$('service-factor').value,fee_type:$('service-fee-type').value,on_request:$('service-on-request').checked,vat:$('service-vat').checked,base:$('service-goae').value?$('service-base').value:''}); resetForm(); await load(); }); };
 $('group-reset').onclick=resetGroup;
 $('group-form').onsubmit=e=>{e.preventDefault();run(async()=>{
   await api('group_save',{id:$('group-id').value,label:$('group-label').value,services:[...$('group-members').querySelectorAll('input:checked')].map(el=>el.value)});

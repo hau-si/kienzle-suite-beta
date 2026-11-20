@@ -1,9 +1,13 @@
-Version 1.4.1-rechnung.8 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.9 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.9: GOÄ-Rechner beim Anlegen von Leistungen (Einfachsatz + gewünschter Endbetrag →
+  nächstliegender Faktor mit zwei Nachkommastellen, Preis = Einfachsatz × Faktor; Hinweise zu
+  Schwellenwert und Höchstsatz; Serverprüfung). Liste aller bezahlten T2med-Rechnungen zum Abhaken in
+  T2med (nach Rechnungsnummer, „abgehakt“ merken, Excel-Liste). Datenbank-Version 11.
 - Neu in rechnung.8: Mehrwertsteuer je Leistung („mit MwSt.“, Preis bleibt Endpreis), Satz und
   Kleinunternehmerregelung (§ 19 UStG) unter Einstellungen → Umsatzsteuer, Steuernummer/USt-IdNr. und
   Hinweistexte auf der Rechnung, Netto/MwSt. je Satz unter der Summe. Der Satz wird je Zahlung
