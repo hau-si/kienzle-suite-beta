@@ -1,0 +1,44 @@
+<?php
+declare(strict_types=1);
+header('Cache-Control: no-store');
+header('Referrer-Policy: no-referrer');
+header('X-Content-Type-Options: nosniff');
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+$version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION')), ENT_QUOTES, 'UTF-8');
+?>
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kienzle-SumUp · Einstellungen</title><link rel="stylesheet" href="/assets/style.css?v=<?= $version ?>"><script src="/assets/settings.js?v=<?= $version ?>" defer></script></head>
+<body><main class="settings-main">
+<header class="top"><div class="brand"><span class="mark" aria-hidden="true">K</span><div><strong>kienzle-sumup</strong><span>Einstellungen</span></div></div><span id="mode" class="badge" hidden></span></header>
+<p id="message" class="notice" role="status" hidden></p>
+
+<section id="setup" class="card" hidden><h1>Ersteinrichtung</h1>
+<p>Lege das Admin-Passwort für diese Einstellungsseite fest. Arbeitsplätze kassieren weiterhin ohne Passwort.</p>
+<form id="setup-form"><label>Admin-Passwort (mind. 10 Zeichen)<input id="setup-password" type="password" autocomplete="new-password" minlength="10" required></label>
+<label>Passwort wiederholen<input id="setup-password2" type="password" autocomplete="new-password" minlength="10" required></label>
+<button class="primary wide" type="submit">Passwort festlegen</button></form>
+<p id="setup-missing" class="inline-error" hidden>Dieser Link ist unvollständig. Bitte den Einrichtungslink aus dem Installer verwenden oder einen neuen erzeugen: <code>sudo bash scripts/install-server.sh --admin-reset</code></p></section>
+
+<section id="login" class="card" hidden><h1>Anmelden</h1>
+<form id="login-form"><label>Admin-Passwort<input id="login-password" type="password" autocomplete="current-password" required></label>
+<button class="primary wide" type="submit">Anmelden</button></form>
+<p class="muted small">Passwort vergessen? Auf dem Server <code>sudo bash scripts/install-server.sh --admin-reset</code> ausführen.</p></section>
+
+<div id="settings" hidden>
+<nav id="tabs" class="settings-tabs" aria-label="Bereiche"></nav>
+<p id="warning" class="inline-error" hidden></p>
+<div id="sections"></div>
+<section class="card" id="invoice-printer-help" hidden><h2>Drucker „SumUp-Rechnung“ einrichten</h2>
+<p>Auf dem Server, auf dem T2med-Rechnungen gedruckt werden sollen (meist dieser Server), im Projektordner ausführen:</p>
+<pre class="code">sudo bash scripts/install-invoice-printer.sh</pre>
+<p class="muted small">Läuft der Druckserver auf einem anderen Rechner: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
+<button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></section>
+<section class="card"><h2>Admin-Passwort ändern</h2>
+<form id="password-form"><label>Bisheriges Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
+<label>Neues Passwort (mind. 10 Zeichen)<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>
+<button class="secondary" type="submit">Passwort ändern</button></form></section>
+<p class="settings-foot"><a href="/">Zur Kartenzahlung</a> · <button id="logout" class="text-button" type="button">Abmelden</button></p>
+</div>
+<footer>kienzle-sumup v<?= $version ?></footer>
+</main></body></html>

@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.4**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.5**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -118,7 +118,8 @@ Der TM-m30III druckt den Beleg auf 72 mm bedruckbarer Breite (80-mm-Rolle). Mit 
 geht der Bon unverändert als ESC/POS an eine RAW-Warteschlange, z. B. den per LAN angebundenen
 Drucker (`lpadmin -p TMm10 -v socket://IP:9100 -m raw`); Samba ist dafür nicht nötig. Beim
 TM-m30III im Web-Config „Sicherer Druck“ deaktivieren, sonst verwirft er RAW-Aufträge ohne Fehler.
-Der Installer fragt Modell, Verbindung und Praxisdrucker ab und installiert `cups-client`.
+Modell, Verbindung und Praxisdrucker stehen unter **Einstellungen → Bondrucker / Praxisdrucker (A4)**;
+mit „Testbon drucken“ bzw. „Testseite drucken“ lässt sich die Verbindung sofort prüfen.
 
 ### Rechnungen in einen Netzwerkordner (Steuerberatung)
 
@@ -164,29 +165,29 @@ app_invoices = true                         # auch in der App erzeugte Rechnunge
 
 ### Einrichtung
 
-**Anwendungsserver:** `sudo bash scripts/install-server.sh` ausführen und
-**T2med-Rechnungen über virtuellen Drucker „SumUp-Rechnung“ übernehmen** mit `ja`
-beantworten. Der Installer ergänzt `poppler-utils`, erzeugt den Schlüssel unter
-`[invoice_inbox]` und legt `/root/kienzle-sumup-printer` mit `invoice-printer.json` und
-`server.crt` an. Dieser Ordner ist nur für den Druckserver bestimmt, nicht für die Arbeitsplätze.
-Anschließend fragt der Installer, ob Rechnungen zusätzlich in einen Netzwerkordner kopiert
-werden sollen, und dann **„In dieser App erzeugte Rechnungen/Leistungsbelege nach erfolgreicher
-Zahlung ablegen (ja/nein)“**. Er installiert dafür `smbclient` und den stündlichen Timer.
-Die Ablage lässt sich auch ganz ohne Rechnungseingang nur für App-Rechnungen einrichten.
+**Anwendungsserver:** Unter **Einstellungen → T2med-Rechnungen übernehmen** das Häkchen setzen
+und speichern. Der Schlüssel für den Druckserver wird dabei automatisch erzeugt. Die Ablage im
+Netzwerkordner (auch nur für App-Rechnungen) steht unter **Einstellungen → Ablage im
+Netzwerkordner**; „Schreibzugriff prüfen“ legt dort kurz eine Testdatei an und löscht sie wieder.
+Der stündliche Timer für fehlgeschlagene Ablagen ist immer eingerichtet.
 
-```toml
-[invoice_inbox]
-enabled = true
-key = "…vom Installer erzeugt…"
-max_age_days = 14
-```
-
-**Druckserver (kienzlebox):** Den Ordner `/root/kienzle-sumup-printer` geschützt dorthin
-kopieren (entfällt, wenn beides auf demselben Rechner läuft) und im Projektverzeichnis ausführen:
+**Druckserver:** Läuft der Druckserver auf demselben Rechner wie Kienzle-SumUp, genügt im
+Projektverzeichnis:
 
 ```bash
-sudo bash scripts/install-invoice-printer.sh /root/kienzle-sumup-printer
+sudo bash scripts/install-invoice-printer.sh
 ```
+
+Für einen anderen Druckserver (z. B. kienzlebox) auf der Einstellungsseite
+**„Einrichtungsdatei herunterladen“** wählen, die Datei `kienzle-sumup-drucker.json` geschützt
+dorthin kopieren und angeben:
+
+```bash
+sudo bash scripts/install-invoice-printer.sh /pfad/zu/kienzle-sumup-drucker.json
+```
+
+Die Datei enthält den Eingangsschlüssel; nach der Einrichtung löschen. Ältere Installationen
+mit dem Ordner `/root/kienzle-sumup-printer` funktionieren weiter.
 
 Der Installer prüft zuerst Verbindung, Zertifikat und Schlüssel und legt dann die freigegebene
 CUPS-Warteschlange `SumUp-Rechnung` mit dem Backend `kienzle-sumup:/` an. Das Backend liest
@@ -230,7 +231,7 @@ Das Leistungsdatum ist gesondert wählbar. Die Praxis prüft die fachliche Zuord
 den eingegebenen Preis; die Anwendung prüft keine GOÄ-Ausschlüsse oder Analogbewertungen.
 Hinweise zu Rechnungsangaben: [§ 12 GOÄ](https://www.gesetze-im-internet.de/go__1982/__12.html).
 
-Der Installer fragt Praxisname und Anschrift ab. Alternativ in
+Praxisname und Anschrift unter **Einstellungen → Praxisdaten** eintragen. Alternativ in
 `/etc/kienzle-sumup/kienzle-sumup.toml` ergänzen:
 
 ```toml
@@ -260,8 +261,8 @@ GOÄ-Ziffern, Bezeichnungen, Faktoren, Einzelpreise, Begründungen und Summe. Da
 die lokale Zahlungsbestätigung mit Betrag, Zahlungszeitpunkt, Status, neutraler Referenz
 und SumUp-Transaktions-ID. **Diese medizinischen Inhalte werden nicht an SumUp übertragen.**
 
-Optional im Installer **Originalen SumUp-Beleg nach Vielen Dank statt lokaler
-Zahlungsbestätigung anhängen** mit `ja` beantworten oder im vorhandenen Abschnitt
+Optional unter **Einstellungen → Praxisdaten** **Originalen SumUp-Beleg statt lokaler
+Zahlungsbestätigung anhängen** ankreuzen oder im vorhandenen Abschnitt
 `[practice]` die Zeile `append_sumup_receipt = true` setzen. Dann folgt nach der Summe
 **„Vielen Dank.“** und direkt darunter der originale SumUp-Beleg. Zwischen beiden Teilen
 wird **nicht geschnitten**. `[printing].cut = true` schneidet erst am Ende des gesamten
@@ -319,9 +320,8 @@ Der Button erscheint nur nach erfolgreicher Zahlung und bei aktiviertem Direktdr
 Ein Klick druckt, anschließend ist ein bewusster Nachdruck möglich. PDF-Anzeige,
 E-Mail und Aktendokumentation bleiben unabhängig davon bedienbar.
 
-Im Server-Installer **Direktdruck auf Epson TM-m10 über Samba aktivieren** mit `ja`
-beantworten. Er fragt Freigabe, Druckbreite und Schnitt ab. Enter behält vorhandene
-Werte; bei einer neuen Installation ist der Direktdruck ausgeschaltet. Unter
+Unter **Einstellungen → Bondrucker** den Direktdruck einschalten und Freigabe, Druckbreite
+und Schnitt eintragen; bei einer neuen Installation ist der Direktdruck ausgeschaltet. Unter
 `/etc/kienzle-sumup/kienzle-sumup.toml` lassen sich dieselben Werte einstellen:
 
 ```toml
@@ -438,10 +438,48 @@ cd t2med-sumup
 sudo bash scripts/install-server.sh
 ```
 
-Der Installer fragt Serveradresse, Port, Betriebsmodus, SumUp-Zugangsdaten und die
-t2med-Konfiguration ab. Zugangsschlüssel werden verdeckt eingegeben. Standardport ist
-**7868 (SUMU)**. Ein belegter Port wird erkannt. Für den ersten Test `mock` wählen;
-später denselben Installer zum Umschalten auf `live` ausführen.
+Der Installer stellt **keine Fragen**. Er richtet den Server im Testmodus ein (Port
+**7868 (SUMU)**, Adresse `https://<Rechnername>:7868`) und gibt am Ende einen einmaligen
+**Einrichtungslink** aus:
+
+```text
+Ersteinrichtung im Browser (Link einmalig gültig, nicht weitergeben):
+  https://praxisserver:7868/settings.php#setup=…
+```
+
+Den Link auf einem Arbeitsplatz öffnen, ein **Admin-Passwort** (mindestens 10 Zeichen)
+festlegen und dann alles Weitere im Browser eintragen – siehe
+[Einstellungen im Browser](#einstellungen-im-browser). Wer lieber wie früher im Terminal
+antwortet: `sudo bash scripts/install-server.sh --fragen`. Ein anderer Port bzw. eine andere
+Serveradresse wird nur so oder in der TOML-Datei festgelegt, weil die Starter darauf
+eingerichtet werden.
+
+### Einstellungen im Browser
+
+Erreichbar über den Link **Einstellungen** unten auf der Kartenzahlungsseite oder direkt unter
+`https://<server>:7868/settings.php`. Die Seite ist durch das Admin-Passwort geschützt
+(Sitzung 30 Minuten, nach 5 Fehlversuchen 5 Minuten Sperre); die Arbeitsplätze kassieren
+weiterhin ohne Passwort.
+
+| Bereich | Inhalt |
+| --- | --- |
+| Betrieb und SumUp | Testmodus/Live, API-Key, Affiliate-Key, App-ID, Händlercode, Reader-ID; „Verbindung zu SumUp prüfen“ |
+| Zahlungen | Höchstbetrag pro Zahlung |
+| T2med-Anbindung | Testmodus/Live, FHIR-Adresse, API-Key (leer: Demo-Key), Aktenkürzel, optional Zertifikat |
+| Praxisdaten | Rechnungsaussteller und Anschrift |
+| E-Mail-Versand | SMTP-Server und Absender |
+| Bondrucker / Praxisdrucker (A4) | Modell, Verbindung, Warteschlange; Testdruck |
+| T2med-Rechnungen übernehmen | virtueller Drucker „SumUp-Rechnung“, Einrichtungsdatei für den Druckserver |
+| Ablage im Netzwerkordner | Freigabe, Unterordner, Benutzer, Passwort; „Schreibzugriff prüfen“ |
+
+Jeder Bereich wird einzeln gespeichert und gilt sofort für alle Arbeitsplätze. Ungültige
+Angaben werden mit Klartext abgelehnt, nichts wird halb gespeichert. Gespeicherte
+Schlüssel und Passwörter werden nie wieder angezeigt; ein leeres Feld behält den Wert.
+Die Werte liegen verschlüsselt (mit dem Verschlüsselungsschlüssel aus der TOML-Datei) in der
+Datenbank und haben Vorrang vor der TOML-Datei; diese bleibt die Grundlage.
+
+Admin-Passwort vergessen: `sudo bash scripts/install-server.sh --admin-reset` gibt einen neuen
+Einrichtungslink aus. Die gespeicherten Einstellungen bleiben dabei erhalten.
 
 Es entstehen eine eigene Apache-Instanz und ein eigener PHP-FPM-Dienst. Die Anwendung
 verwendet die Distributionspakete, ihre eigene Konfiguration und eigene Laufzeitdateien.
@@ -546,9 +584,9 @@ vollständigen Token-Links teilen.
 
 ## SumUp Solo einrichten
 
-Der Installer benötigt fünf Werte aus deinem **SumUp-Händlerkonto**:
+Unter **Einstellungen → Betrieb und SumUp** werden fünf Werte aus deinem **SumUp-Händlerkonto** eingetragen:
 
-| Installer-Feld | Bedeutung |
+| Feld | Bedeutung |
 | --- | --- |
 | SumUp API-Key | Geheimer Schlüssel für die API-Aufrufe deines Kontos. |
 | SumUp Affiliate-Key | Kennzeichnet die Anbindung bei Kartenzahlungen. |
@@ -686,9 +724,9 @@ Tabellen, einzeilige Strings, boolesche Werte, positive Dezimal-Ganzzahlen und e
 Arrays aus doppelt zitierten Strings. Beispiel: `config/kienzle-sumup.example.toml`.
 Kein INI-Parser, keine automatische Typumwandlung bei Geldbeträgen.
 
-Bei der ersten Einrichtung der t2med-Anbindung übernimmt eine leere Eingabe beim
-FHIR API-Key den hinterlegten Demo-Key. Ein eingegebener eigener Schlüssel hat Vorrang;
-bei Updates behält Enter den bereits gespeicherten Schlüssel.
+Bei der ersten Einrichtung der t2med-Anbindung übernimmt ein leeres Feld beim
+FHIR API-Key den hinterlegten Demo-Key. Ein eingegebener eigener Schlüssel hat Vorrang.
+Die Einstellungen aus dem Browser überlagern die TOML-Datei; Updates verändern sie nicht.
 
 Nach manuellen Änderungen den Installer erneut ausführen, damit Apache-Port und
 Clientkonfiguration zur TOML passen. Bestehende API-Schlüssel, Verschlüsselungsschlüssel,

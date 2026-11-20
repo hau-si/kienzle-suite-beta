@@ -5,7 +5,7 @@ namespace KienzleSumup;
 class ReceiptMailer {
     public function __construct(private Config $config) {}
     public function message(string $email, string $pdf, string $reference): \PHPMailer\PHPMailer\PHPMailer {
-        if (!$this->config->get('mail', 'enabled', false)) throw new Problem('E-Mail-Versand ist im Server-Installer noch nicht eingerichtet.', 409);
+        if (!$this->config->get('mail', 'enabled', false)) throw new Problem('E-Mail-Versand ist noch nicht eingerichtet (Einstellungen → E-Mail-Versand).', 409);
         if (!class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
             $autoload = '/usr/share/php/libphp-phpmailer/autoload.php';
             if (!is_file($autoload)) throw new Problem('Mailbibliothek fehlt. Bitte den aktualisierten Server-Installer ausführen (libphp-phpmailer).', 503);

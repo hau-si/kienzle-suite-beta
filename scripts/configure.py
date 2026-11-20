@@ -19,7 +19,14 @@ SOURCE = Path(__file__).resolve().parent.parent
 T2MED_DEMO_API_KEY = '7QwA7931lJSQfMKuTH4MQXLn4YEiNhE5tggnYKlY4HE'
 
 
+# Standard: keine Fragen. Vorhandene Werte bleiben, sonst sichere Vorgaben (Testmodus, Zusatzfunktionen aus).
+# Alles Weitere stellt die Praxis im Browser unter /settings.php ein. Mit --fragen fragt der Installer wie früher.
+INTERACTIVE = '--fragen' in sys.argv
+
+
 def ask(label, default='', secret=False):
+    if not INTERACTIVE:
+        return default
     suffix = ' [vorhandenen Wert behalten]' if secret and default else (f' [{default}]' if default else '')
     value = (getpass.getpass if secret else input)(label + suffix + ': ').strip()
     return value or default
@@ -45,7 +52,7 @@ def main():
             raise ValueError('Vorhandene Konfiguration ungültig. Bitte zuerst korrigieren; sie wird nicht überschrieben.')
         old = json.loads(result.stdout)
     get = lambda s,k,d='': old.get(s, {}).get(k,d)
-    print('Kienzle-SumUp · Servereinrichtung (Enter übernimmt Vorgaben)')
+    print('Kienzle-SumUp · Servereinrichtung (Enter übernimmt Vorgaben)' if INTERACTIVE else 'Kienzle-SumUp · Servereinrichtung ohne Fragen (Einstellungen danach im Browser)')
     base = ask('HTTPS-Adresse ohne Port, z. B. https://praxisserver', get('app','base_url','https://'+socket.gethostname()).rsplit(':',1)[0] if get('app','base_url') else 'https://'+socket.gethostname())
     parsed = urlsplit(base)
     if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('','/') or parsed.query or parsed.fragment:

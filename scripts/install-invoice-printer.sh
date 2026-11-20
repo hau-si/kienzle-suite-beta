@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Richtet auf dem Druckserver (z. B. kienzlebox) den virtuellen Drucker „SumUp-Rechnung“ ein.
-# Aufruf: sudo bash scripts/install-invoice-printer.sh [Ordner mit invoice-printer.json und server.crt]
-# Standardordner: /root/kienzle-sumup-printer (vom Server-Installer erzeugt).
+# Aufruf: sudo bash scripts/install-invoice-printer.sh [kienzle-sumup-drucker.json | Ordner]
+# Ohne Angabe: Daten vom Kienzle-SumUp auf diesem Rechner.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
 source_dir=$PWD
@@ -17,13 +17,32 @@ if [ "${1:-}" = "--uninstall" ]; then
   exit 0
 fi
 
-setup=${1:-/root/kienzle-sumup-printer}
-if [ ! -f "$setup/invoice-printer.json" ] || [ ! -f "$setup/server.crt" ]; then
-  echo "In $setup fehlen invoice-printer.json und/oder server.crt."
-  echo 'Auf dem Anwendungsserver den Server-Installer mit aktiviertem Rechnungseingang ausführen'
-  echo 'und den Ordner /root/kienzle-sumup-printer geschützt auf diesen Druckserver kopieren.'
+# Quelle der Einrichtungsdaten:
+#   ohne Angabe: Kienzle-SumUp auf diesem Rechner (Einstellungen → T2med-Rechnungen übernehmen)
+#   Datei:       kienzle-sumup-drucker.json aus der Einstellungsseite (entfernter Druckserver)
+#   Ordner:      invoice-printer.json + server.crt (ältere Installationen)
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+source_arg=${1:-}
+if [ -z "$source_arg" ] && [ -f /opt/kienzle-sumup/scripts/printer-setup.php ]; then
+  runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/printer-setup.php > "$work/invoice-printer.json" || exit 1
+  cp /etc/kienzle-sumup/server.crt "$work/server.crt"
+elif [ -n "$source_arg" ] && [ -f "$source_arg" ]; then
+  python3 - "$source_arg" "$work" <<'PY'
+import json, sys, pathlib
+data = json.load(open(sys.argv[1], encoding="utf-8")); out = pathlib.Path(sys.argv[2])
+if not data.get("certificate", "").startswith("-----BEGIN CERTIFICATE-----"): sys.exit("Einrichtungsdatei ohne Serverzertifikat.")
+(out / "invoice-printer.json").write_text(json.dumps({"server_url": data["server_url"], "inbox_key": data["inbox_key"]}))
+(out / "server.crt").write_text(data["certificate"])
+PY
+elif [ -d "${source_arg:-/root/kienzle-sumup-printer}" ]; then
+  cp "${source_arg:-/root/kienzle-sumup-printer}/invoice-printer.json" "${source_arg:-/root/kienzle-sumup-printer}/server.crt" "$work/"
+else
+  echo 'Keine Einrichtungsdaten gefunden.'
+  echo 'Auf dem Kienzle-SumUp-Server: Einstellungen → „T2med-Rechnungen übernehmen“ aktivieren und dieses Skript ohne Angabe starten.'
+  echo 'Auf einem anderen Druckserver: Einrichtungsdatei aus der Einstellungsseite herunterladen und als Pfad angeben.'
   exit 1
 fi
+setup=$work
 if grep -q 'PRIVATE KEY' "$setup/server.crt"; then echo 'server.crt darf keinen privaten Schlüssel enthalten.'; exit 1; fi
 
 DEBIAN_FRONTEND=noninteractive apt-get install -y cups python3 ghostscript

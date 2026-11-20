@@ -26,6 +26,7 @@ jobs:
       - run: php tests/invoice.php
       - run: php tests/t2med-invoice.php
       - run: php tests/auto-print.php
+      - run: php tests/settings.php
       - run: php tests/print-format.php
       - run: php tests/mail-mime.php
       - run: python3 tests/tls-pin.py
@@ -44,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install isolated server in mock mode with optional printing and invoice inbox
-        run: printf '\n\n\n\n\nja\n\n\n\n\n\n\nTestpraxis\nMusterstrasse 1\n12345 Musterstadt\n\nja\nja\nnein\n' | sudo bash scripts/install-server.sh
+        run: printf '\n\n\n\n\nja\n\n\n\n\n\n\nTestpraxis\nMusterstrasse 1\n12345 Musterstadt\n\nja\nja\nnein\n' | sudo bash scripts/install-server.sh --fragen
       - name: Check HTTPS and PHP
         run: |
           sudo systemctl is-active kienzle-sumup-apache kienzle-sumup-php
@@ -57,6 +58,22 @@ jobs:
           code=$(sudo curl --silent --output /dev/null --write-out '%{http_code}' --noproxy '*' --cacert /etc/kienzle-sumup/server.crt --resolve "$(hostname):7868:127.0.0.1" -H "Authorization: Bearer $key" -H 'Content-Type: text/plain' --data check "https://$(hostname):7868/invoice-inbox.php")
           test "$code" = 415
           code=$(sudo curl --silent --output /dev/null --write-out '%{http_code}' --noproxy '*' --cacert /etc/kienzle-sumup/server.crt --resolve "$(hostname):7868:127.0.0.1" -H 'Authorization: Bearer falsch' -H 'Content-Type: application/pdf' --data x "https://$(hostname):7868/invoice-inbox.php")
+          test "$code" = 401
+      - name: Update without questions and settings page
+        run: |
+          sudo bash scripts/install-server.sh --admin-reset < /dev/null | tee /tmp/update.log
+          sudo php -r 'require "/opt/kienzle-sumup/src/bootstrap.php"; exit(ks_app()->config->practiceReady() ? 0 : 1);'
+          url=$(grep -o 'https://[^ ]*/settings.php#setup=[0-9a-f]*' /tmp/update.log)
+          token=${url##*#setup=}
+          host="$(hostname):7868"
+          c=(--fail --silent --show-error --noproxy '*' --cacert /etc/kienzle-sumup/server.crt --resolve "$host:127.0.0.1" -H 'Content-Type: application/json')
+          curl "${c[@]}" "https://$host/settings.php" | grep -q 'Einstellungen'
+          curl "${c[@]}" -c /tmp/jar -d "{\"action\":\"setup\",\"token\":\"$token\",\"password\":\"ci-passwort-123\"}" "https://$host/settings-api.php" > /tmp/setup.json
+          csrf=$(python3 -c 'import json;print(json.load(open("/tmp/setup.json"))["csrf"])')
+          curl "${c[@]}" -b /tmp/jar -H "X-CSRF-Token: $csrf" -d '{"action":"save","section":"office_printing","values":{"enabled":true,"queue":"CI-Drucker","cups_server":"","media":"A4","duplex":false}}' "https://$host/settings-api.php" | grep -q 'Gespeichert'
+          sudo php -r 'require "/opt/kienzle-sumup/src/bootstrap.php"; exit(ks_app()->config->get("office_printing","queue") === "CI-Drucker" ? 0 : 1);'
+          # Ohne Anmeldung kein Zugriff
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' --noproxy '*' --cacert /etc/kienzle-sumup/server.crt --resolve "$host:127.0.0.1" -H 'Content-Type: application/json' -d '{"action":"get"}' "https://$host/settings-api.php")
           test "$code" = 401
       - name: Installer diagnostics
         if: failure()

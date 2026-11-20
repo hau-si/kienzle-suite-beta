@@ -6,24 +6,23 @@ if [ "$EUID" -ne 0 ]; then echo 'Bitte mit sudo ausführen: sudo bash scripts/in
 if [ ! -f /etc/debian_version ]; then echo 'Dieser Installer unterstützt Debian, Ubuntu und Raspberry Pi OS.'; exit 1; fi
 if ! command -v systemctl >/dev/null; then echo 'systemd wird benötigt.'; exit 1; fi
 umask 077
+# Optionen: --fragen (Einstellungen wie früher im Terminal abfragen), --admin-reset (neuer Einrichtungslink).
+ask_flag=""; admin_reset=""
+for arg in "$@"; do
+  case "$arg" in
+    --fragen) ask_flag="--fragen" ;;
+    --admin-reset) admin_reset="--reset" ;;
+    *) echo "Unbekannte Option: $arg (erlaubt: --fragen, --admin-reset)"; exit 2 ;;
+  esac
+done
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
 if ! id kienzle-sumup >/dev/null 2>&1; then useradd --system --home-dir /var/lib/kienzle-sumup --shell /usr/sbin/nologin kienzle-sumup; fi
 install -d -m 750 -o root -g kienzle-sumup /etc/kienzle-sumup
 install -d -m 700 -o kienzle-sumup -g kienzle-sumup /var/lib/kienzle-sumup
 install -d -m 750 -o kienzle-sumup -g kienzle-sumup /var/log/kienzle-sumup
-python3 scripts/configure.py
-if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("printing","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
-  DEBIAN_FRONTEND=noninteractive apt-get install -y php-gd smbclient
-fi
-# CUPS-Client für den Praxisdrucker (A4) bzw. einen Bondrucker an einer CUPS-RAW-Warteschlange.
-if php -r 'require $argv[1]; $c=KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml"); exit($c->get("office_printing","enabled",false) || ($c->get("printing","enabled",false) && $c->get("printing","transport","samba")==="cups") ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
-  DEBIAN_FRONTEND=noninteractive apt-get install -y cups-client
-fi
-if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("invoice_export","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
-  DEBIAN_FRONTEND=noninteractive apt-get install -y smbclient
-fi
+python3 scripts/configure.py $ask_flag
 chown root:kienzle-sumup /etc/kienzle-sumup/kienzle-sumup.toml
 chmod 640 /etc/kienzle-sumup/kienzle-sumup.toml
 if [ -f /etc/kienzle-sumup/t2med-ca.pem ]; then chown root:kienzle-sumup /etc/kienzle-sumup/t2med-ca.pem; fi
@@ -187,8 +186,8 @@ for file in install-linux.sh install-macos.command install-windows.ps1 install-w
   install -m 700 "client/$file" "/root/kienzle-sumup-clients/$file"
 done
 if [ -d dist ]; then cp dist/kienzle-sumup-* dist/SHA256SUMS /root/kienzle-sumup-clients/; fi
-# Stündliche Nachholung der Rechnungsablage, nur bei aktivierter Ablage.
-if php -r 'require $argv[1]; exit(KienzleSumup\Config::load("/etc/kienzle-sumup/kienzle-sumup.toml")->get("invoice_export","enabled",false) ? 0 : 1);' "$source_dir/src/bootstrap.php"; then
+# Stündliche Nachholung der Rechnungsablage (ohne aktivierte Ablage ohne Wirkung).
+if true; then
   cat > /etc/systemd/system/kienzle-sumup-export.service <<'UNIT'
 [Unit]
 Description=Kienzle-SumUp Rechnungsablage nachholen
@@ -216,10 +215,6 @@ WantedBy=timers.target
 UNIT
   chmod 644 /etc/systemd/system/kienzle-sumup-export.service /etc/systemd/system/kienzle-sumup-export.timer
   export_timer=1
-else
-  systemctl disable --now kienzle-sumup-export.timer 2>/dev/null || true
-  rm -f /etc/systemd/system/kienzle-sumup-export.service /etc/systemd/system/kienzle-sumup-export.timer
-  export_timer=0
 fi
 systemctl daemon-reload
 systemctl enable --now kienzle-sumup-php.service kienzle-sumup-apache.service
@@ -227,7 +222,14 @@ if [ "$export_timer" = 1 ]; then systemctl enable --now kienzle-sumup-export.tim
 echo "Bereit auf HTTPS-Port $port. Client-Einrichtung: /root/kienzle-sumup-clients"
 echo 'Diesen Ordner geschützt auf die Arbeitsplätze übertragen; er enthält den Starter-Schlüssel.'
 echo 'Die Firewall bei Bedarf ausschließlich für das Praxisnetz freigeben.'
-if [ -d /root/kienzle-sumup-printer ]; then
-  echo 'Rechnungseingang: /root/kienzle-sumup-printer geschützt auf den Druckserver kopieren und dort'
-  echo '  sudo bash scripts/install-invoice-printer.sh /pfad/zu/kienzle-sumup-printer  ausführen.'
+echo
+# Einstellungen im Browser: beim ersten Mal (oder nach --admin-reset) mit einmaligem Einrichtungslink.
+setup_url=$(runuser -u kienzle-sumup -- php /opt/kienzle-sumup/scripts/admin-setup.php $admin_reset)
+if [ -n "$setup_url" ]; then
+  echo 'Ersteinrichtung im Browser (Link einmalig gültig, nicht weitergeben):'
+  echo "  $setup_url"
+  echo 'Dort Admin-Passwort festlegen und SumUp, T2med, Drucker usw. eintragen.'
+else
+  echo "Einstellungen: $(runuser -u kienzle-sumup -- php -r 'require "/opt/kienzle-sumup/src/bootstrap.php"; echo rtrim(ks_base_config()->get("app","base_url"),"/");')/settings.php"
+  echo 'Admin-Passwort vergessen? sudo bash scripts/install-server.sh --admin-reset'
 fi

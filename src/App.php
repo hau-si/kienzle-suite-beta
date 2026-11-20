@@ -235,7 +235,7 @@ final class App {
                 }
                 if ($amount <= 0 || $amount > $max) throw new Problem('Bitte Leistungen oder einen zulässigen Betrag auswählen.');
                 $hasGoae = count(array_filter($items, static fn($s) => ($s['goae_code'] ?? '') !== ''));
-                if ($hasGoae && !$this->config->practiceReady()) throw new Problem('Für GOÄ-Belege bitte zuerst Praxisname und Anschrift im Server-Installer oder unter [practice] in der TOML eintragen.');
+                if ($hasGoae && !$this->config->practiceReady()) throw new Problem('Für GOÄ-Belege bitte zuerst Praxisname und Anschrift in den Einstellungen eintragen.');
                 $invoice = null;
                 if ($this->config->practiceReady()) {
                     $practice = [];
@@ -505,7 +505,7 @@ final class App {
         return ['email' => $email, 'message' => $message];
     }
     public function receiptEmail(array $visit, array $input): array {
-        if (!$this->config->get('mail', 'enabled', false)) throw new Problem('E-Mail-Versand ist im Server-Installer noch nicht eingerichtet.', 409);
+        if (!$this->config->get('mail', 'enabled', false)) throw new Problem('E-Mail-Versand ist noch nicht eingerichtet (Einstellungen → E-Mail-Versand).', 409);
         $id = self::string($input, 'payment_id', 32);
         $email = self::string($input, 'email', 254);
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new Problem('Bitte eine gültige E-Mail-Adresse eingeben.');

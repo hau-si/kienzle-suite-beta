@@ -63,6 +63,30 @@ class InvoiceExport {
             @unlink($file); @unlink($auth);
         }
     }
+    /** Verbindungstest: Testdatei schreiben und wieder löschen. */
+    public function check(): string {
+        if (!$this->enabled()) throw new Problem('Ablage im Netzwerkordner ist deaktiviert.', 409);
+        $folders = $this->directory(['invoice_date' => date('Y-m-d')]);
+        $name = 'kienzle-sumup-verbindungstest.txt';
+        $file = tempnam(sys_get_temp_dir(), 'ks-check-'); $auth = tempnam(sys_get_temp_dir(), 'ks-auth-');
+        try {
+            chmod($file, 0600); chmod($auth, 0600); file_put_contents($file, "Kienzle-SumUp Verbindungstest\n");
+            $credentials = $this->credentials($auth);
+            $path = [];
+            foreach ($folders as $folder) { $path[] = $folder; $this->run($credentials, 'mkdir "' . implode('\\', $path) . '"'); }
+            $result = $this->run($credentials, ($path ? 'cd "' . implode('\\', $path) . '"; ' : '') . 'put "' . $file . '" "' . $name . '"; del "' . $name . '"');
+            preg_match_all('/\bNT_STATUS_[A-Z0-9_]{1,64}\b/', $result['output'] . "\n" . $result['stderr'], $m);
+            if ($result['code'] !== 0 || $m[0]) throw new Problem('Netzwerkordner: ' . ($m[0] ? implode(', ', array_unique($m[0])) : 'Exit-Code ' . (int)$result['code']) . '.', 502);
+            return 'Schreiben und Löschen in ' . $this->config->get('invoice_export', 'share') . ($folders ? '/' . implode('/', $folders) : '') . ' erfolgreich.';
+        } finally { @unlink($file); @unlink($auth); }
+    }
+    private function credentials(string $auth): array {
+        $user = (string)$this->config->get('invoice_export', 'username', '');
+        if ($user === '') return ['-N', '-U', 'guest'];
+        file_put_contents($auth, 'username = ' . $user . "\npassword = " . $this->config->get('invoice_export', 'password', '') . "\n" .
+            ($this->config->get('invoice_export', 'domain', '') !== '' ? 'domain = ' . $this->config->get('invoice_export', 'domain') . "\n" : ''));
+        return ['-A', $auth];
+    }
     protected function run(array $credentials, string $command): array {
         if (!is_executable('/usr/bin/smbclient')) throw new Problem('Samba-Client fehlt. Bitte den Server-Installer ausführen (smbclient).', 503);
         return Command::run(['/usr/bin/smbclient', $this->config->get('invoice_export', 'share'), ...$credentials,

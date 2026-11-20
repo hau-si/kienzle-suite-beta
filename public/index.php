@@ -8,7 +8,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 ?>
 <!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kienzle-SumUp · Kartenzahlung</title><link rel="stylesheet" href="/assets/style.css"><script src="/assets/app.js" defer></script></head>
+<title>Kienzle-SumUp · Kartenzahlung</title><link rel="stylesheet" href="/assets/style.css?v=<?= $version ?>"><script src="/assets/app.js?v=<?= $version ?>" defer></script></head>
 <body><main>
 <header class="top"><div class="brand"><span class="mark" aria-hidden="true">K</span><div><strong>kienzle-sumup</strong><span>Kartenzahlung · T2med</span></div></div><span id="mode" class="badge" hidden>TESTMODUS</span></header>
 <section id="welcome" class="card"><h1>Kartenzahlung</h1><p>Bitte diese Seite aus der Patientenakte in T2med öffnen.</p><button id="demo" class="secondary" hidden>Testpatient öffnen</button></section>
@@ -77,5 +77,5 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <label id="mock-fhir-label" class="mock-option" hidden><input type="checkbox" id="mock-fhir-fail"> t2med-Fehler simulieren</label>
 </section></div>
 <p id="message" class="message" role="alert" hidden></p>
-<footer><a href="https://github.com/thomaskien/t2med-sumup" target="_blank" rel="noopener noreferrer">kienzle-sumup für T2med v<?= $version ?> von Dr. Thomas Kienzle · Fork mit T2med-Rechnungseingang</a></footer>
+<footer><a href="https://github.com/thomaskien/t2med-sumup" target="_blank" rel="noopener noreferrer">kienzle-sumup für T2med v<?= $version ?> von Dr. Thomas Kienzle · Fork mit T2med-Rechnungseingang</a> · <a href="/settings.php">Einstellungen</a></footer>
 </main></body></html>
