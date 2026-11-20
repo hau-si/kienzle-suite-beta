@@ -62,6 +62,15 @@ Ablauf und Schutz:
   Hat das PDF keine Textebene (Bild-PDF) oder fehlen die Beschriftungen, liest der Server die
   ersten Seiten per Texterkennung (`tesseract-ocr`, Deutsch). Erkannter Text wird nur akzeptiert,
   wenn der Satz „Bitte überweisen Sie den Betrag von …“ erkannt wird und zur Gesamtsumme passt.
+- **Andere Rechnungsvorlagen:** Der Server kennt neben „Re.-Nr.:“ auch „Rechnungsnummer:“,
+  „Rechnungsdatum:“, „Gesamtbetrag:“, „Patientin:“ u. a. und liest bei Bedarf auch in
+  Lesereihenfolge (Wert in der Zeile unter der Beschriftung). Weicht deine Vorlage ab, trägst du unter
+  „T2med-Rechnungen übernehmen“ eigene **Textschnipsel** ein (der Text unmittelbar vor Nummer, Datum,
+  Gesamtsumme, Überweisungsbetrag bzw. Patient), je einer pro Zeile.
+- Karte **Rechnungseingang** (Reiter „Abrechnung“): eingegangene Rechnungen mit Status (offen, bezahlt,
+  am Terminal, ersetzt, abgelaufen); der Patient nur mit Initialen und Geburtsjahr. Abgelehnte Drucke
+  stehen dort mit Grund und einer Zeilenübersicht der erkannten Beschriftungen – Namen, Geburtsdaten
+  und das PDF werden nicht gespeichert.
 - Eine Rechnung wird nur angeboten, wenn **Name und Geburtsdatum** mit dem Patienten aus dem
   T2med-Kontext übereinstimmen. Ein vorangestellter Titel auf der Rechnung ist erlaubt.
 - An SumUp gehen nur **Betrag**, **„Rechnung RE2026-0042“** als Beschreibung in den Umsätzen und die

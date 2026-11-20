@@ -226,7 +226,7 @@ function updateProgress(status) {
 
 // ---- Reiter: laufende Arbeit, Praxisangaben, Drucker, einmalige Einrichtung ---------------
 const TABS = [
-  {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-t2med-paid', 's-export']},
+  {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-inbox-list', 's-t2med-paid', 's-export']},
   {id: 'rechnungen', label: 'Praxis & Rechnungen', cards: ['s-practice', 's-tax', 's-app', 's-mail', 's-invoice_export']},
   {id: 'drucker', label: 'Drucker & Bons', cards: ['s-printing', 's-office_printing', 's-terminzettel']},
   {id: 'einrichtung', label: 'Einrichtung', hint: 'einmalig', cards: ['s-checklist', 's-update', 's-printers', 's-clients', 's-sumup', 's-fhir', 's-invoice_inbox', 'invoice-printer-help', 's-firewall', 's-audit', 's-password']},
@@ -331,7 +331,7 @@ async function busy(button, action) {
   button.disabled = true;
   try { await action(); } catch (error) { message(error.message, true); } finally { button.disabled = false; }
 }
-async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); }
+async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); loadInbox(); }
 
 $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
   if ($('setup-password').value !== $('setup-password2').value) throw new Error('Die Passwörter stimmen nicht überein.');
@@ -594,6 +594,45 @@ $('audit-load').onclick = async () => {
     box.hidden = false;
   } catch (error) { message(error.message, true); }
 };
+
+// ---- Rechnungseingang -------------------------------------------------------------------
+const inboxState = {offen: 'Offen', bezahlt: 'Bezahlt', 'am Terminal': 'Am Terminal', ersetzt: 'Ersetzt', abgelaufen: 'Abgelaufen'};
+function renderInbox(data) {
+  const box = $('inbox-box');
+  box.replaceChildren();
+  if (!data.enabled) { box.append(el('p', '„T2med-Rechnungen übernehmen“ ist ausgeschaltet (Karte weiter unten).', 'muted')); return; }
+  const euro = c => (c / 100).toLocaleString('de-DE', {style: 'currency', currency: 'EUR'});
+  if (!data.items.length) box.append(el('p', 'Noch keine Rechnung eingegangen.', 'muted'));
+  else {
+    const table = el('table', null, 'fw-table'), head = el('tr');
+    for (const h of ['Eingang', 'Nummer', 'Betrag', 'Patient', 'Status']) head.append(el('th', h));
+    table.append(head);
+    for (const r of data.items) {
+      const tr = el('tr');
+      for (const v of [when(r.received_at), r.number, euro(r.amount_cents), r.initials + (r.birth_year ? ' (' + r.birth_year + ')' : ''), inboxState[r.status] || r.status]) tr.append(el('td', v));
+      table.append(tr);
+    }
+    box.append(table);
+  }
+  if (data.rejected.length) {
+    box.append(el('h3', 'Abgelehnte Drucke'));
+    box.append(el('p', 'Diese Rechnungen kamen an, wurden aber nicht übernommen. Die Zeilenübersicht zeigt die erkannten Beschriftungen (Namen und Daten sind unkenntlich gemacht). Fehlt eine Beschriftung, trage sie unter „T2med-Rechnungen übernehmen“ als eigenen Textschnipsel ein.', 'muted small'));
+    for (const r of data.rejected) {
+      const details = el('details', null, 'inbox-reject');
+      details.append(el('summary', when(r.at) + ' – ' + r.reason + (r.source ? ' [' + r.source + ']' : '')));
+      details.append(el('pre', r.lines.length ? r.lines.join('\n') : 'Keine Beschriftungszeilen erkannt.', 'audit-list'));
+      box.append(details);
+    }
+    const clear = el('button', 'Liste leeren', 'secondary', {type: 'button'});
+    clear.onclick = () => busy(clear, async () => { const r = await api('inbox_clear'); renderInbox(r); message(r.message); });
+    box.append(clear);
+  }
+}
+async function loadInbox() {
+  try { renderInbox(await api('inbox_overview')); }
+  catch (error) { $('inbox-box').replaceChildren(el('p', error.message, 'muted')); }
+}
+$('inbox-load').onclick = loadInbox;
 
 // ---- Netzwerk & Firewall ---------------------------------------------------------------
 let fwTimer = null, fwInfo = null;

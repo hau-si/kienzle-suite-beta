@@ -83,6 +83,11 @@ final class Config {
             if (!preg_match('/^[a-f0-9]{64}$/D', (string)$this->get('invoice_inbox', 'key'))) throw new \RuntimeException('invoice_inbox.key muss 32 zufällige Bytes als Hex enthalten.');
             if ($this->get('invoice_inbox', 'key') === $this->get('app', 'launcher_key')) throw new \RuntimeException('invoice_inbox.key darf nicht dem Starter-Schlüssel entsprechen.');
         }
+        foreach (T2medInvoice::LABEL_KEYS as $key) {
+            $list = $this->get('invoice_inbox', $key, []);
+            if (!is_array($list) || count($list) > 10) throw new \RuntimeException('invoice_inbox.' . $key . ': höchstens 10 Textschnipsel.');
+            foreach ($list as $item) if (!is_string($item) || mb_strlen($item) > 60 || preg_match('/[\x00-\x1f]/', $item)) throw new \RuntimeException('invoice_inbox.' . $key . ': Textschnipsel bis 60 Zeichen ohne Steuerzeichen.');
+        }
         $days = $this->get('invoice_inbox', 'max_age_days', 14);
         if (!is_int($days) || $days < 1 || $days > 90) throw new \RuntimeException('invoice_inbox.max_age_days muss 1 bis 90 betragen.');
         if (!is_bool($this->get('invoice_export', 'enabled', false))) throw new \RuntimeException('invoice_export.enabled muss true oder false sein.');

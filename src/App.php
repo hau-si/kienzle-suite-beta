@@ -306,8 +306,30 @@ final class App {
     /** Vom Druckserver: T2med-Rechnung (PDF) als offene Rechnung ablegen. */
     public function inboxReceive(string $pdf): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);
-        return $this->storeInvoice(T2medInvoice::fromPdf($pdf, $this->config->get('app', 'max_amount_cents')), $pdf);
+        try {
+            $invoice = T2medInvoice::fromPdf($pdf, $this->config->get('app', 'max_amount_cents'), $this->inboxLabels());
+        } catch (Problem $e) {
+            // Grund und maskierte Beschriftungszeilen merken (ohne Namen, Daten, PDF), damit neue Vorlagen einstellbar sind.
+            (new InboxLog($this->config->get('app', 'state_dir')))->add($e->getMessage(), T2medInvoice::$lastSource, T2medInvoice::overview(T2medInvoice::$lastText));
+            T2medInvoice::$lastText = '';
+            throw $e;
+        }
+        T2medInvoice::$lastText = '';
+        try {
+            return $this->storeInvoice($invoice, $pdf);
+        } catch (Problem $e) {
+            (new InboxLog($this->config->get('app', 'state_dir')))->add($e->getMessage(), 'Rechnung ' . $invoice['number'], []);
+            throw $e;
+        }
     }
+
+    /** Eigene Textschnipsel für die Rechnungserkennung. */
+    private function inboxLabels(): array {
+        $labels = [];
+        foreach (T2medInvoice::LABEL_KEYS as $key) $labels[$key] = (array)$this->config->get('invoice_inbox', $key, []);
+        return $labels;
+    }
+
     /** Gelesene Rechnung speichern (getrennt vom PDF-Lesen, damit testbar). */
     public function storeInvoice(array $invoice, ?string $pdf = null): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false)) throw new Problem('Rechnungseingang ist deaktiviert.', 404);

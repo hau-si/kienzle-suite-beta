@@ -86,6 +86,14 @@ try {
     $setup = $page->handle('printer_setup', [], $session, null);
     check($setup['inbox_key'] === Settings::effective($base)->get('invoice_inbox', 'key'), 'Druckereinrichtung mit falschem Schlüssel');
 
+    // Textschnipsel für die Rechnungserkennung und Eingangsübersicht.
+    $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['enabled' => true, 'max_age_days' => 14, 'label_number' => "Beleg-Nr.\nBeleg Nummer", 'label_total' => 'Endsumme']], $session, $login['csrf']);
+    check(Settings::effective($base)->get('invoice_inbox', 'label_number') === ['Beleg-Nr.', 'Beleg Nummer'], 'Textschnipsel nicht gespeichert');
+    problem(fn() => $page->handle('save', ['section' => 'invoice_inbox', 'values' => ['label_total' => str_repeat('x', 61)]], $session, $login['csrf']), 'Zu langer Textschnipsel akzeptiert', 422);
+    $overview = $page->handle('inbox_overview', [], $session, null);
+    check($overview['enabled'] === true && $overview['items'] === [] && $overview['rejected'] === [], 'Eingangsübersicht falsch');
+    problem(fn() => $page->handle('inbox_overview', [], null, null), 'Eingangsübersicht ohne Anmeldung', 401);
+
     for ($i = 0; $i < 5; $i++) { try { $admin->login('falsch'); } catch (Problem) {} }
     problem(fn() => $admin->login('ein-langes-passwort'), 'Keine Sperre nach Fehlversuchen', 429);
     $page->handle('logout', [], $session, $login['csrf']);

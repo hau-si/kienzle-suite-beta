@@ -96,6 +96,28 @@ try {
         echo "OCR-Test übersprungen (pdftoppm/tesseract fehlen).\n";
     }
 
+    // Eigene Textschnipsel (andere T2med-Vorlage) und mehr eingebaute Varianten.
+    $custom = ['label_number' => ['Beleg-Nr.'], 'label_total' => ['Endsumme'], 'label_patient' => ['Behandelte Person']];
+    $other = "Beleg-Nr.: B-77/1\nRe.-Datum: 01.02.2026\nBehandelte Person: Max Muster (geb. 03.04.1970)\nEndsumme 12,50 €\nBitte überweisen Sie den Betrag von 12,50 € ohne Abzug.\n";
+    $parsedOther = T2medInvoice::parse($other, 100000, false, $custom);
+    check($parsedOther['number'] === 'B-77/1' && $parsedOther['amount_cents'] === 1250 && $parsedOther['patient_birthdate'] === '1970-04-03' && $parsedOther['patient_name'] === 'Max Muster', 'Eigene Textschnipsel nicht gelesen');
+    $missing = rejects(fn() => T2medInvoice::parse($other, 100000), 'Fremde Vorlage ohne Textschnipsel akzeptiert', 422);
+    check(str_contains($missing->getMessage(), 'nicht gefunden'), 'Fehler nennt fehlende Bezeichnung nicht');
+    check(T2medInvoice::parse("Rechnungsnummer: A1-9\nRechnungsdatum: 01.02.2026\nPatientin: Eva Muster , 03.04.1970\nGesamtbetrag: 5,00 EUR\n", 100000)['amount_cents'] === 500, 'Eingebaute Varianten nicht gelesen');
+    check(T2medInvoice::parse("Re.-Nr.:\nRE2026-0042\nRe.-Datum:\n15.03.2026\nPatient: A B , 12.04.1980\nGesamtsumme:\n42,50 €\n", 100000, false, [], true)['number'] === 'RE2026-0042', 'Wert in Folgezeile nicht gelesen');
+    rejects(fn() => T2medInvoice::parse("Re.-Nr.:\nRe.-Datum: 15.03.2026\nPatient: A B , 12.04.1980\nGesamtsumme: 42,50 €\n", 100000, false, [], true), 'Nächste Beschriftung als Rechnungsnummer gelesen', 422);
+    $lines = implode("\n", T2medInvoice::overview($other . "Patient: Erika Musterfrau , 12.04.1980\n"));
+    check(!str_contains($lines, 'Erika') && !str_contains($lines, 'Muster') && !str_contains($lines, '1980') && str_contains($lines, 'Endsumme 12,50 €'), 'Zeilenübersicht enthält Namen oder Daten');
+
+    // Abgelehnter Druck landet maskiert in der Übersicht; eingegangene Rechnungen zeigen nur Initialen.
+    $cfg = configuration(); $dirs[] = $cfg->get('app', 'state_dir'); $app = new App($cfg); $app->db->migrate();
+    rejects(fn() => $app->inboxReceive("%PDF-1.4\nkein lesbarer Inhalt"), 'Unlesbares PDF übernommen');
+    $app->storeInvoice(T2medInvoice::parse(invoiceText(), 100000));
+    $view = KienzleSumup\InboxOverview::build($app->db, $cfg);
+    check(count($view['items']) === 1 && $view['items'][0]['status'] === 'offen' && $view['items'][0]['initials'] === 'E. M.' && $view['items'][0]['birth_year'] === '1980', 'Eingangsübersicht falsch');
+    check(!str_contains(json_encode($view), 'Erika') && !str_contains(json_encode($view), 'Musterfrau'), 'Eingangsübersicht enthält Klartextnamen');
+    check(count($view['rejected']) === 1 && $view['rejected'][0]['reason'] !== '', 'Abgelehnter Druck nicht protokolliert');
+
     // 2. Patientenabgleich.
     check(T2medInvoice::matches($parsed, 'Erika Musterfrau', '1980-04-12'), 'Passender Patient abgelehnt');
     check(T2medInvoice::matches(['patient_name' => 'Dr. Erika  Musterfrau'] + $parsed, 'erika musterfrau', '1980-04-12'), 'Titel/Schreibweise nicht toleriert');

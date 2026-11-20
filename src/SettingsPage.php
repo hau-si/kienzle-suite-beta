@@ -42,13 +42,15 @@ final class SettingsPage {
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
-        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status', 'inbox_overview'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
         // Alles, was etwas verändert, im Protokoll festhalten (ohne Werte).
-        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'firewall_info', 'firewall_status', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
+        if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'inbox_overview', 'firewall_info', 'firewall_status', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
             $this->admin->audit->write($action, $action === 'save' ? App::string($input, 'section', 40) : '');
         }
         return match ($action) {
             'get' => $this->view(),
+            'inbox_overview' => InboxOverview::build($this->db, $this->config()),
+            'inbox_clear' => (function () { (new InboxLog($this->config()->get('app', 'state_dir')))->clear(); return InboxOverview::build($this->db, $this->config()) + ['message' => 'Liste der abgelehnten Drucke geleert.']; })(),
             'audit' => ['lines' => $this->admin->audit->recent(40)],
             'firewall_info' => $this->firewall()->overview($this->clientIp()) + ['web_port' => (int)$this->config()->get('app', 'port', 7868)],
             'firewall_status' => $this->firewall()->status(),

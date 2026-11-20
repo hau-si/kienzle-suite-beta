@@ -95,6 +95,11 @@ final class Settings {
         'invoice_inbox' => ['label' => 'T2med-Rechnungen übernehmen', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Rechnungen über den Drucker „SumUp-Rechnung“ übernehmen'],
             'max_age_days' => ['type' => 'int', 'label' => 'Offene Rechnungen anbieten für (Tage)', 'default' => 14],
+            'label_number' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor der Rechnungsnummer (einer pro Zeile)', 'optional' => true],
+            'label_date' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor dem Rechnungsdatum', 'optional' => true],
+            'label_total' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor der Gesamtsumme', 'optional' => true],
+            'label_transfer' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor dem Überweisungsbetrag (Gegenprobe)', 'optional' => true],
+            'label_patient' => ['type' => 'list', 'label' => 'Eigene Textschnipsel vor Patient und Geburtsdatum', 'optional' => true],
         ]],
         'invoice_export' => ['label' => 'Ablage im Netzwerkordner', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Rechnungen als PDF in einen Netzwerkordner kopieren'],

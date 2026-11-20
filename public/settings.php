@@ -59,6 +59,10 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <details class="tz-how"><summary>Drucker auf einem anderen Druckserver (z. B. kienzlebox)</summary>
 <p class="muted small">Nur nötig, wenn T2med auf einem anderen Rechner druckt als diesem: Einrichtungsdatei herunterladen, geschützt dorthin kopieren und dort im Projektordner <code>sudo bash scripts/install-invoice-printer.sh /pfad/kienzle-sumup-drucker.json</code> ausführen.</p>
 <button id="printer-setup" class="secondary" type="button">Einrichtungsdatei herunterladen</button></details></section>
+<section class="card settings-card" id="s-inbox-list"><h2>Rechnungseingang</h2>
+<p class="muted">Von T2med auf „SumUp-Rechnung“ gedruckte Rechnungen. Der Patient erscheint nur mit Initialen und Geburtsjahr. „Offen“ heißt: Wird beim passenden Patienten zum Kassieren angeboten.</p>
+<div class="row-buttons"><button id="inbox-load" class="secondary" type="button">Aktualisieren</button></div>
+<div id="inbox-box"><p class="muted">Wird geladen …</p></div></section>
 <section class="card settings-card" id="s-update"><h2>Aktualisierung</h2><div id="update-box"><p class="muted">Wird geprüft …</p></div></section>
 <section class="card settings-card" id="s-firewall"><h2>Netzwerk &amp; Firewall</h2>
 <p class="muted">Der Server erkennt sein Netz selbst. Wähle, aus welchen Netzen Arbeitsplätze, Drucker und der T2med-Rechner zugreifen dürfen; alle anderen werden ausgesperrt. Nach dem Anwenden bestätigst du binnen 2 Minuten, dass diese Seite noch funktioniert – sonst stellt der Server die alten Regeln selbst wieder her.</p>

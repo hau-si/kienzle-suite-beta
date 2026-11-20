@@ -4,6 +4,9 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.22: Rechnungserkennung robuster: eigene Textschnipsel je Feld (Nummer, Datum, Gesamtsumme, Überweisungsbetrag, Patient),
+  mehr eingebaute Bezeichnungen, zweiter Leseversuch in Lesereihenfolge. Neue Karte „Rechnungseingang“ (Abrechnung) mit Status
+  der Rechnungen und abgelehnten Drucken samt maskierter Zeilenübersicht (keine Namen, Daten oder PDFs).
 - Neu in rechnung.21: Bild-PDFs ohne Textebene werden vor dem Lesen per Texterkennung (Tesseract, Deutsch) umgewandelt;
   der Installer richtet `tesseract-ocr` ein. Erkannter Text gilt nur mit bestätigtem Zahlbetrag. Der Rechnungsleser meldet jetzt genau, was fehlt („nicht gefunden“ mit der gesuchten Bezeichnung
   oder „mehrere verschiedene Werte“), statt nur „nicht eindeutig lesbar“.
