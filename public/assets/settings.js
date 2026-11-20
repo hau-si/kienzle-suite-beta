@@ -169,7 +169,7 @@ function renderInvoicePrinter(info) {
   const ol = el('ol', null, 'steps');
   ol.append(el('li', 'Windows: Drucker hinzufügen → „Freigegebenen Drucker über den Namen auswählen“: ' + info.url + ' – Treiber „Microsoft IPP Class Driver“, Papier A4. ' + ippIpNote(info.url, info.ips)));
   const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, PowerShell als Administrator öffnen und ausführen:');
-  driver.append(el('pre', ippPowerShell('SumUp-Rechnung', info.url, info.ips), 'audit-list'));
+  driver.append(el('pre', ippPowerShell('SumUp-Rechnung', info.url, info.ips, 'A4'), 'audit-list'));
   ol.append(driver);
   const mac = el('li'); mac.append(document.createTextNode('Mac: „SumUp-Rechnung“ hinzufügen, als Treiber die Datei '), el('a', 'SumUp-Rechnung-PDF.ppd', null, {href: '/assets/SumUp-Rechnung-PDF.ppd', download: 'SumUp-Rechnung-PDF.ppd'}), document.createTextNode(' wählen.'));
   ol.append(mac); box.append(ol);
@@ -330,6 +330,7 @@ function renderChecklist(data) {
       {done: !!value('office_printing', 'enabled'), optional: true, label: 'Praxisdrucker (A4) eingerichtet', card: 's-printers'},
       {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
       {done: invoiceQueue, optional: true, label: invoiceQueue ? 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen auf dem Server angelegt' : 'Drucker „SumUp-Rechnung“ auf dem Server anlegen (T2med-Rechnungen übernehmen einschalten)', card: 's-invoice_inbox'},
+      {done: !!value('letterxpress', 'enabled'), optional: true, label: value('letterxpress', 'enabled') ? 'Rechnung per Post (Letterxpress) angebunden' : 'Rechnung per Post über Letterxpress versenden (optional: Zugang eintragen)', card: 's-letterxpress'},
       {info: true, label: 'Firewall: Zugriff auf das Praxisnetz beschränken (empfohlen)', card: 's-firewall'},
     ]},
     {title: 'Auf den Client-PCs', hint: 'Kassen- und Arbeitsplatzrechner', items: [
@@ -400,9 +401,9 @@ function ippByIp(url, ips) {
   const path = String(url).replace(/^http:\/\/[^/]+/, '');
   return (ips || []).map(i => ({name: i.name, ip: i.ip, url: 'http://' + i.ip + ':631' + path}));
 }
-function ippPowerShell(queue, url, ips) {
+function ippPowerShell(queue, url, ips, paper) {
   const byIp = ippByIp(url, ips), use = byIp.length ? byIp[0].url : url;
-  return 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\n$url = "' + use + '"\nAdd-PrinterPort -Name $url -ErrorAction SilentlyContinue\nAdd-Printer -Name "' + queue + '" -DriverName "Microsoft IPP Class Driver" -PortName $url';
+  return 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\n$url = "' + use + '"\nAdd-PrinterPort -Name $url -ErrorAction SilentlyContinue\nAdd-Printer -Name "' + queue + '" -DriverName "Microsoft IPP Class Driver" -PortName $url' + (paper ? '\nSet-PrintConfiguration -PrinterName "' + queue + '" -PaperSize ' + paper : '');
 }
 function ippIpNote(url, ips) {
   const byIp = ippByIp(url, ips);

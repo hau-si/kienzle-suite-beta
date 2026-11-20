@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.42**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.43**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -55,7 +55,8 @@ Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
 <p align="center"><img src="docs/screenshots/11-export-steuerberatung.png" width="420" alt="Export für die Steuerberatung"> <img src="docs/screenshots/10-terminzettel.png" width="420" alt="Terminzettel-Einstellungen"></p>
 
 **Einrichtung und Betrieb im Browser**
-- **Einrichtungs-Überblick** in drei Teilen: „In diesem Webfenster“, „Auf den Client-PCs“, „In T2med“.
+- **Einrichtungs-Überblick** in drei Teilen: „In diesem Webfenster“, „Auf den Client-PCs“, „In T2med“; optionale Punkte
+  wie die Letterxpress-Anbindung (Rechnung per Post) stehen mit drin.
 - Drucker am Server einrichten, Arbeitsplatz-Pakete (Windows, macOS, Linux) laden, Anleitungen für die
   Druckerinstallation am Arbeitsplatz einschließlich PowerShell-Befehlen und der erkannten Server-Adressen.
 - **Aktualisieren per Klick** mit Sicherung und automatischem Zurücksetzen bei Fehlern.
@@ -293,7 +294,9 @@ Ghostscript in PDF umgewandelt. Erneute Prüfung jederzeit mit
 **Arbeitsplätze:**
 
 - **Windows:** IPP-Drucker `http://kienzlebox:631/printers/SumUp-Rechnung` mit dem Treiber
-  „Microsoft IPP Class Driver“ hinzufügen (wie beim Terminzettel). Papierformat A4.
+  „Microsoft IPP Class Driver“ hinzufügen (wie beim Terminzettel). Papierformat A4 (der PowerShell-Befehl der
+  Einstellungsseite stellt es mit `Set-PrintConfiguration -PaperSize A4` gleich mit ein; sonst rechnet Windows auf
+  Letter um und Letterxpress lehnt das PDF ab).
 - **Mac:** „SumUp-Rechnung @ kienzlebox“ hinzufügen und als Treiber
   [`macos/SumUp-Rechnung-PDF.ppd`](macos/SumUp-Rechnung-PDF.ppd) wählen. Er reicht die PDF
   mit Text unverändert weiter.
