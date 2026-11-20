@@ -167,7 +167,7 @@ function renderInvoicePrinter(info) {
   const ol = el('ol', null, 'steps');
   ol.append(el('li', 'Windows: Drucker hinzufügen → „Freigegebenen Drucker über den Namen auswählen“: ' + info.url + ' – Treiber „Microsoft IPP Class Driver“, Papier A4.'));
   const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, PowerShell als Administrator öffnen und ausführen (aus einem anderen Netz/VPN statt des Servernamens die IP-Adresse des Servers verwenden):');
-  driver.append(el('pre', 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\nAdd-PrinterPort -Name "' + info.url + '"\nAdd-Printer -Name "SumUp-Rechnung" -DriverName "Microsoft IPP Class Driver" -PortName "' + info.url + '"', 'audit-list'));
+  driver.append(el('pre', 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\nAdd-PrinterPort -Name "' + info.url + '" -ErrorAction SilentlyContinue\nAdd-Printer -Name "SumUp-Rechnung" -DriverName "Microsoft IPP Class Driver" -PortName "' + info.url + '"', 'audit-list'));
   ol.append(driver);
   const mac = el('li'); mac.append(document.createTextNode('Mac: „SumUp-Rechnung“ hinzufügen, als Treiber die Datei '), el('a', 'SumUp-Rechnung-PDF.ppd', null, {href: '/assets/SumUp-Rechnung-PDF.ppd', download: 'SumUp-Rechnung-PDF.ppd'}), document.createTextNode(' wählen.'));
   ol.append(mac); box.append(ol);
@@ -369,7 +369,7 @@ function terminzettelCard(card, form, section, info) {
   const ol = el('ol');
   ol.append(el('li', 'Windows: Einstellungen → Drucker → Drucker hinzufügen → „Der gewünschte Drucker ist nicht aufgeführt“ → „Freigegebenen Drucker über den Namen auswählen“: ' + info.printer_url + ' – Treiber „Microsoft IPP Class Driver“. Aus einem anderen Netz (VPN) statt des Servernamens die IP-Adresse des Servers eintragen (am Server: hostname -I).'));
   const driver = el('li', 'Windows 11: Fehlt der Treiber „Microsoft IPP Class Driver“ oder akzeptiert Windows die Adresse nicht, ist der Internet-Druckclient nicht aktiviert. PowerShell als Administrator öffnen und ausführen (dann ist der Drucker gleich fertig eingerichtet):');
-  driver.append(el('pre', 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\nAdd-PrinterPort -Name "' + info.printer_url + '"\nAdd-Printer -Name "Terminzettel" -DriverName "Microsoft IPP Class Driver" -PortName "' + info.printer_url + '"', 'audit-list'));
+  driver.append(el('pre', 'Enable-WindowsOptionalFeature -Online -FeatureName Printing-Foundation-InternetPrinting-Client -NoRestart\nAdd-PrinterDriver -Name "Microsoft IPP Class Driver"\nAdd-PrinterPort -Name "' + info.printer_url + '" -ErrorAction SilentlyContinue\nAdd-Printer -Name "Terminzettel" -DriverName "Microsoft IPP Class Driver" -PortName "' + info.printer_url + '"', 'audit-list'));
   driver.append(el('span', 'Meldet die erste Zeile, dass ein Neustart nötig ist, Windows neu starten und die Befehle ab Zeile 2 wiederholen.', 'muted small'));
   ol.append(driver);
   ol.append(el('li', 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen.'));
