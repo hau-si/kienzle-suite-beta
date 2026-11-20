@@ -1,9 +1,12 @@
-Version 1.4.1-rechnung.17 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.18 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.18: Einrichtungs-Überblick in drei Teile gegliedert: „In diesem Webfenster“, „Auf den Client-PCs“
+  und „In T2med“ (FHIR-Schnittstelle, Button „Kienzle-SumUp“, Drucker „Terminzettel“ mit Papierformat A6,
+  Drucker „SumUp-Rechnung“). Bei der T2med-Anbindung steht jetzt die Aufruf-Adresse für den Button zum Kopieren.
 - Neu in rechnung.17: Fehlerbehebung Aktualisierung: Der Installer meldete „Port 7868 ist bereits belegt“, obwohl nur
   kürzlich geschlossene Verbindungen des gestoppten Dienstes (TIME_WAIT) den Port hielten. Die Portprüfung
   verwendet jetzt SO_REUSEADDR und erkennt weiterhin ein wirklich lauschendes Programm.

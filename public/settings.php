@@ -31,7 +31,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p id="update-banner" class="notice update-banner" hidden></p>
 <div id="tab-panels"></div>
 <div id="sections" hidden></div>
-<section class="card settings-card" id="s-checklist"><h2>Einrichtung – Überblick</h2><p class="muted">Diese Schritte sind nur einmal nötig. Ein Klick auf einen Punkt öffnet die passende Einstellung.</p><ul id="checklist" class="checklist"></ul></section>
+<section class="card settings-card" id="s-checklist"><h2>Einrichtung – Überblick</h2><p class="muted">Diese Schritte sind nur einmal nötig, geordnet nach dem Ort, an dem sie erledigt werden. Ein Klick auf einen Punkt öffnet die passende Einstellung.</p><div id="checklist"></div></section>
 <section class="card settings-card" id="s-printers"><h2>Drucker einrichten</h2>
 <p class="muted">Bondrucker (Epson TM-m10, TM-m30III) und A4-Drucker im Netzwerk oder per USB an diesem Server einrichten – ohne Terminal.</p>
 <div id="printers-unavailable" class="inline-error" hidden>Der Druckdienst fehlt auf diesem Server. Bitte einmal <code>sudo bash scripts/install-server.sh</code> ausführen.</div>

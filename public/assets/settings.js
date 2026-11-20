@@ -133,6 +133,7 @@ function render(data) {
       buttons.append(test);
     }
     form.append(buttons);
+    if (section.id === 'fhir') form.append(t2medSetupHelp());
     form.oninput = form.onchange = event => {
       // Anderes Druckermodell: Breite leeren, der Server setzt die passende Breite.
       if (section.id === 'printing' && event.target.name === 'model' && form.elements.width_dots) form.elements.width_dots.value = '';
@@ -269,28 +270,58 @@ window.addEventListener('hashchange', () => {
 });
 function badge(tab, count) { const b = $('badge-' + tab); if (!b) return; b.hidden = !count; b.textContent = count ? String(count) : ''; }
 
+/** Anleitung für T2med: Drittanbieter-Zugriff mit Menüleisten-Button (Aufruf-Adresse zum Kopieren). */
+function t2medSetupHelp() {
+  const d = el('details', null, 'tz-how'); d.append(el('summary', 'In T2med einrichten: Button „Kienzle-SumUp“'));
+  const ol = el('ol');
+  ol.append(el('li', 'In T2med unter „Drittanbieter-Zugriffe verwalten“ eine neue URL mit dem Namen Kienzle-SumUp anlegen und einem eigenen Menüleisten-Button zuweisen.'));
+  const li = el('li', 'Als Adresse eintragen (genau so, mit den Platzhaltern):'); li.append(el('br'), el('code', 'kienzle-sumup://?kontextId=${kontextId}&fhirBasisUrl=${fhirBasisUrl}&oAuthToken=${oAuthToken}', 'code-copy')); ol.append(li);
+  ol.append(el('li', 'Der Starter-Aufruf funktioniert erst, wenn auf dem Arbeitsplatz das Starter-Paket installiert ist (Karte „Arbeitsplätze einrichten“).'));
+  ol.append(el('li', 'Die FHIR-Adresse, die T2med beim Aufruf mitgibt, muss unter „Erlaubte fhirBasisUrl aus T2med“ stehen. Bei einer Fehlermeldung zeigt die Seite die tatsächlichen Werte.'));
+  d.append(ol); return d;
+}
+
 /** Überblick der einmaligen Schritte; liefert die Zahl offener Pflichtpunkte. */
 function renderChecklist(data) {
   const value = (section, key) => (data.sections.find(s => s.id === section)?.fields.find(f => f.key === key) || {}).value;
   const tz = data.terminzettel || {};
-  const items = [
-    {done: true, label: 'Admin-Passwort festgelegt', card: 's-password'},
-    {done: !!(value('practice', 'name') || '').trim() && !!(value('practice', 'street') || '').trim(), label: 'Praxisname und Anschrift (für Rechnungen und Barzahlungen)', card: 's-practice'},
-    {done: data.mode === 'live', label: data.mode === 'live' ? 'SumUp live verbunden' : 'SumUp: noch Testmodus – Zugangsdaten eintragen und auf Live stellen', card: 's-sumup'},
-    {done: data.fhir_mode === 'live', label: data.fhir_mode === 'live' ? 'T2med-Anbindung live' : 'T2med-Anbindung: noch Testmodus', card: 's-fhir'},
-    {done: !!value('printing', 'enabled'), optional: true, label: 'Bondrucker eingerichtet', card: 's-printers'},
-    {done: !!value('office_printing', 'enabled'), optional: true, label: 'Praxisdrucker (A4) eingerichtet', card: 's-printers'},
-    {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
-    {done: !!(data.invoice_printer && data.invoice_printer.queue && data.invoice_printer.queue.ours), optional: true, label: 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen', card: 's-invoice_inbox'},
-    {info: true, label: 'Arbeitsplätze: Starter-Paket auf jedem Kassen-PC einmal installieren', card: 's-clients'},
+  const invoiceQueue = !!(data.invoice_printer && data.invoice_printer.queue && data.invoice_printer.queue.ours);
+  const groups = [
+    {title: 'In diesem Webfenster', hint: 'Einstellungen dieses Servers', items: [
+      {done: true, label: 'Admin-Passwort festgelegt', card: 's-password'},
+      {done: !!(value('practice', 'name') || '').trim() && !!(value('practice', 'street') || '').trim(), label: 'Praxisname und Anschrift (für Rechnungen und Barzahlungen)', card: 's-practice'},
+      {done: data.mode === 'live', label: data.mode === 'live' ? 'SumUp live verbunden' : 'SumUp: noch Testmodus – Zugangsdaten eintragen und auf Live stellen', card: 's-sumup'},
+      {done: !!value('printing', 'enabled'), optional: true, label: 'Bondrucker eingerichtet', card: 's-printers'},
+      {done: !!value('office_printing', 'enabled'), optional: true, label: 'Praxisdrucker (A4) eingerichtet', card: 's-printers'},
+      {done: !!(tz.installed && tz.target), optional: true, label: tz.installed ? 'Terminzettel druckt auf einen Bondrucker' : 'Terminzettel: Druckdienst nicht installiert', card: 's-terminzettel'},
+      {info: true, label: 'Firewall: Zugriff auf das Praxisnetz beschränken (empfohlen)', card: 's-firewall'},
+    ]},
+    {title: 'Auf den Client-PCs', hint: 'Kassen- und Arbeitsplatzrechner', items: [
+      {info: true, label: 'Starter-Paket auf jedem Kassen-PC einmal installieren (Windows, macOS oder Linux)', card: 's-clients'},
+      {info: true, label: 'Drucker „Terminzettel“ und „SumUp-Rechnung“ am Arbeitsplatz hinzufügen', card: 's-terminzettel', detail: tz.printer_url || ''},
+    ]},
+    {title: 'In T2med', hint: 'Einstellungen in der Praxissoftware', items: [
+      {done: data.fhir_mode === 'live', label: data.fhir_mode === 'live' ? 'FHIR-Schnittstelle eingerichtet (T2med-Anbindung live)' : 'FHIR-Schnittstelle einrichten: T2med-Anbindung noch im Testmodus', card: 's-fhir'},
+      {info: true, label: 'Drittanbieter-Zugriff „Kienzle-SumUp“ mit Menüleisten-Button anlegen (Aufruf-Adresse steht bei der T2med-Anbindung)', card: 's-fhir'},
+      {info: true, label: 'Terminzettel: In T2med unter Einstellungen den Drucker „Terminzettel“ wählen, Papierformat A6', card: 's-terminzettel', detail: tz.printer_url || ''},
+      {done: invoiceQueue, optional: true, label: 'Drucker „SumUp-Rechnung“ für T2med-Rechnungen (in T2med dorthin drucken)', card: 's-invoice_inbox'},
+    ]},
   ];
+  const items = groups.flatMap(g => g.items);
   const list = $('checklist'); list.replaceChildren();
-  for (const item of items) {
-    const li = el('li', null, item.info ? 'info' : item.done ? 'done' : item.optional ? 'optional' : 'open');
-    li.append(el('span', item.info ? 'i' : item.done ? '✓' : '○', 'mark-icon'));
-    const link = el('a', item.label, null, {href: '#' + item.card}); li.append(link);
-    if (item.optional && !item.done) li.append(el('small', ' optional'));
-    list.append(li);
+  for (const group of groups) {
+    const heading = el('h3', group.title, 'check-group'); heading.append(el('small', ' · ' + group.hint)); list.append(heading);
+    const ul = el('ul', null, 'checklist');
+    for (const item of group.items) {
+      const li = el('li', null, item.info ? 'info' : item.done ? 'done' : item.optional ? 'optional' : 'open');
+      li.append(el('span', item.info ? 'i' : item.done ? '✓' : '○', 'mark-icon'));
+      const text = el('span'); text.append(el('a', item.label, null, {href: '#' + item.card}));
+      if (item.detail) { text.append(el('br'), el('small', item.detail, 'mono')); }
+      li.append(text);
+      if (item.optional && !item.done) li.append(el('small', ' optional'));
+      ul.append(li);
+    }
+    list.append(ul);
   }
   const open = items.filter(i => !i.done && !i.info && !i.optional).length;
   badge('einrichtung', open);

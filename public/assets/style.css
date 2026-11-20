@@ -28,3 +28,4 @@ h3{font-size:14px;margin:22px 0 8px}.service .label small{display:block;font-wei
 
 .audit-list { max-height: 18rem; overflow: auto; margin: .75rem 0 0; padding: .75rem; background: #f4f4f1; border-radius: 8px; font-size: .8rem; white-space: pre-wrap; word-break: break-all; }
 .fw-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:.5rem 0}.fw-table th,.fw-table td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #e1e8e4}
+.check-group{margin:18px 0 2px;font-size:15px}.check-group:first-child{margin-top:6px}.check-group small{font-weight:400;color:#8a9b96}.checklist .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
