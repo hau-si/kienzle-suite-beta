@@ -21,7 +21,7 @@ done
 # Einmal gewählt, gilt „ohne Terminzettel“ auch für spätere Aktualisierungen aus dem Webinterface.
 if [ -f /etc/kienzle-sumup/ohne-terminzettel ]; then with_terminzettel=0; fi
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils php-gd smbclient cups-client cups ghostscript nftables iproute2
+DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin fonts-dejavu-core libphp-phpmailer poppler-utils tesseract-ocr tesseract-ocr-deu php-gd smbclient cups-client cups ghostscript nftables iproute2
 php -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("sodium") && extension_loaded("pdo_sqlite") && extension_loaded("curl") ? 0 : 1);' || { echo 'PHP >= 8.1 mit sodium, sqlite und curl benötigt.'; exit 1; }
 if ! id kienzle-sumup >/dev/null 2>&1; then useradd --system --home-dir /var/lib/kienzle-sumup --shell /usr/sbin/nologin kienzle-sumup; fi
 install -d -m 750 -o root -g kienzle-sumup /etc/kienzle-sumup

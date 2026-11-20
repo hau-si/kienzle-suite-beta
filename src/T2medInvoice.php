@@ -20,10 +20,63 @@ final class T2medInvoice {
         if (!$binary) throw new Problem('pdftotext fehlt. Bitte den aktualisierten Server-Installer ausführen (poppler-utils).', 503);
         $result = Command::run([$binary, '-layout', '-enc', 'UTF-8', 'fd://0', '-'], $pdf, 20, 2 * 1024 * 1024);
         if ($result['code'] !== 0) throw new Problem('Die Rechnung konnte nicht gelesen werden.', 422);
-        return self::parse($result['output'], $maxCents);
+        try {
+            return self::parse($result['output'], $maxCents);
+        } catch (Problem $e) {
+            // Bild-PDF (kein Textinhalt) oder fehlende Beschriftungen: Texterkennung versuchen.
+            if (!self::needsOcr($result['output'])) throw $e;
+            $text = self::ocr($pdf);
+            if ($text === null) {
+                if (trim($result['output']) === '') throw new Problem('Die Rechnung enthält keinen Text und die Texterkennung ist nicht eingerichtet. Bitte den aktualisierten Server-Installer ausführen (tesseract-ocr, tesseract-ocr-deu).', 422);
+                throw $e;
+            }
+            try {
+                // Erkannter Text ist fehleranfälliger: Zahlbetrag-Gegenprobe ist hier Pflicht.
+                return self::parse($text, $maxCents, true);
+            } catch (Problem $ocr) {
+                throw new Problem($ocr->getMessage() . ' (Texterkennung)', $ocr->http);
+            }
+        }
     }
 
-    public static function parse(string $text, int $maxCents): array {
+    /** Ohne Textebene oder ohne die erwarteten Beschriftungen lohnt sich die Texterkennung. */
+    private static function needsOcr(string $text): bool {
+        return trim($text) === '' || !preg_match('/Re\.-Nr\.:/u', $text) || !preg_match('/Gesamtsumme:/u', $text);
+    }
+
+    /** Texterkennung der ersten Seiten; null, wenn die Werkzeuge fehlen. */
+    private static function ocr(string $pdf): ?string {
+        $tools = [];
+        foreach (['pdftoppm' => '/usr/bin/pdftoppm', 'tesseract' => '/usr/bin/tesseract'] as $name => $default) {
+            foreach ([$default, '/usr/local/bin/' . $name, '/opt/homebrew/bin/' . $name] as $path) {
+                if (is_executable($path)) { $tools[$name] = $path; break; }
+            }
+            if (!isset($tools[$name])) return null;
+        }
+        $directory = sys_get_temp_dir() . '/ks-ocr-' . bin2hex(random_bytes(8));
+        if (!mkdir($directory, 0700)) return null;
+        try {
+            if (file_put_contents($directory . '/in.pdf', $pdf) !== strlen($pdf)) return null;
+            $render = Command::run([$tools['pdftoppm'], '-r', '300', '-gray', '-png', '-l', '4', $directory . '/in.pdf', $directory . '/page'], '', 60, 65536);
+            if ($render['code'] !== 0) return null;
+            $pages = glob($directory . '/page-*.png') ?: [];
+            sort($pages);
+            $text = [];
+            foreach (array_slice($pages, 0, 4) as $image) {
+                $read = Command::run([$tools['tesseract'], $image, 'stdout', '-l', 'deu', '--psm', '6'], '', 90, 2 * 1024 * 1024);
+                if ($read['code'] !== 0) return null;
+                $text[] = $read['output'];
+            }
+            return $text ? implode("\f", $text) : null;
+        } catch (Problem) {
+            return null;
+        } finally {
+            foreach (glob($directory . '/*') ?: [] as $file) @unlink($file);
+            @rmdir($directory);
+        }
+    }
+
+    public static function parse(string $text, int $maxCents, bool $requireTransfer = false): array {
         if (!mb_check_encoding($text, 'UTF-8')) throw new Problem('Die Rechnung enthält keinen lesbaren Text.', 422);
         $text = str_replace(["\u{00a0}", "\r"], [' ', ''], $text);
         if (trim($text) === '') throw new Problem('Die Rechnung enthält keinen Text. Bitte als Text-PDF aus T2med drucken.', 422);
@@ -32,7 +85,9 @@ final class T2medInvoice {
         $date = self::date(self::single($text, '/Re\.-Datum:[ \t]*(\d{2}\.\d{2}\.\d{4})/u', 'Rechnungsdatum', 'Re.-Datum:'));
         $total = self::cents(self::single($text, '/Gesamtsumme:[ \t]*(-?[\d.]+,\d{2})[ \t]*€/u', 'Gesamtsumme', 'Gesamtsumme: … €'));
         // Gegenprobe mit dem Überweisungssatz, falls vorhanden.
-        if (preg_match_all('/Betrag von[ \t]*(-?[\d.]+,\d{2})[ \t]*€/u', $text, $m)) {
+        $found = (bool)preg_match_all('/Betrag von[ \t]*(-?[\d.]+,\d{2})[ \t]*€/u', $text, $m);
+        if ($requireTransfer && !$found) throw new Problem('Der Zahlbetrag der Rechnung konnte nicht bestätigt werden.', 422);
+        if ($found) {
             foreach ($m[1] as $value) if (self::cents($value) !== $total) throw new Problem('Gesamtsumme und Zahlbetrag der Rechnung widersprechen sich.', 422);
         }
         if ($total < 1 || $total > $maxCents) throw new Problem('Der Rechnungsbetrag liegt außerhalb des erlaubten Bereichs.', 422);

@@ -58,7 +58,10 @@ Ablauf und Schutz:
   liest mit `pdftotext` **Re.-Nr.**, **Re.-Datum**, **Gesamtsumme** sowie Patient und
   Geburtsdatum. Jede dieser Angaben muss eindeutig sein; der Betrag wird mit dem Satz
   „Bitte überweisen Sie den Betrag von …“ gegengeprüft. Gutschriften, Beträge über
-  `max_amount_cents` und Bild-PDFs ohne Text werden abgelehnt; der Druckauftrag meldet dann einen Fehler.
+  `max_amount_cents` werden abgelehnt; der Druckauftrag meldet dann einen Fehler.
+  Hat das PDF keine Textebene (Bild-PDF) oder fehlen die Beschriftungen, liest der Server die
+  ersten Seiten per Texterkennung (`tesseract-ocr`, Deutsch). Erkannter Text wird nur akzeptiert,
+  wenn der Satz „Bitte überweisen Sie den Betrag von …“ erkannt wird und zur Gesamtsumme passt.
 - Eine Rechnung wird nur angeboten, wenn **Name und Geburtsdatum** mit dem Patienten aus dem
   T2med-Kontext übereinstimmen. Ein vorangestellter Titel auf der Rechnung ist erlaubt.
 - An SumUp gehen nur **Betrag**, **„Rechnung RE2026-0042“** als Beschreibung in den Umsätzen und die

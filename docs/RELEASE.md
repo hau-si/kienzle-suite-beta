@@ -4,7 +4,8 @@ Version 1.4.1-rechnung.19 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
-- Neu in rechnung.20: Der Rechnungsleser meldet jetzt genau, was fehlt („nicht gefunden“ mit der gesuchten Bezeichnung
+- Neu in rechnung.21: Bild-PDFs ohne Textebene werden vor dem Lesen per Texterkennung (Tesseract, Deutsch) umgewandelt;
+  der Installer richtet `tesseract-ocr` ein. Erkannter Text gilt nur mit bestätigtem Zahlbetrag. Der Rechnungsleser meldet jetzt genau, was fehlt („nicht gefunden“ mit der gesuchten Bezeichnung
   oder „mehrere verschiedene Werte“), statt nur „nicht eindeutig lesbar“.
 - Neu in rechnung.19: GOÄ-Rechner trifft den gewünschten Endbetrag immer genau: Der Faktor bekommt bei Bedarf eine
   3. oder 4. Nachkommastelle (10,72 € → 25,00 € = Faktor 2,332). Bis 100 € Einfachsatz ist jeder Betrag möglich.

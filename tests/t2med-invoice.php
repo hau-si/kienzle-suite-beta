@@ -81,6 +81,21 @@ try {
     rejects(fn() => T2medInvoice::parse('', 100000), 'Leere Rechnung akzeptiert', 422);
     rejects(fn() => T2medInvoice::fromPdf('kein pdf', 100000), 'Nicht-PDF akzeptiert', 415);
 
+    // Bild-PDF ohne Textebene: Texterkennung (nur, wenn pdftoppm und tesseract mit „deu“ vorhanden sind).
+    $ocrReady = is_executable('/usr/bin/pdftoppm') || is_executable('/usr/local/bin/pdftoppm');
+    $ocrReady = $ocrReady && (is_executable('/usr/bin/tesseract') || is_executable('/usr/local/bin/tesseract'));
+    $imagePdf = $ocrReady ? shell_exec('python3 ' . escapeshellarg(__DIR__ . '/make-image-invoice.py') . ' 2>/dev/null') : null;
+    if ($ocrReady && is_string($imagePdf) && str_starts_with($imagePdf, '%PDF-')) {
+        $read = T2medInvoice::fromPdf($imagePdf, 100000);
+        check($read['number'] === 'RE2026-0042' && $read['amount_cents'] === 4250 && $read['invoice_date'] === '2026-03-15'
+            && $read['patient_birthdate'] === '1980-04-12', 'Bild-PDF: Texterkennung liefert falsche Werte');
+        $broken = shell_exec('python3 ' . escapeshellarg(__DIR__ . '/make-image-invoice.py') . ' mismatch 2>/dev/null');
+        rejects(fn() => T2medInvoice::fromPdf((string)$broken, 100000), 'Bild-PDF mit abweichendem Zahlbetrag akzeptiert', 422);
+        echo "OCR-Test ausgeführt.\n";
+    } else {
+        echo "OCR-Test übersprungen (pdftoppm/tesseract fehlen).\n";
+    }
+
     // 2. Patientenabgleich.
     check(T2medInvoice::matches($parsed, 'Erika Musterfrau', '1980-04-12'), 'Passender Patient abgelehnt');
     check(T2medInvoice::matches(['patient_name' => 'Dr. Erika  Musterfrau'] + $parsed, 'erika musterfrau', '1980-04-12'), 'Titel/Schreibweise nicht toleriert');
