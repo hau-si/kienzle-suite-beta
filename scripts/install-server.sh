@@ -337,14 +337,8 @@ install -m 755 -o root -g root scripts/self-update.sh /usr/local/sbin/kienzle-su
 install -d -m 755 -o root -g root /var/lib/kienzle-sumup-update
 if [ ! -f /etc/kienzle-sumup/update.conf ]; then
   # Quelle aus dem Git-Ordner übernehmen, aus dem installiert wird (sonst das Originalprojekt).
+  # Standard: Hauptzweig des Projekts („Stabil“). Die Beta-Version dieses Forks wählt man in den Einstellungen.
   update_repo=thomaskien/t2med-sumup; update_branch=main
-  if [ -f "$source_dir/.git/config" ]; then
-    origin=$(sed -n '/^\[remote "origin"\]/,/^\[/{s/^[[:space:]]*url = //p}' "$source_dir/.git/config" | head -1)
-    origin=${origin%.git}; origin=${origin#https://github.com/}; origin=${origin#git@github.com:}
-    if [[ $origin =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then update_repo=$origin; fi
-    head_ref=$(sed -n 's#^ref: refs/heads/##p' "$source_dir/.git/HEAD" 2>/dev/null)
-    if [[ $head_ref =~ ^[A-Za-z0-9_./-]+$ ]]; then update_branch=$head_ref; fi
-  fi
   printf '# Quelle für „Aktualisieren“ in den Einstellungen (GitHub)\nrepo=%s\nbranch=%s\n' "$update_repo" "$update_branch" > /etc/kienzle-sumup/update.conf
 fi
 chown root:kienzle-sumup /etc/kienzle-sumup/update.conf; chmod 640 /etc/kienzle-sumup/update.conf

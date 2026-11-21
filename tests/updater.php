@@ -41,6 +41,17 @@ try {
     check(!$info['available'] && $info['error'] !== null, 'Fehlende Verbindung nicht gemeldet');
     $remote = "1.4.1-rechnung.14\n";
 
+    // Kanäle: Bisherige Quelle (Fork) = Beta; „Stabil“ liest den Hauptzweig des Projekts.
+    check($updater->channel() === 'beta' && $updater->source() === Updater::BETA, 'Fork-Quelle nicht als Beta erkannt');
+    $updater->setChannel('stable'); $calls = [];
+    $info = $updater->check();
+    check($info['channel'] === 'stable' && $info['source'] === ['repo' => 'thomaskien/t2med-sumup', 'branch' => 'main'] && $calls[0] === 'https://raw.githubusercontent.com/thomaskien/t2med-sumup/main/VERSION', 'Stabiler Kanal liest nicht den Hauptzweig');
+    problem(fn() => $updater->setChannel('irgendwas'), 'Unbekannter Kanal akzeptiert', 422);
+    $updater->setChannel('beta');
+    check($updater->check()['source'] === Updater::BETA, 'Beta-Kanal nicht gewählt');
+    $script = (string)file_get_contents(dirname(__DIR__) . '/scripts/self-update.sh');
+    check(str_contains($script, 'repo=' . Updater::STABLE['repo'] . '; branch=' . Updater::STABLE['branch']) && str_contains($script, 'repo=' . Updater::BETA['repo'] . '; branch=' . Updater::BETA['branch']), 'Kanalquellen in PHP und Skript verschieden');
+
     // Anfordern: nur mit Dienst, nicht während einer Kartenzahlung, nicht doppelt.
     problem(fn() => $updater->request(), 'Anforderung ohne Dienst', 503);
     touch(Updater::$service);
@@ -57,6 +68,7 @@ try {
     check(str_contains($updater->request()['message'], '1.4.1-rechnung.14'), 'Anforderung ohne Version');
     check(is_file($root . '/data/update-request') && $updater->status()['state'] === 'requested', 'Anfragedatei fehlt');
     problem(fn() => $updater->request(), 'Doppelte Anforderung', 409);
+    check(file_get_contents($root . '/data/update-request') === 'beta', 'Kanal fehlt in der Anfragedatei');
     unlink($root . '/data/update-request');
     file_put_contents(Updater::$state . '/status.json', json_encode(['state' => 'failed', 'message' => 'Fehlgeschlagen; zurückgesetzt.', 'from' => 'a', 'to' => 'b', 'finished' => 1]));
     file_put_contents(Updater::$state . '/update.log', "Zeile 1\nZeile 2\x1b[31m\n");

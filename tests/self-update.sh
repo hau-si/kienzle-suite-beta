@@ -33,4 +33,11 @@ if bash "$here/scripts/self-update.sh"; then fail 'Kaputter Download akzeptiert'
 printf 'repo=x;rm -rf /\nbranch=main\n' > "$T/conf"
 if bash "$here/scripts/self-update.sh"; then fail 'Ungültige Quelle akzeptiert'; fi
 status message | grep -q 'Quelle' || fail 'Meldung bei ungültiger Quelle'
+printf 'repo=hau-si/t2med-sumup\nbranch=rechnungseingang\n' > "$T/conf"
+echo 1.4.1-rechnung.12 > "$T/app/VERSION"; rm -f "$T/fail"; printf stable > "$T/data/update-request"
+bash "$here/scripts/self-update.sh" >/dev/null 2>&1 || true; grep -q 'Quelle: thomaskien/t2med-sumup (main)' "$T/state/update.log" || fail 'Kanal stable nutzt falsche Quelle'
+printf beta > "$T/data/update-request"
+bash "$here/scripts/self-update.sh" >/dev/null 2>&1 || true; grep -q 'Quelle: hau-si/t2med-sumup (rechnungseingang)' "$T/state/update.log" || fail 'Kanal beta nutzt falsche Quelle'
+printf '1778000000' > "$T/data/update-request"
+bash "$here/scripts/self-update.sh" >/dev/null 2>&1 || true; grep -q 'Quelle: hau-si/t2med-sumup (rechnungseingang)' "$T/state/update.log" || fail 'Ohne Kanal nicht die Quelle aus update.conf'
 echo 'Aktualisierungsdienst ok'

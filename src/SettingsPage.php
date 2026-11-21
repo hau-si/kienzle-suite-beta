@@ -70,6 +70,7 @@ final class SettingsPage {
             'update_check' => $this->updater()->check(($input['force'] ?? false) === true) + ['status' => $this->updater()->status()],
             'update_status' => $this->updater()->status(),
             'update_start' => $this->updater()->request(),
+            'update_channel' => (function () use ($input) { $u = $this->updater(); $u->setChannel(App::string($input, 'channel', 10)); return $u->check(true) + ['status' => $u->status(), 'message' => 'Kanal gespeichert.']; })(),
             't2med_paid' => $this->t2medPaid($input),
             't2med_done' => $this->t2medDone($input),
             't2med_correct' => $this->t2medCorrect($input),

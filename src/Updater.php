@@ -11,6 +11,9 @@ final class Updater {
     public static string $conf = '/etc/kienzle-sumup/update.conf';
     public static string $state = '/var/lib/kienzle-sumup-update';
     public static string $service = '/usr/local/sbin/kienzle-sumup-update';
+    /** Feste Quellen der Kanäle: Stabil = Hauptzweig des Projekts, Beta = Vorabversion dieses Forks. */
+    public const STABLE = ['repo' => 'thomaskien/t2med-sumup', 'branch' => 'main'];
+    public const BETA = ['repo' => 'hau-si/t2med-sumup', 'branch' => 'rechnungseingang'];
     private const CACHE = 'update_check';
     private const CACHE_SECONDS = 21600;   // 6 Stunden
 
@@ -29,10 +32,30 @@ final class Updater {
         };
     }
 
-    public function source(): ?array {
+    /** Quelle aus der root-eigenen Konfigurationsdatei (null, wenn keine eingerichtet ist). */
+    private function configured(): ?array {
         $text = @file_get_contents(self::$conf);
         if (!is_string($text) || !preg_match('/^repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/m', $text, $r) || !preg_match('/^branch=([A-Za-z0-9_.\/-]+)$/m', $text, $b)) return null;
         return ['repo' => $r[1], 'branch' => $b[1]];
+    }
+
+    /** Gewählter Kanal: stable (Hauptzweig), beta (dieser Fork) oder custom (eigene Quelle in update.conf). */
+    public function channel(): string {
+        $stored = (string)($this->db->one('SELECT value FROM settings WHERE key=?', ['update_channel'])['value'] ?? '');
+        if (in_array($stored, ['stable', 'beta'], true)) return $stored;
+        $conf = $this->configured();   // noch nichts gewählt: bisherige Quelle beibehalten
+        return $conf === null || $conf === self::STABLE ? 'stable' : ($conf === self::BETA ? 'beta' : 'custom');
+    }
+    public function setChannel(string $channel): void {
+        if (!in_array($channel, ['stable', 'beta'], true)) throw new Problem('Unbekannter Kanal.', 422);
+        $this->db->query('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at', ['update_channel', $channel, time()]);
+        $this->db->query('DELETE FROM settings WHERE key=?', [self::CACHE]);   // Prüfergebnis gilt nur für die alte Quelle
+    }
+
+    public function source(): ?array {
+        $conf = $this->configured();
+        if ($conf === null) return null;
+        return match ($this->channel()) { 'stable' => self::STABLE, 'beta' => self::BETA, default => $conf };
     }
 
     public function current(): string { return trim((string)@file_get_contents($this->root . '/VERSION')); }
@@ -66,7 +89,7 @@ final class Updater {
                 [self::CACHE, json_encode($cached, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), time()]);
         }
         $remote = $cached['remote'] ?? null;
-        return ['configured' => true, 'source' => $source, 'current' => $local, 'remote' => $remote, 'checked_at' => $cached['checked_at'],
+        return ['configured' => true, 'channel' => $this->channel(), 'source' => $source, 'current' => $local, 'remote' => $remote, 'checked_at' => $cached['checked_at'],
             'available' => is_string($remote) && self::newer($remote, $local), 'notes' => $cached['notes'] ?? [], 'error' => $cached['error'] ?? null,
             'service' => is_file(self::$service)];
     }
@@ -112,7 +135,7 @@ final class Updater {
         }
         $path = $this->db->directory . '/update-request';
         $tmp = $path . '.' . bin2hex(random_bytes(4));
-        if (file_put_contents($tmp, (string)time()) === false || !rename($tmp, $path)) { @unlink($tmp); throw new Problem('Aktualisierung konnte nicht angefordert werden.', 500); }
+        if (file_put_contents($tmp, $this->channel()) === false || !rename($tmp, $path)) { @unlink($tmp); throw new Problem('Aktualisierung konnte nicht angefordert werden.', 500); }
         return ['message' => 'Aktualisierung auf ' . $check['remote'] . ' gestartet. Das dauert einige Minuten; die Seite ist zwischendurch kurz nicht erreichbar.'];
     }
 }

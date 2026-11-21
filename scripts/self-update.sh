@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Aktualisierung aus dem Webinterface. Läuft als root über kienzle-sumup-update.service, ausgelöst
 # durch die Datei /var/lib/kienzle-sumup/update-request (schreibt die Einstellungsseite). Der Inhalt
-# der Anfrage wird nicht ausgewertet: Quelle (GitHub-Repository und Zweig) steht ausschließlich in der
-# root-eigenen /etc/kienzle-sumup/update.conf. Vor der Installation werden Programm und Datenbank
+# der Anfrage wird nur als Kanalname gelesen („stable“ oder „beta“, fest hinterlegte Quellen unten); alles
+# andere heißt: Quelle aus der root-eigenen /etc/kienzle-sumup/update.conf. Vor der Installation werden Programm und Datenbank
 # gesichert; schlägt der Installer fehl, wird der vorherige Stand wiederhergestellt.
 set -uo pipefail
 
@@ -21,6 +21,7 @@ data=${KS_DATA_DIR:-/var/lib/kienzle-sumup}
 services=${KS_SERVICES-kienzle-sumup-apache.service kienzle-sumup-php.service}
 owner=${KS_OWNER:-kienzle-sumup}
 
+channel=$(head -c 12 -- "$request" 2>/dev/null | tr -dc 'a-z')
 rm -f -- "$request"   # Anfrage verbrauchen (auch ein Symlink wird nur selbst entfernt)
 umask 022
 install -d -m 755 "$state"
@@ -42,6 +43,10 @@ echo "Kienzle-SumUp-Aktualisierung gestartet: $(date '+%d.%m.%Y %H:%M:%S'), inst
 
 repo=$(sed -nE 's/^repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/\1/p' "$conf" 2>/dev/null | head -1)
 branch=$(sed -nE 's/^branch=([A-Za-z0-9_.\/-]+)$/\1/p' "$conf" 2>/dev/null | head -1)
+case "$channel" in   # feste Quellen der Kanäle (müssen zu Updater::STABLE / Updater::BETA passen)
+  stable) repo=thomaskien/t2med-sumup; branch=main ;;
+  beta)   repo=hau-si/t2med-sumup; branch=rechnungseingang ;;
+esac
 if [ -z "$repo" ] || [ -z "$branch" ]; then echo "Quelle fehlt in $conf."; write_status failed 'Quelle der Aktualisierung fehlt (update.conf).'; exit 1; fi
 url=${KS_UPDATE_URL:-https://codeload.github.com/$repo/tar.gz/refs/heads/$branch}
 proto='=https'; [ -n "${KS_UPDATE_URL:-}" ] && proto='=https,file'
