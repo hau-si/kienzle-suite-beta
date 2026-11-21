@@ -31,7 +31,7 @@ try {
     };
     $updater = new Updater($db, $root . '/app', $fetch);
     check($updater->check()['configured'] === false, 'Ohne update.conf als eingerichtet gemeldet');
-    file_put_contents(Updater::$conf, "# Quelle\nrepo=hau-si/t2med-sumup\nbranch=rechnungseingang\n");
+    file_put_contents(Updater::$conf, "# Quelle\nrepo=hau-si/kienzle-suite-beta\nbranch=rechnungseingang\n");
     $info = $updater->check();
     check($info['available'] && $info['remote'] === '1.4.1-rechnung.14' && count($info['notes']) === 2, 'Neue Version nicht erkannt: ' . json_encode($info));
     check($calls[0] === 'https://raw.githubusercontent.com/hau-si/kienzle-suite-beta/rechnungseingang/VERSION', 'Falsche Abfrageadresse: ' . $calls[0]);

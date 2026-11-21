@@ -15,7 +15,6 @@ final class Updater {
     public const STABLE = ['repo' => 'thomaskien/t2med-sumup', 'branch' => 'main'];
     public const BETA = ['repo' => 'hau-si/kienzle-suite-beta', 'branch' => 'rechnungseingang'];
     /** Bisheriger Name des Forks: Installationen mit dieser Quelle in update.conf gelten als Beta. */
-    public const LEGACY_BETA = ['repo' => 'hau-si/t2med-sumup', 'branch' => 'rechnungseingang'];
     private const CACHE = 'update_check';
     private const CACHE_SECONDS = 21600;   // 6 Stunden
 
@@ -46,7 +45,7 @@ final class Updater {
         $stored = (string)($this->db->one('SELECT value FROM settings WHERE key=?', ['update_channel'])['value'] ?? '');
         if (in_array($stored, ['stable', 'beta'], true)) return $stored;
         $conf = $this->configured();   // noch nichts gewählt: bisherige Quelle beibehalten
-        return $conf === null || $conf === self::STABLE ? 'stable' : (in_array($conf, [self::BETA, self::LEGACY_BETA], true) ? 'beta' : 'custom');
+        return $conf === null || $conf === self::STABLE ? 'stable' : ($conf === self::BETA ? 'beta' : 'custom');
     }
     public function setChannel(string $channel): void {
         if (!in_array($channel, ['stable', 'beta'], true)) throw new Problem('Unbekannter Kanal.', 422);

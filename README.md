@@ -1387,7 +1387,7 @@ hat keinen Zugriff auf Schlüssel, Zugangsdaten, Drucker-, Netzwerk- und Update-
 
 In den Einstellungen unter „Aktualisierung“ steht das Kästchen „Beta-Versionen abonnieren“. Ohne Häkchen gilt **Stabil**, mit Häkchen **Beta**. **Stabil** holt Updates aus dem Hauptzweig des Projekts
 (`thomaskien/t2med-sumup`, Zweig `main`) und ist der Standard bei einer Neuinstallation. **Beta** holt sie aus diesem Fork
-(`hau-si/kienzle-suite-beta`, Zweig `rechnungseingang`, früher `hau-si/t2med-sumup`) und bringt neue Funktionen früher. Ein Wechsel von Beta zu Stabil installiert
+(`hau-si/kienzle-suite-beta`, Zweig `rechnungseingang`) und bringt neue Funktionen früher. Ein Wechsel von Beta zu Stabil installiert
 nie eine ältere Version; es wird erst wieder aktualisiert, wenn der Hauptzweig eine neuere Version hat.
 
 ## Gerät merken
@@ -1398,3 +1398,9 @@ Secure und SameSite=Strict. Auf einem gemerkten Gerät verlangen heikle Änderun
 Firewall, Zugang, Druckeinrichtung) das Passwort erneut; Pakete mit Schlüsseln lassen sich nur nach einer Anmeldung ohne
 Häkchen laden. Unter „Abmeldung und Mitarbeiter-Zugang“ stehen alle gemerkten Geräte; einzeln oder alle lassen sie sich
 abmelden. Ein geändertes Admin-Passwort meldet alle Geräte ab.
+
+## Lizenz
+
+Diese Beta-Fassung ist ein Fork von [thomaskien/t2med-sumup](https://github.com/thomaskien/t2med-sumup). Für Lizenz und
+Nutzungsbedingungen gilt das, was dort festgelegt ist; bitte dort nachlesen. Dieses Repository enthält deshalb keine eigene
+Lizenzdatei. Fragen zur Weitergabe oder Nutzung bitte an die Autoren des Hauptrepositories richten.
