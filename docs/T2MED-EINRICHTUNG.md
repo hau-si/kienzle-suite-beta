@@ -36,9 +36,20 @@ Die Aufruf-Adresse steht im Adminpanel unter *Einrichtung → T2med-Anbindung* (
 
 Jetzt erscheint die Schaltfläche beim Patienten. Ein Klick schickt die Patientendaten per FHIR an die Suite.
 
-## 3. Drucker „SumUp-Rechnung“ und Terminzettel
+## 3. Drucker „SumUp-Rechnung“
 
-- Rechnungen in T2med auf den Drucker **„SumUp-Rechnung“** drucken (Papier A4). Sie landen im Rechnungseingang.
+7. In den T2med-Einstellungen unter **Privatabrechnung → Drucker und Schacht** den Drucker **„SumUp-Rechnung“** eintragen
+   (Papier A4; der Drucker muss am Arbeitsplatz installiert sein, siehe Adminpanel).
+
+   ![Privatrechnung-Drucker](screenshots/t2med-7-privatrechnung-drucker.png)
+
+8. In **Rechnungen verwalten** die Rechnung öffnen und oben rechts auf das **Drucker-Symbol** klicken. Die Rechnung wird nicht
+   gedruckt, sondern geht an den Server und erscheint im Rechnungseingang und beim Patienten zum Kassieren.
+
+   ![Rechnung drucken](screenshots/t2med-8-rechnung-drucken.png)
+
+## 4. Terminzettel
+
 - Für den Terminzettel in T2med unter *Einstellungen → Kalender → Terminliste (DIN A6)* den Drucker **„Terminzettel“** wählen.
 
 Die Druckeradressen zeigt das Adminpanel unter *Einrichtung → Überblick*.

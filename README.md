@@ -20,7 +20,7 @@ und schreibt die Zahlung zurück in die Akte. Alle Bilder zeigen Testmodus und B
 
 **2. Kassieren per Funktionsleiste.** Ein Klick auf die Schaltfläche beim Patienten schickt die Patientendaten per FHIR an den Server. Die Kasse öffnet sich mit der offenen Rechnung; bezahlt wird mit Karte (SumUp), bar oder „Später“.
 
-<p align="center"><img src="docs/screenshots/flow-druck-simpdf.png" width="400" alt="Druck auf SumUp-Rechnung"> <img src="docs/screenshots/flow-kasse-patient.png" width="300" alt="Kasse mit offener Rechnung"> <img src="docs/screenshots/flow-beleg.png" width="300" alt="Zahlung erfolgreich mit Beleg"></p>
+<p align="center"><img src="docs/screenshots/t2med-8-rechnung-drucken.png" width="420" alt="Rechnung in T2med auf den Server drucken"> <img src="docs/screenshots/t2med-7-privatrechnung-drucker.png" width="330" alt="Drucker in den T2med-Einstellungen"> <img src="docs/screenshots/flow-kasse-patient.png" width="300" alt="Kasse mit offener Rechnung"> <img src="docs/screenshots/flow-beleg.png" width="300" alt="Zahlung erfolgreich mit Beleg"></p>
 
 **3. Rückschrieb.** Die Zahlung wird per FHIR als Eintrag mit Zahlart, Betrag, Rechnungsnummer und Transaktionsreferenz in die T2med-Akte geschrieben (schematische Darstellung).
 
