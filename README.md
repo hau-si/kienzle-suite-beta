@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.53**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.54**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -1165,7 +1165,7 @@ hat keinen Zugriff auf Schlüssel, Zugangsdaten, Drucker-, Netzwerk- und Update-
 
 ## Update-Kanal (Stabil / Beta)
 
-In den Einstellungen unter „Aktualisierung“ wählst du den Kanal. **Stabil** holt Updates aus dem Hauptzweig des Projekts
+In den Einstellungen unter „Aktualisierung“ steht das Kästchen „Beta-Versionen abonnieren“. Ohne Häkchen gilt **Stabil**, mit Häkchen **Beta**. **Stabil** holt Updates aus dem Hauptzweig des Projekts
 (`thomaskien/t2med-sumup`, Zweig `main`) und ist der Standard bei einer Neuinstallation. **Beta** holt sie aus diesem Fork
 (`hau-si/kienzle-suite-beta`, Zweig `rechnungseingang`, früher `hau-si/t2med-sumup`) und bringt neue Funktionen früher. Ein Wechsel von Beta zu Stabil installiert
 nie eine ältere Version; es wird erst wieder aktualisiert, wenn der Hauptzweig eine neuere Version hat.

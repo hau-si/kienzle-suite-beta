@@ -220,20 +220,22 @@ function renderUpdate(info) {
   const facts = el('dl', null, 'update-facts');
   const add = (k, v) => { facts.append(el('dt', k), el('dd', v)); };
   add('Installiert', info.current || '?');
-  if (info.configured) add('Kanal', ({stable: 'Stabil', beta: 'Beta', custom: 'Eigene Quelle'})[info.channel] || info.channel);
+  if (info.configured) add('Kanal', ({stable: 'Stabil (ursprüngliches Projekt)', beta: 'Beta (abonniert)', custom: 'Eigene Quelle'})[info.channel] || info.channel);
   if (info.configured) add('Quelle', info.source.repo + ' (Zweig ' + info.source.branch + ')');
   if (info.configured) add('Auf GitHub', info.remote ? info.remote + ' · geprüft ' + when(info.checked_at) : '–');
   box.append(facts);
   if (info.configured) {
-    // Kanal: „Stabil“ = Hauptversion des Projekts, „Beta“ = Vorabversion mit neuen Funktionen (dieser Fork).
-    const choice = el('select', null, null, {'aria-label': 'Update-Kanal', id: 'update-channel'});
-    const options = [['stable', 'Stabil (Hauptversion)'], ['beta', 'Beta (neue Funktionen, noch in Erprobung)']];
-    if (info.channel === 'custom') options.push(['custom', 'Eigene Quelle (update.conf)']);
-    for (const [value, text] of options) choice.append(el('option', text, null, {value}));
-    choice.value = info.channel; choice.disabled = running;
-    choice.onchange = () => busy(choice, async () => { const r = await api('update_channel', {channel: choice.value}); message(r.message); renderUpdate(r); });
-    const field = el('div', null, 'field'); field.append(el('label', 'Update-Kanal'), choice,
-      el('p', 'Stabil holt Updates nur aus dem Hauptzweig des Projekts. Beta liefert neue Funktionen früher, kann aber noch Fehler enthalten. Ein Wechsel von Beta zu Stabil installiert keine ältere Version, sondern wartet auf die nächste Hauptversion.', 'muted small'));
+    // Beta-Kanal (dieser Fork) per Kästchen abonnieren; ohne Häkchen kommen Updates nur aus dem ursprünglichen Projekt (Stabil).
+    const label = el('label', null, 'check'); const sub = el('input', null, null, {type: 'checkbox', id: 'update-beta'});
+    sub.checked = info.channel === 'beta'; sub.disabled = running;
+    sub.onchange = () => busy(sub, async () => {
+      try { const r = await api('update_channel', {channel: sub.checked ? 'beta' : 'stable'}); message(r.message); renderUpdate(r); }
+      catch (error) { sub.checked = !sub.checked; throw error; }
+    });
+    label.append(sub, document.createTextNode(' Beta-Versionen abonnieren'));
+    const field = el('div', null, 'field'); field.append(label,
+      el('p', info.channel === 'custom' ? 'Zurzeit ist eine eigene Quelle in update.conf eingetragen. Mit dem Kästchen wechselst du zu Beta, ohne Häkchen zu den stabilen Versionen.'
+        : 'Ohne Häkchen kommen Updates nur aus dem ursprünglichen Projekt (stabile Versionen). Mit Häkchen bekommst du zusätzlich die Beta-Versionen aus diesem Fork früher, mit neuen Funktionen, die noch Fehler enthalten können. Das Abbestellen installiert keine ältere Version, sondern wartet auf die nächste stabile Version.', 'muted small'));
     box.append(field);
   }
   if (!info.configured) { box.append(el('p', 'Keine Aktualisierungsquelle eingerichtet. Bitte einmal den aktuellen Server-Installer ausführen.', 'inline-error')); return; }
