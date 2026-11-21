@@ -21,7 +21,31 @@ done
 # Einmal gewählt, gilt „ohne Terminzettel“ auch für spätere Aktualisierungen aus dem Webinterface.
 if [ -f /etc/kienzle-sumup/ohne-terminzettel ]; then with_terminzettel=0; fi
 apt-get update
+# Parallelbetrieb mit einem anderen Webserver (z. B. nginx auf Port 80): Der Paket-Apache wird nur als Programmdatei gebraucht,
+# Kienzle-SumUp startet eine eigene Instanz auf dem eigenen Port. Belegt schon etwas Port 80, darf der Paket-Apache beim
+# Installieren nicht starten (sonst bricht die Installation ab) und wird danach abgeschaltet.
+stock_apache_off=0
+if ss -ltn 2>/dev/null | grep -qE ':80[[:space:]]' || command -v nginx >/dev/null 2>&1; then
+  stock_apache_off=1
+  printf '#!/bin/sh\n[ "$1" = apache2 ] && exit 101\nexit 0\n' > /usr/sbin/policy-rc.d; chmod 755 /usr/sbin/policy-rc.d
+fi
 DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin qpdf fonts-dejavu-core libphp-phpmailer poppler-utils tesseract-ocr tesseract-ocr-deu php-gd smbclient cups-client cups ghostscript nftables iproute2
+if [ "$stock_apache_off" = 1 ]; then
+  rm -f /usr/sbin/policy-rc.d
+  systemctl disable --now apache2.service >/dev/null 2>&1 || true
+fi
+# AppArmor (Ubuntu 26.04): gs und qpdf sind dort eingeschränkt. Rechte für den Datenordner dieser Anwendung als lokale
+# Ergänzung eintragen (bleibt bei Updates erhalten, mehrfaches Ausführen ändert nichts). Fehler sind unkritisch.
+if command -v apparmor_parser >/dev/null 2>&1; then
+  for prog in gs qpdf; do
+    if [ -f "/etc/apparmor.d/$prog" ] && [ -d /etc/apparmor.d/local ]; then
+      for rule in '/var/lib/kienzle-sumup/** rwk,' '/tmp/** rwk,'; do
+        grep -qxF "$rule" "/etc/apparmor.d/local/$prog" 2>/dev/null || echo "$rule" >> "/etc/apparmor.d/local/$prog"
+      done
+      apparmor_parser -r "/etc/apparmor.d/$prog" 2>/dev/null || true
+    fi
+  done
+fi
 # Automatische Sicherheitsupdates (nur Sicherheitsquelle der Distribution, kein automatischer Neustart).
 # Vorhandene Einstellungen bleiben unverändert; Kernel-Updates und Neustarts macht die Praxis selbst.
 DEBIAN_FRONTEND=noninteractive apt-get install -y unattended-upgrades

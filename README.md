@@ -733,6 +733,22 @@ und braucht einige Minuten. Am Ende gibt er einen einmaligen **Einrichtungslink*
    [Anleitung „T2med einrichten“](docs/T2MED-EINRICHTUNG.md).
 7. Mit einer Testrechnung im Testmodus alles prüfen, dann SumUp auf Live stellen.
 
+**Hinweise für Ubuntu 26.04 und Parallelbetrieb** (aus der Praxis, unter Vorbehalt):
+
+- **AppArmor:** Auf Ubuntu 26.04 schränkt AppArmor `gs` und `qpdf` ein. Der Installer trägt dafür lokale Regeln für den
+  Datenordner dieser Anwendung ein (`/etc/apparmor.d/local/gs` und `…/qpdf`). Zeigt sich trotzdem ein Fehler beim Lesen oder Versenden
+  von Rechnungen (`Permission denied`, `undefinedfilename`), mit
+  `sudo journalctl -k | grep 'apparmor="DENIED"'` nachsehen, welcher Pfad gesperrt ist, und ihn dort ergänzen:
+
+  ```bash
+  echo '/PFAD/** rwk,' | sudo tee -a /etc/apparmor.d/local/gs
+  sudo apparmor_parser -r /etc/apparmor.d/gs
+  ```
+
+- **Parallel zu anderen Diensten** (z. B. nginx auf Port 80): Die Suite bringt ihre eigene Apache-Instanz auf Port 7868 mit.
+  Der Installer schaltet den Standard-Apache des Pakets ab, wenn Port 80 belegt ist oder nginx installiert ist, damit er nicht mit dem anderen Webserver kollidiert.
+  Das Drucksystem CUPS ist ein gemeinsamer Dienst: Wird es auch aus einem VPN genutzt, dort das Netz in `cupsd.conf` mit `Allow <Netz>` freigeben.
+
 Später genügt zum Aktualisieren der Knopf im Adminpanel (Glocke oben); siehe [Aktualisieren im Webinterface](#aktualisieren-im-webinterface).
 
 ## Server installieren
