@@ -4,7 +4,7 @@ Version 1.4.1-rechnung.55 der Kartenzahlungsseite für T2med und SumUp Solo (For
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
-- Neu in rechnung.55: Update-Glocke grau, solange alles aktuell ist; roter Punkt bei neuer Version im abonnierten Kanal; ganz rot, wenn im Hauptzweig (stabil) eine neuere Version liegt. Dazu README mit Ablauf-Überblick, Hardware und Erstinstallation, Anleitung „T2med einrichten“, Installer-Anpassungen für Ubuntu 26.04 und Parallelbetrieb (AppArmor, Paket-Apache), MIT-Lizenz.
+- Neu in rechnung.55: Terminzettel – Reihenfolge „erste Zeile, dann Adressbereich“, Änderungen daran verlangen auf gemerkten Geräten kein Passwort mehr. Update-Glocke grau, solange alles aktuell ist; roter Punkt bei neuer Version im abonnierten Kanal; ganz rot, wenn im Hauptzweig (stabil) eine neuere Version liegt. Dazu README mit Ablauf-Überblick, Hardware und Erstinstallation, Anleitung „T2med einrichten“, Installer-Anpassungen für Ubuntu 26.04 und Parallelbetrieb (AppArmor, Paket-Apache), MIT-Lizenz.
 - Neu in rechnung.54: Der Beta-Kanal wird per Kästchen „Beta-Versionen abonnieren“ gewählt; ohne Häkchen kommen Updates aus dem ursprünglichen Projekt (stabil).
 - Neu in rechnung.53: Der Fork heißt jetzt kienzle-suite-beta (hau-si/kienzle-suite-beta). Der Beta-Kanal liest die neue Adresse; .
 - Neu in rechnung.52: Zwischenversion für die Umbenennung des Forks (kienzle-suite-beta): Die Update-Prüfung folgt GitHub-Weiterleitungen, damit Aktualisierungen auch nach dem Umbenennen des Repositorys ankommen.

@@ -181,6 +181,8 @@ try {
     problem(fn() => $other->handle('get', [], $rsession, $rl['csrf']), 'Gemerktes Gerät aus fremdem Netz akzeptiert', 401);
     $near = new SettingsPage($base); $near->client = '192.168.1.99';
     check(isset($near->handle('get', [], $rsession, $rl['csrf'])['sections']), 'Gemerktes Gerät im selben Netz abgelehnt');
+    problem(fn() => $rp->handle('save', ['section' => 'practice', 'values' => ['name' => 'X']], $rsession, $rl['csrf']), 'Speichern auf gemerktem Gerät ohne Passwort', 403);
+    check(!empty($rp->handle('save', ['section' => 'terminzettel', 'values' => ['header_text' => 'Praxis Beispiel']], $rsession, $rl['csrf'])['message'] ?? ''), 'Terminzettel speichern verlangt auf gemerktem Gerät ein Passwort');
     problem(fn() => $rp->handle('update_channel', ['channel' => 'beta'], $rsession, $rl['csrf']), 'Heikle Aktion ohne Passwort', 403);
     problem(fn() => $rp->handle('update_channel', ['channel' => 'beta', 'confirm' => 'falsches-passwort'], $rsession, $rl['csrf']), 'Heikle Aktion mit falschem Passwort', 403);
     check(($rp->handle('update_channel', ['channel' => 'beta', 'confirm' => 'ein-langes-passwort'], $rsession, $rl['csrf'])['message'] ?? '') === 'Kanal gespeichert.', 'Heikle Aktion mit Passwort nicht möglich');

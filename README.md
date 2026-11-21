@@ -809,7 +809,7 @@ abgehakte T2med-Rechnungen. Adressen wie `/settings.php#s-printers` öffnen den 
 | Umsatzsteuer | MwSt.-Satz, Kleinunternehmerregelung (§ 19 UStG), Steuernummer/USt-IdNr., Hinweistexte |
 | T2med abhaken | bezahlte T2med-Rechnungen nach Nummer, in T2med erledigt markieren, Excel-Liste |
 | Export Steuerberatung | Excel-Tabelle aller Rechnungen aus dem Rechnungstool, je Jahr oder Monat |
-| Terminzettel | Starttext, Überschrift, Termine, Endtext mit eigener Schriftgröße; Kalender-QR (Position, Größe); Live-Vorschau; Testdruck |
+| Terminzettel | Kopf (erste Zeile, Adressbereich), Überschrift, Termine, Endtext mit eigener Schriftgröße; Kalender-QR (Position, Größe); Live-Vorschau; Testdruck |
 | Drucker einrichten | TM-m10, TM-m30III und A4-Netzwerkdrucker suchen, anlegen, übernehmen, entfernen |
 | Arbeitsplätze einrichten | Installationspaket für Windows, macOS und Linux herunterladen |
 | T2med-Rechnungen übernehmen | virtueller Drucker „SumUp-Rechnung“, Einrichtungsdatei für den Druckserver |
@@ -913,8 +913,8 @@ mit einem Kalender-QR je Termin. Der Server-Installer richtet ihn **ohne Rückfr
 
 Unter **Einstellungen → Terminzettel**:
 
-- Starttext (Praxiskopf), Überschrift, Termine und Endtext jeweils mit eigener **Schriftgröße**
-  (Normal 1×1 bis Riesig 4×4; Starttext zusätzlich fett/normal).
+- Kopf (erste Zeile und Adressbereich), Überschrift, Termine und Endtext jeweils mit eigener **Schriftgröße**
+  (Normal 1×1 bis Riesig 4×4; Kopf zusätzlich fett/normal).
 - **Kalender-QR:** an/aus, **Position** rechts, links oder unter dem Termin, Größe klein/mittel/groß,
   Kalender-Titel.
 - **Vorschau** rechts neben dem Formular: Sie zeigt mit Beispieldaten genau die Druckdaten, die auch an den

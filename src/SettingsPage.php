@@ -48,7 +48,9 @@ final class SettingsPage {
         if (!$session) throw new Problem('Bitte anmelden.', 401);
         if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status', 'inbox_overview', 'catalog'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
         // Gemerktes Gerät: heikle Aktionen nur mit erneuter Passworteingabe.
-        if ((int)($session['remember'] ?? 0) === 1 && in_array($action, self::CONFIRM, true)) $this->admin->confirmPassword(App::string($input, 'confirm', 400, false));
+        // Der Terminzettel enthält keine Zugangsdaten: Änderungen daran brauchen auch auf gemerkten Geräten kein Passwort.
+        $plainSave = $action === 'save' && App::string($input, 'section', 40) === 'terminzettel';
+        if ((int)($session['remember'] ?? 0) === 1 && !$plainSave && in_array($action, self::CONFIRM, true)) $this->admin->confirmPassword(App::string($input, 'confirm', 400, false));
         // Mitarbeiter-Zugang: nur die freigegebenen Aktionen (Rechte werden bei jeder Anfrage neu gelesen).
         $staff = ($session['role'] ?? 'admin') === 'staff';
         if ($staff) $this->requireStaffRight($action);
