@@ -1,9 +1,10 @@
-Version 1.4.1-rechnung.50 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.51 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.51: „Dieses Gerät merken“ bei der Anmeldung (bis zu 6 Monate, nur aus dem Netz der Anmeldung, in den Einstellungen einsehbar und widerrufbar); heikle Änderungen (Einstellungen speichern, Update, Firewall, Zugang) verlangen auf gemerkten Geräten das Passwort erneut; Pakete mit Schlüsseln nur ohne Gerät merken (Datenbankversion 18).
 - Neu in rechnung.50: Update-Kanal wählbar: „Stabil“ (Hauptzweig thomaskien/t2med-sumup, Standard bei Neuinstallation) oder „Beta“ (dieser Fork). Bestehende Installationen von diesem Fork bleiben zunächst auf Beta.
 - Neu in rechnung.49: Abmeldezeiten bis 6 Monate einstellbar (Minuten, Stunden oder Tage).
 - Neu in rechnung.48: Terminzettel – erste Zeile des Starttexts (z. B. Praxisname) mit eigener Schriftgröße und fett/nicht fett einstellbar.

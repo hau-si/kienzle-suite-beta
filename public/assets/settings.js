@@ -44,7 +44,28 @@ function tip(field) {
 document.addEventListener('click', event => { if (!event.target.closest('.tip')) document.querySelectorAll('.tip.open').forEach(t => t.classList.remove('open')); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelectorAll('.tip.open').forEach(t => t.classList.remove('open')); });
 
+const REAUTH = 'Passwort zur Bestätigung erforderlich.';
+// Heikle Änderungen von einem gemerkten Gerät: Passwort abfragen und die Anfrage einmal wiederholen.
+function askPassword() {
+  const dialog = $('confirm-dialog'), input = $('confirm-password'); input.value = '';
+  return new Promise(resolve => {
+    const done = value => { dialog.close(); $('confirm-form').onsubmit = null; $('confirm-cancel').onclick = null; resolve(value); };
+    $('confirm-form').onsubmit = event => { event.preventDefault(); done(input.value); };
+    $('confirm-cancel').onclick = () => done(null);
+    dialog.addEventListener('cancel', () => done(null), {once: true});
+    dialog.showModal(); input.focus();
+  });
+}
 async function api(action, data = {}) {
+  try { return await rawApi(action, data); }
+  catch (error) {
+    if (error.message !== REAUTH) throw error;
+    const confirm = await askPassword();
+    if (confirm === null) throw new Error('Abgebrochen.');
+    return rawApi(action, {...data, confirm});
+  }
+}
+async function rawApi(action, data = {}) {
   const response = await fetch('/settings-api.php', {method: 'POST', credentials: 'same-origin',
     headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf}, body: JSON.stringify({action, ...data})});
   const result = await response.json().catch(() => ({}));
@@ -441,6 +462,28 @@ function renderAccess(access) {
   form.onsubmit = event => { event.preventDefault(); send(false); };
   if (access.staff) { const del = el('button', 'Mitarbeiter-Zugang entfernen', 'secondary', {type: 'button'}); del.onclick = () => { if (confirm('Mitarbeiter-Zugang wirklich entfernen?')) send(true); }; buttons.append(del); }
   form.append(buttons);
+  renderDevices();
+}
+// Gemerkte Geräte: ansehen und einzeln oder alle abmelden.
+async function renderDevices(data) {
+  let box = $('access-devices');
+  if (!box) { box = el('div', null, null, {id: 'access-devices'}); $('s-access').append(box); }
+  try { data = data || await api('devices'); } catch (error) { box.replaceChildren(el('p', error.message, 'muted')); return; }
+  box.replaceChildren(el('h3', 'Gemerkte Geräte'));
+  if (!data.devices.length) { box.append(el('p', 'Keine Geräte gemerkt. Beim Anmelden gibt es dafür das Häkchen „Dieses Gerät merken“.', 'muted small')); return; }
+  const table = el('table'); const head = el('tr');
+  for (const h of ['Gerät', 'Zugang', 'Angemeldet', 'Zuletzt benutzt', 'Netz', '']) head.append(el('th', h));
+  table.append(head);
+  for (const d of data.devices) {
+    const tr = el('tr'); for (const v of [d.label + (d.current ? ' (dieses Gerät)' : ''), d.role === 'staff' ? 'Mitarbeiter' : 'Admin', when(d.created_at), when(d.last_used), d.net]) tr.append(el('td', v));
+    const td = el('td'); const out = el('button', 'Abmelden', 'secondary small-button', {type: 'button'});
+    out.onclick = () => busy(out, async () => { const r = await api('device_revoke', {id: d.id}); message(r.message); if (d.current) { csrf = ''; show('login'); } else renderDevices(r); });
+    td.append(out); tr.append(td); table.append(tr);
+  }
+  box.append(table);
+  const all = el('button', 'Alle gemerkten Geräte abmelden', 'secondary', {type: 'button'});
+  all.onclick = () => busy(all, async () => { const r = await api('device_revoke', {id: 'all'}); message(r.message); csrf = ''; show('login'); });
+  box.append(all);
 }
 
 $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
@@ -451,7 +494,7 @@ $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitt
   await loadSettings();
 }); };
 $('login-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
-  const result = await api('login', {password: $('login-password').value}); csrf = result.csrf; $('login-password').value = ''; message(''); await loadSettings();
+  const result = await api('login', {password: $('login-password').value, remember: $('login-remember').checked}); csrf = result.csrf; $('login-password').value = ''; message(''); await loadSettings();
 }); };
 $('password-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
   const result = await api('password', {current: $('pw-current').value, new: $('pw-new').value});

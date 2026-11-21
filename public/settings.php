@@ -20,8 +20,10 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <button class="primary wide" type="submit">Passwort festlegen</button></form>
 <p id="setup-missing" class="inline-error" hidden>Dieser Link ist unvollständig. Bitte den Einrichtungslink aus dem Installer verwenden oder einen neuen erzeugen: <code>sudo bash scripts/install-server.sh --admin-reset</code></p></section>
 
+<dialog id="confirm-dialog" class="card"><form method="dialog" id="confirm-form"><h2>Passwort bestätigen</h2><p class="muted small">Dieses Gerät ist gemerkt. Für diese Änderung bitte das Admin-Passwort eingeben.</p><label>Admin-Passwort<input id="confirm-password" type="password" autocomplete="current-password" required></label><div class="row-buttons"><button class="primary" value="ok" type="submit">Bestätigen</button><button class="secondary" value="cancel" type="button" id="confirm-cancel">Abbrechen</button></div></form></dialog>
 <section id="login" class="card" hidden><h1>Anmelden</h1>
 <form id="login-form"><label>Admin-Passwort<input id="login-password" type="password" autocomplete="current-password" required></label>
+<label class="check"><input id="login-remember" type="checkbox"> Dieses Gerät merken (bis zu 6 Monate, nur in diesem Netz)</label>
 <button class="primary wide" type="submit">Anmelden</button></form>
 <p class="muted small">Passwort vergessen? Auf dem Server <code>sudo bash scripts/install-server.sh --admin-reset</code> ausführen.</p></section>
 

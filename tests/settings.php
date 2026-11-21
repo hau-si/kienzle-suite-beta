@@ -169,6 +169,32 @@ try {
     problem(fn() => (new SettingsPage($base))->handle('login', ['password' => 'Mitarbeiter-Kaffee-2026'], null, null), 'Entfernter Mitarbeiter meldet sich an', 401);
     $page->handle('access_save', ['idle_minutes' => 30, 'max_hours' => 12, 'rights' => []], $session, $login['csrf']);
 
+    // Gerät merken: langes Cookie, nur aus demselben Netz, heikle Aktionen nur mit Passwort, widerrufbar.
+    $rp = new SettingsPage($base); $rp->client = '192.168.1.20';
+    $_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36';
+    $rl = $rp->handle('login', ['password' => 'ein-langes-passwort', 'remember' => true], null, null);
+    check($rl['remember'] === true && str_contains((string)$rp->cookie(), 'Max-Age=15811200'), 'Gerät merken: Cookie nicht langlebig');
+    preg_match('/^ks_admin=([A-Za-z0-9_-]+);/', (string)$rp->cookie(), $rm); $rsession = $rm[1];
+    $dev = $rp->handle('devices', [], $rsession, $rl['csrf'])['devices'];
+    check(count($dev) === 1 && $dev[0]['label'] === 'Chrome auf Windows' && $dev[0]['current'] === true && $dev[0]['net'] === '192.168.1.0/24', 'Geräteliste falsch: ' . json_encode($dev));
+    $other = new SettingsPage($base); $other->client = '10.9.8.7';
+    problem(fn() => $other->handle('get', [], $rsession, $rl['csrf']), 'Gemerktes Gerät aus fremdem Netz akzeptiert', 401);
+    $near = new SettingsPage($base); $near->client = '192.168.1.99';
+    check(isset($near->handle('get', [], $rsession, $rl['csrf'])['sections']), 'Gemerktes Gerät im selben Netz abgelehnt');
+    problem(fn() => $rp->handle('update_channel', ['channel' => 'beta'], $rsession, $rl['csrf']), 'Heikle Aktion ohne Passwort', 403);
+    problem(fn() => $rp->handle('update_channel', ['channel' => 'beta', 'confirm' => 'falsches-passwort'], $rsession, $rl['csrf']), 'Heikle Aktion mit falschem Passwort', 403);
+    check(($rp->handle('update_channel', ['channel' => 'beta', 'confirm' => 'ein-langes-passwort'], $rsession, $rl['csrf'])['message'] ?? '') === 'Kanal gespeichert.', 'Heikle Aktion mit Passwort nicht möglich');
+    $rp->handle('t2med_paid', [], $rsession, $rl['csrf']);   // laufende Arbeit braucht kein Passwort
+    problem(function () use ($rp, $rsession) { $rp->clientDownload($rsession, 'windows', fn($h) => null, fn($d) => null); }, 'Paket mit Schlüsseln von gemerktem Gerät', 403);
+    $db->query('UPDATE admin_sessions SET created_at=? WHERE remember=1', [time() - 15811200 - 10]);
+    problem(fn() => $rp->handle('get', [], $rsession, $rl['csrf']), 'Gemerktes Gerät nach 6 Monaten gültig', 401);
+    $rl = $rp->handle('login', ['password' => 'ein-langes-passwort', 'remember' => true], null, null);
+    preg_match('/^ks_admin=([A-Za-z0-9_-]+);/', (string)$rp->cookie(), $rm); $rsession = $rm[1];
+    $rp->handle('device_revoke', ['id' => $rp->handle('devices', [], $rsession, $rl['csrf'])['devices'][0]['id']], $rsession, $rl['csrf']);
+    problem(fn() => $rp->handle('get', [], $rsession, $rl['csrf']), 'Abgemeldetes Gerät noch gültig', 401);
+    $nr = $rp->handle('login', ['password' => 'ein-langes-passwort'], null, null);
+    check($nr['remember'] === false && str_contains((string)$rp->cookie(), 'Max-Age=43200'), 'Normale Anmeldung wurde gemerkt');
+
     for ($i = 0; $i < 5; $i++) { try { $admin->login('falsch'); } catch (Problem) {} }
     problem(fn() => $admin->login('ein-langes-passwort'), 'Keine Sperre nach Fehlversuchen', 429);
     $page->handle('logout', [], $session, $login['csrf']);

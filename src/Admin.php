@@ -17,6 +17,11 @@ final class Admin {
         'letter' => ['Rechnungen per Post (Letterxpress) senden', ['inbox_overview', 'inbox_letter', 'inbox_letter_many']],
         'catalog' => ['Leistungen und GOÄ-Positionen bearbeiten', ['catalog', 'catalog_service_save', 'catalog_service_delete', 'catalog_group_save', 'catalog_group_delete']],
     ];
+    /** „Gerät merken“: bis zu 30 Tage ohne Nutzung, höchstens 6 Monate, nur aus dem Netz der Anmeldung. */
+    private const REMEMBER_IDLE = 2592000;
+    public const REMEMBER_MAX = 15811200;
+    /** Adresse des anfragenden Geräts (für Tests und die Einstellungsseite setzbar). */
+    public ?string $client = null;
     public const MAX_IDLE_MINUTES = 263520;   // 183 Tage (ca. 6 Monate)
     public const MAX_HOURS = 4392;            // 183 Tage
     public const DEFAULT_RIGHTS = ['paid', 'inbox'];
@@ -65,7 +70,7 @@ final class Admin {
         return $this->open();
     }
 
-    public function login(string $password): array {
+    public function login(string $password, bool $remember = false, string $agent = ''): array {
         $this->checkLock();
         $hash = $this->setting('admin_password_hash');
         if ($hash === null) throw new Problem('Noch kein Admin-Passwort festgelegt. Bitte den Einrichtungslink aus dem Installer öffnen.', 409);
@@ -73,15 +78,15 @@ final class Admin {
         if (!password_verify($password, $hash)) {
             if ($staff !== null && password_verify($password, $staff)) {   // Mitarbeiter-Zugang mit eigenem Passwort
                 $this->throttle->clear('login');
-                $this->audit->write('login-ok', 'Mitarbeiter');
-                return $this->open('staff');
+                $this->audit->write('login-ok', 'Mitarbeiter' . ($remember ? ' Geraet-gemerkt' : ''));
+                return $this->open('staff', $remember, $agent);
             }
             $this->failed('login'); usleep(self::$failDelay); throw new Problem('Passwort falsch.', 401);
         }
         $this->throttle->clear('login');
-        $this->audit->write('login-ok');
+        $this->audit->write('login-ok', $remember ? 'Geraet-gemerkt' : '');
         if (password_needs_rehash($hash, self::algorithm())) $this->setPassword($password);
-        return $this->open();
+        return $this->open('admin', $remember, $agent);
     }
 
     // ---- Zugang: Abmeldezeiten und Mitarbeiter-Zugang ----------------------------------------
@@ -149,11 +154,15 @@ final class Admin {
         if (!$token || !preg_match('/^[A-Za-z0-9_-]{40,64}$/D', $token)) return null;
         $row = $this->db->one('SELECT * FROM admin_sessions WHERE token_hash=? AND expires_at>?', [hash('sha256', $token), time()]);
         if (!$row) return null;
-        if ((int)$row['created_at'] < time() - $this->maxSeconds()) {   // zu alt: auch bei Dauernutzung neu anmelden
+        $remember = (int)$row['remember'] === 1;
+        // Gemerkte Geräte gelten nur aus dem Netz der Anmeldung: ein gestohlenes Cookie nützt von außen nichts.
+        if ($remember && !hash_equals((string)$row['net'], self::net($this->client ?? (string)($_SERVER['REMOTE_ADDR'] ?? '')))) return null;
+        $max = $remember ? self::REMEMBER_MAX : $this->maxSeconds();
+        if ((int)$row['created_at'] < time() - $max) {   // zu alt: auch bei Dauernutzung neu anmelden
             $this->db->query('DELETE FROM admin_sessions WHERE token_hash=?', [$row['token_hash']]);
             return null;
         }
-        $this->db->query('UPDATE admin_sessions SET expires_at=? WHERE token_hash=?', [min(time() + $this->idleSeconds(), (int)$row['created_at'] + $this->maxSeconds()), $row['token_hash']]);
+        $this->db->query('UPDATE admin_sessions SET expires_at=?, last_used=? WHERE token_hash=?', [min(time() + ($remember ? self::REMEMBER_IDLE : $this->idleSeconds()), (int)$row['created_at'] + $max), time(), $row['token_hash']]);
         return $row;
     }
     public function logout(?string $token): void {
@@ -163,12 +172,51 @@ final class Admin {
         return self::COOKIE . '=' . $value . '; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=' . $ttl;
     }
 
-    private function open(string $role = 'admin'): array {
+    /** Netz des Geräts: IPv4 als /24, IPv6 als /64. */
+    public static function net(string $address): string {
+        if (str_contains($address, ':') && ($packed = @inet_pton($address)) !== false && strlen($packed) === 16) return bin2hex(substr($packed, 0, 8)) . '/64';
+        if (preg_match('/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/D', $address, $m)) return $m[1] . '.0/24';
+        return $address;
+    }
+    /** Kurze Gerätebeschreibung aus dem Browser-Kennzeichen, z. B. „Chrome auf Windows“. */
+    public static function describeAgent(string $agent): string {
+        $browser = preg_match('/Edg\//', $agent) ? 'Edge' : (preg_match('/Firefox\//', $agent) ? 'Firefox' : (preg_match('/Chrome\//', $agent) ? 'Chrome' : (preg_match('/Safari\//', $agent) ? 'Safari' : 'Browser')));
+        $system = preg_match('/Windows/', $agent) ? 'Windows' : (preg_match('/iPhone|iPad/', $agent) ? 'iOS' : (preg_match('/Android/', $agent) ? 'Android' : (preg_match('/Mac OS X/', $agent) ? 'macOS' : (preg_match('/Linux/', $agent) ? 'Linux' : '?'))));
+        return $browser . ' auf ' . $system;
+    }
+    /** Gemerkte Geräte (ohne die Sitzungswerte selbst). $current = Cookie-Wert der aufrufenden Sitzung. */
+    public function devices(?string $current): array {
+        $own = $current ? hash('sha256', $current) : '';
+        $out = [];
+        foreach ($this->db->query('SELECT token_hash,role,label,created_at,last_used,net FROM admin_sessions WHERE remember=1 AND expires_at>? ORDER BY last_used DESC', [time()])->fetchAll() as $r) {
+            $out[] = ['id' => substr($r['token_hash'], 0, 16), 'role' => $r['role'], 'label' => $r['label'], 'created_at' => (int)$r['created_at'], 'last_used' => (int)$r['last_used'], 'net' => $r['net'], 'current' => $r['token_hash'] === $own];
+        }
+        return $out;
+    }
+    /** Gemerktes Gerät abmelden; „all“ = alle gemerkten Geräte. */
+    public function revoke(string $id): int {
+        if ($id === 'all') { $n = $this->db->query('DELETE FROM admin_sessions WHERE remember=1')->rowCount(); }
+        elseif (preg_match('/^[a-f0-9]{16}$/D', $id)) { $n = $this->db->query('DELETE FROM admin_sessions WHERE remember=1 AND substr(token_hash,1,16)=?', [$id])->rowCount(); }
+        else throw new Problem('Ungültiges Gerät.', 422);
+        $this->audit->write('geraet-abgemeldet', $id === 'all' ? 'alle' : '');
+        return $n;
+    }
+    /** Passwort für heikle Aktionen von gemerkten Geräten erneut verlangen. */
+    public function confirmPassword(string $password): void {
+        $this->checkLock();
+        if ($password === '') throw new Problem('Passwort zur Bestätigung erforderlich.', 403);
+        if (!password_verify($password, (string)$this->setting('admin_password_hash'))) { $this->failed('login'); usleep(self::$failDelay); throw new Problem('Passwort falsch.', 403); }
+        $this->throttle->clear('login');
+    }
+
+    private function open(string $role = 'admin', bool $remember = false, string $agent = ''): array {
         $this->db->query('DELETE FROM admin_sessions WHERE expires_at<?', [time()]);
         $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $csrf = bin2hex(random_bytes(24));
-        $this->db->query('INSERT INTO admin_sessions(token_hash,csrf,created_at,expires_at,role) VALUES(?,?,?,?,?)', [hash('sha256', $token), $csrf, time(), time() + $this->idleSeconds(), $role]);
-        return ['token' => $token, 'csrf' => $csrf, 'role' => $role, 'ttl' => $this->maxSeconds()];
+        $this->db->query('INSERT INTO admin_sessions(token_hash,csrf,created_at,expires_at,role,remember,net,label,last_used) VALUES(?,?,?,?,?,?,?,?,?)',
+            [hash('sha256', $token), $csrf, time(), time() + ($remember ? self::REMEMBER_IDLE : $this->idleSeconds()), $role, $remember ? 1 : 0,
+             $remember ? self::net($this->client ?? (string)($_SERVER['REMOTE_ADDR'] ?? '')) : '', $remember ? self::describeAgent($agent) : '', time()]);
+        return ['token' => $token, 'csrf' => $csrf, 'role' => $role, 'remember' => $remember, 'ttl' => $remember ? self::REMEMBER_MAX : $this->maxSeconds()];
     }
     private function setPassword(string $password): void {
         $this->checkPassword($password);

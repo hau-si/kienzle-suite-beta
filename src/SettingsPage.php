@@ -28,21 +28,27 @@ final class SettingsPage {
     private function firewall(): Firewall { return new Firewall($this->db, $this->network ?? new Network()); }
     private function clientIp(): string { return $this->client ?? (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'); }
 
+    private function sess(?string $token): ?array { $this->admin->client = $this->clientIp(); return $this->admin->session($token); }
+    /** Aktionen, bei denen ein gemerktes Gerät das Admin-Passwort erneut eingeben muss. */
+    private const CONFIRM = ['save', 'access_save', 'update_start', 'update_channel', 'firewall_apply', 'firewall_disable', 'printer_setup'];
+
     public function handle(string $action, array $input, ?string $sessionToken, ?string $csrf): array {
         if ($action === 'status') {
-            $session = $this->admin->session($sessionToken);
+            $session = $this->sess($sessionToken);
             return ['setup_required' => !$this->admin->configured(), 'logged_in' => (bool)$session, 'csrf' => $session['csrf'] ?? null, 'role' => $session['role'] ?? null];
         }
         if ($action === 'setup' || $action === 'login') {
             $result = $action === 'setup'
                 ? $this->admin->setup(App::string($input, 'token', 100), App::string($input, 'password', 400))
-                : $this->admin->login(App::string($input, 'password', 400));
+                : (function () use ($input) { $this->admin->client = $this->clientIp(); return $this->admin->login(App::string($input, 'password', 400), ($input['remember'] ?? false) === true, mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300)); })();
             $this->cookie = Admin::cookie($result['token'], $result['ttl']);
-            return ['logged_in' => true, 'csrf' => $result['csrf'], 'role' => $result['role']];
+            return ['logged_in' => true, 'csrf' => $result['csrf'], 'role' => $result['role'], 'remember' => $result['remember'] ?? false];
         }
-        $session = $this->admin->session($sessionToken);
+        $session = $this->sess($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
         if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status', 'inbox_overview', 'catalog'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        // Gemerktes Gerät: heikle Aktionen nur mit erneuter Passworteingabe.
+        if ((int)($session['remember'] ?? 0) === 1 && in_array($action, self::CONFIRM, true)) $this->admin->confirmPassword(App::string($input, 'confirm', 400, false));
         // Mitarbeiter-Zugang: nur die freigegebenen Aktionen (Rechte werden bei jeder Anfrage neu gelesen).
         $staff = ($session['role'] ?? 'admin') === 'staff';
         if ($staff) $this->requireStaffRight($action);
@@ -53,6 +59,8 @@ final class SettingsPage {
         $result = match ($action) {
             'get' => $staff ? $this->staffView() : $this->view(),
             'access_save' => $this->accessSave($input),
+            'devices' => ['devices' => $this->admin->devices($sessionToken)],
+            'device_revoke' => (function () use ($input, $sessionToken) { $n = $this->admin->revoke(App::string($input, 'id', 16)); return ['devices' => $this->admin->devices($sessionToken), 'message' => $n . ($n === 1 ? ' Gerät abgemeldet.' : ' Geräte abgemeldet.')]; })(),
             'inbox_overview' => InboxOverview::build($this->db, $this->config()),
             'inbox_clear' => (function () { (new InboxLog($this->config()->get('app', 'state_dir')))->clear(); return InboxOverview::build($this->db, $this->config()) + ['message' => 'Liste der abgelehnten Drucke geleert.']; })(),
             'audit' => ['lines' => $this->admin->audit->recent(40)],
@@ -259,7 +267,9 @@ final class SettingsPage {
 
     /** Einrichtungspaket für Arbeitsplätze als Download; nur mit Admin-Sitzung. */
     public function clientDownload(?string $sessionToken, string $system, callable $header, callable $write, string $certificate = '/etc/kienzle-sumup/server.crt'): void {
-        if (($this->admin->session($sessionToken)['role'] ?? null) !== 'admin') throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        $own = $this->sess($sessionToken);
+        if (($own['role'] ?? null) === 'admin' && (int)$own['remember'] === 1) throw new Problem('Pakete mit Schlüsseln lädt man nur nach einer Anmeldung ohne „Gerät merken“.', 403);
+        if (($own['role'] ?? null) !== 'admin') throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
         $this->admin->audit->write('arbeitsplatz-paket', $system);
         $package = new ClientPackage($this->config(), dirname(__DIR__), $certificate);
         $files = $package->files($system);
@@ -334,7 +344,7 @@ final class SettingsPage {
 
     /** Excel-Listen (Steuerberatung bzw. bezahlte T2med-Rechnungen); nur mit Admin-Sitzung. */
     public function taxExport(?string $sessionToken, array $query, callable $header, callable $write): void {
-        $session = $this->admin->session($sessionToken);
+        $session = $this->sess($sessionToken);
         if (!$session) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
         if (($session['role'] ?? 'admin') === 'staff' && (($query['kind'] ?? '') !== 't2med' || !in_array('paid', $this->admin->staffRights(), true))) throw new Problem('Dafür fehlt dem Mitarbeiter-Zugang die Berechtigung.', 403);
         $this->admin->audit->write('export', (string)($query['kind'] ?? 'steuer'));
