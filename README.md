@@ -1401,6 +1401,5 @@ abmelden. Ein geändertes Admin-Passwort meldet alle Geräte ab.
 
 ## Lizenz
 
-Diese Beta-Fassung ist ein Fork von [thomaskien/t2med-sumup](https://github.com/thomaskien/t2med-sumup). Für Lizenz und
-Nutzungsbedingungen gilt das, was dort festgelegt ist; bitte dort nachlesen. Dieses Repository enthält deshalb keine eigene
-Lizenzdatei. Fragen zur Weitergabe oder Nutzung bitte an die Autoren des Hauptrepositories richten.
+[MIT-Lizenz](LICENSE). Diese Beta-Fassung ist ein Fork von [thomaskien/t2med-sumup](https://github.com/thomaskien/t2med-sumup);
+dort sind das Hauptrepository und die ursprüngliche Fassung zu finden.
