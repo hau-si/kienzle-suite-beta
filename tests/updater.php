@@ -34,7 +34,7 @@ try {
     file_put_contents(Updater::$conf, "# Quelle\nrepo=hau-si/t2med-sumup\nbranch=rechnungseingang\n");
     $info = $updater->check();
     check($info['available'] && $info['remote'] === '1.4.1-rechnung.14' && count($info['notes']) === 2, 'Neue Version nicht erkannt: ' . json_encode($info));
-    check($calls[0] === 'https://raw.githubusercontent.com/hau-si/t2med-sumup/rechnungseingang/VERSION', 'Falsche Abfrageadresse: ' . $calls[0]);
+    check($calls[0] === 'https://raw.githubusercontent.com/hau-si/kienzle-suite-beta/rechnungseingang/VERSION', 'Falsche Abfrageadresse: ' . $calls[0]);
     $n = count($calls); $updater->check();
     check(count($calls) === $n, 'Zwischenspeicher nicht genutzt');
     $remote = null; $info = $updater->check(true);

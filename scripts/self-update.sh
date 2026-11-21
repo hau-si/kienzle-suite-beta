@@ -45,7 +45,7 @@ repo=$(sed -nE 's/^repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/\1/p' "$conf" 2>/dev
 branch=$(sed -nE 's/^branch=([A-Za-z0-9_.\/-]+)$/\1/p' "$conf" 2>/dev/null | head -1)
 case "$channel" in   # feste Quellen der Kanäle (müssen zu Updater::STABLE / Updater::BETA passen)
   stable) repo=thomaskien/t2med-sumup; branch=main ;;
-  beta)   repo=hau-si/t2med-sumup; branch=rechnungseingang ;;
+  beta)   repo=hau-si/kienzle-suite-beta; branch=rechnungseingang ;;
 esac
 if [ -z "$repo" ] || [ -z "$branch" ]; then echo "Quelle fehlt in $conf."; write_status failed 'Quelle der Aktualisierung fehlt (update.conf).'; exit 1; fi
 url=${KS_UPDATE_URL:-https://codeload.github.com/$repo/tar.gz/refs/heads/$branch}
