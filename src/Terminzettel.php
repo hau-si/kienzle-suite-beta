@@ -39,6 +39,9 @@ final class Terminzettel {
         foreach ($map as $key => [$block, $field]) {
             if (array_key_exists($key, $values)) $overlay[$block][$field] = $values[$key];
         }
+        // Erste Zeile des Starttexts abweichend (nur wenn gewählt; „same“ = wie die übrigen Zeilen).
+        if (($values['header_first_size'] ?? 'same') !== 'same') $overlay['header']['first_size'] = $values['header_first_size'];
+        if (in_array($values['header_first_bold'] ?? 'same', ['yes', 'no'], true)) $overlay['header']['first_bold'] = $values['header_first_bold'] === 'yes';
         if (array_key_exists('header_text', $values)) $overlay['header']['enabled'] = trim((string)$values['header_text']) !== '';
         if (array_key_exists('footer_text', $values)) $overlay['footer']['enabled'] = trim((string)$values['footer_text']) !== '';
         if (isset($values['qr_size'], self::QR_SIZES[$values['qr_size']])) $overlay['qr']['width_dots'] = self::QR_SIZES[$values['qr_size']];

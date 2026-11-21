@@ -180,6 +180,16 @@ def apply_overlay(cfg: dict[str, Any], web: Any, *, printing: bool = False) -> d
             section["bold"] = block["bold"]
         if "size" in block:
             layout[name + "_size"] = _choice(block["size"], SIZES)
+        # Erste Zeile des Textes abweichend gestalten (nur Praxiskopf): Schriftgröße und fett.
+        if name == "header":
+            for key in ("first_size", "first_bold"):
+                layout.pop("header_" + key, None)
+            if block.get("first_size") not in (None, ""):
+                layout["header_first_size"] = _choice(block["first_size"], SIZES)
+            if block.get("first_bold") not in (None, ""):
+                if type(block["first_bold"]) is not bool:
+                    raise TicketError("Ungültige Auswahl in den Terminzettel-Einstellungen.")
+                layout["header_first_bold"] = block["first_bold"]
     heading = web.get("heading")
     if isinstance(heading, dict):
         if "text" in heading:
@@ -511,7 +521,8 @@ class EscPosRenderer:
                 line = align_text(line, columns, "right")
             self.line(line.rstrip(), align=align, bold=bold, size=size)
 
-    def block(self, section_name: str, size: tuple[int, int] | None = None) -> None:
+    def block(self, section_name: str, size: tuple[int, int] | None = None,
+              first_size: tuple[int, int] | None = None, first_bold: bool | None = None) -> None:
         sec = self.cfg.get(section_name, {})
         if not cfg_bool(sec, "enabled", True):
             return
@@ -521,13 +532,19 @@ class EscPosRenderer:
         align = str(sec.get("align", "center"))
         bold = cfg_bool(sec, "bold", False)
         size = size or self.default_size
+        first_pending = first_size is not None or first_bold is not None
         for logical in text.splitlines():
             if not logical.strip():
                 self.line("", align=align, bold=bold, size=size)
                 continue
-            for wrapped in textwrap.wrap(logical.strip(), width=self.cols(size),
+            line_size, line_bold = size, bold
+            if first_pending:   # erste Textzeile (samt Umbruch) abweichend gestaltet
+                line_size = first_size or size
+                line_bold = bold if first_bold is None else first_bold
+            for wrapped in textwrap.wrap(logical.strip(), width=self.cols(line_size),
                                          break_long_words=True, break_on_hyphens=False) or [""]:
-                self.line(wrapped, align=align, bold=bold, size=size)
+                self.line(wrapped, align=align, bold=line_bold, size=line_size)
+            first_pending = False
 
     def finish(self) -> bytes:
         esc = self.cfg.get("escpos", {})
@@ -634,7 +651,10 @@ def render_escpos(ticket: ParsedTicket, cfg: dict[str, Any]) -> bytes:
     layout = cfg.get("layout", {})
     r.init()
 
-    r.block("header", r.sizes["header"])
+    first_bold = layout.get("header_first_bold")
+    r.block("header", r.sizes["header"],
+            first_size=parse_size(layout.get("header_first_size"), r.sizes["header"]) if layout.get("header_first_size") else None,
+            first_bold=first_bold if isinstance(first_bold, bool) else None)
     if cfg_bool(cfg.get("header", {}), "enabled", True) and str(cfg.get("header", {}).get("text", "")).strip():
         r.line("")
 

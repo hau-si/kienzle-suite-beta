@@ -42,6 +42,16 @@ try {
         'qr_enabled' => true, 'qr_position' => 'below', 'qr_size' => 'large', 'qr_summary' => 'Praxis Beispiel', 'cut' => true]);
     $layout = json_decode((string)file_get_contents(Terminzettel::$dir . '/layout.json'), true);
     check($layout['header'] === ['text' => "Praxis Beispiel\nTel. 01234 567890", 'size' => '1x1', 'bold' => false, 'enabled' => true], 'Starttext falsch: ' . json_encode($layout['header']));
+    // Erste Zeile des Starttexts abweichend gestalten.
+    Settings::save($db, $base, 'terminzettel', ['header_text' => "Praxis Beispiel\nTel. 01234 567890", 'header_size' => '1x1', 'header_bold' => false, 'header_first_size' => '2x2', 'header_first_bold' => 'yes']);
+    $layout = json_decode((string)file_get_contents(Terminzettel::$dir . '/layout.json'), true);
+    check(($layout['header']['first_size'] ?? '') === '2x2' && ($layout['header']['first_bold'] ?? null) === true, 'Erste Zeile nicht übertragen: ' . json_encode($layout['header']));
+    $sample = Terminzettel::sample(Terminzettel::overlay($base, ['header_text' => "Praxis\nTel. 01234", 'header_size' => '1x1', 'header_bold' => false, 'header_first_size' => '2x2', 'header_first_bold' => 'yes']), 'escpos')['data'];
+    check(str_contains($sample, "\x1d!\x11") && str_contains($sample, "\x1d!\x00"), 'Erste Zeile im Bon nicht größer als die übrigen');
+    Settings::save($db, $base, 'terminzettel', ['header_first_size' => 'same', 'header_first_bold' => 'same']);
+    $layout = json_decode((string)file_get_contents(Terminzettel::$dir . '/layout.json'), true);
+    check(!isset($layout['header']['first_size']) && !isset($layout['header']['first_bold']), 'Erste Zeile bleibt nach „wie übrige“ gesetzt');
+    Settings::save($db, $base, 'terminzettel', ['header_text' => "Praxis Beispiel\nTel. 01234 567890", 'header_size' => '1x1', 'header_bold' => false]);
     check($layout['appointments']['size'] === '1x2' && $layout['footer']['enabled'] === false && $layout['qr']['position'] === 'below' && $layout['qr']['width_dots'] === 320, 'Layout falsch übertragen');
     problem(fn() => Settings::save($db, $base, 'terminzettel', ['appointment_size' => '9x9']), 'Ungültige Schriftgröße akzeptiert', 422);
     problem(fn() => Settings::save($db, $base, 'terminzettel', ['footer_text' => "Text\x1b@"]), 'Steuerzeichen im Endtext akzeptiert', 422);

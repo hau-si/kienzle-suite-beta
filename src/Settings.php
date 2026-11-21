@@ -82,6 +82,8 @@ final class Settings {
             'header_text' => ['type' => 'text', 'label' => 'Starttext (Praxiskopf, leer = keiner)', 'default' => ''],
             'header_size' => ['type' => 'choice', 'label' => 'Schriftgröße Starttext', 'choices' => ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => '2x2'],
             'header_bold' => ['type' => 'bool', 'label' => 'Starttext fett', 'default' => true],
+            'header_first_size' => ['type' => 'choice', 'label' => 'Erste Zeile des Starttexts: Schriftgröße', 'choices' => ['same' => 'Wie die übrigen Zeilen'] + ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => 'same'],
+            'header_first_bold' => ['type' => 'choice', 'label' => 'Erste Zeile des Starttexts: fett', 'choices' => ['same' => 'Wie die übrigen Zeilen', 'yes' => 'Fett', 'no' => 'Nicht fett'], 'default' => 'same'],
             'heading' => ['type' => 'string', 'label' => 'Überschrift', 'default' => 'IHRE TERMINE', 'optional' => true],
             'heading_size' => ['type' => 'choice', 'label' => 'Schriftgröße Überschrift', 'choices' => ['1x1' => 'Normal (1×1)', '1x2' => 'Hoch (1×2)', '2x1' => 'Breit (2×1)', '2x2' => 'Groß (2×2)', '2x3' => 'Groß und hoch (2×3)', '3x3' => 'Sehr groß (3×3)', '4x4' => 'Riesig (4×4)'], 'default' => '2x2'],
             'show_patient' => ['type' => 'bool', 'label' => 'Patientennamen drucken', 'default' => true],
