@@ -202,12 +202,17 @@ final class Admin {
         return $n;
     }
     /** Passwort für heikle Aktionen von gemerkten Geräten erneut verlangen. */
+    public const CONFIRM_SECONDS = 86400;
     public function confirmPassword(string $password): void {
         $this->checkLock();
         if ($password === '') throw new Problem('Passwort zur Bestätigung erforderlich.', 403);
         if (!password_verify($password, (string)$this->setting('admin_password_hash'))) { $this->failed('login'); usleep(self::$failDelay); throw new Problem('Passwort falsch.', 403); }
         $this->throttle->clear('login');
     }
+
+    /** Hat diese Sitzung das Passwort in den letzten 24 Stunden schon einmal bestätigt? */
+    public function confirmedRecently(array $session): bool { return (int)($session['confirmed_at'] ?? 0) > time() - self::CONFIRM_SECONDS; }
+    public function markConfirmed(array $session): void { $this->db->query('UPDATE admin_sessions SET confirmed_at=? WHERE token_hash=?', [time(), $session['token_hash']]); }
 
     private function open(string $role = 'admin', bool $remember = false, string $agent = ''): array {
         $this->db->query('DELETE FROM admin_sessions WHERE expires_at<?', [time()]);

@@ -39,7 +39,18 @@ function tip(field) {
   button.onclick = event => { event.preventDefault(); const open = !button.classList.contains('open');
     document.querySelectorAll('.tip.open').forEach(t => t.classList.remove('open')); button.classList.toggle('open', open); };
   button.append(box);
+  const place = () => requestAnimationFrame(() => fitTip(button, box));
+  button.addEventListener('mouseenter', place); button.addEventListener('focus', place); button.addEventListener('click', place);
   return button;
+}
+/** Tooltip im sichtbaren Bereich halten: am rechten (oder linken) Rand nach innen schieben, Pfeil bleibt beim Symbol. */
+function fitTip(button, box) {
+  box.style.left = '-12px'; box.style.removeProperty('--arrow');
+  const margin = 8, rect = box.getBoundingClientRect(), width = document.documentElement.clientWidth;
+  let shift = 0;
+  if (rect.right > width - margin) shift = width - margin - rect.right;
+  if (rect.left + shift < margin) shift = margin - rect.left;
+  if (shift) { box.style.left = (-12 + shift) + 'px'; box.style.setProperty('--arrow', Math.max(10, 16 - shift) + 'px'); }
 }
 document.addEventListener('click', event => { if (!event.target.closest('.tip')) document.querySelectorAll('.tip.open').forEach(t => t.classList.remove('open')); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelectorAll('.tip.open').forEach(t => t.classList.remove('open')); });

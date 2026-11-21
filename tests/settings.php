@@ -186,6 +186,7 @@ try {
     problem(fn() => $rp->handle('update_channel', ['channel' => 'beta'], $rsession, $rl['csrf']), 'Heikle Aktion ohne Passwort', 403);
     problem(fn() => $rp->handle('update_channel', ['channel' => 'beta', 'confirm' => 'falsches-passwort'], $rsession, $rl['csrf']), 'Heikle Aktion mit falschem Passwort', 403);
     check(($rp->handle('update_channel', ['channel' => 'beta', 'confirm' => 'ein-langes-passwort'], $rsession, $rl['csrf'])['message'] ?? '') === 'Kanal gespeichert.', 'Heikle Aktion mit Passwort nicht möglich');
+    check(!empty($rp->handle('save', ['section' => 'practice', 'values' => ['name' => 'Beispielpraxis']], $rsession, $rl['csrf'])['message'] ?? ''), 'Nach einmaliger Bestätigung erneut nach dem Passwort gefragt (24 Stunden)');
     $rp->handle('t2med_paid', [], $rsession, $rl['csrf']);   // laufende Arbeit braucht kein Passwort
     problem(function () use ($rp, $rsession) { $rp->clientDownload($rsession, 'windows', fn($h) => null, fn($d) => null); }, 'Paket mit Schlüsseln von gemerktem Gerät', 403);
     $db->query('UPDATE admin_sessions SET created_at=? WHERE remember=1', [time() - 15811200 - 10]);

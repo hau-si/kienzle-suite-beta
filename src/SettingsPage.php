@@ -50,7 +50,10 @@ final class SettingsPage {
         // Gemerktes Gerät: heikle Aktionen nur mit erneuter Passworteingabe.
         // Der Terminzettel enthält keine Zugangsdaten: Änderungen daran brauchen auch auf gemerkten Geräten kein Passwort.
         $plainSave = $action === 'save' && App::string($input, 'section', 40) === 'terminzettel';
-        if ((int)($session['remember'] ?? 0) === 1 && !$plainSave && in_array($action, self::CONFIRM, true)) $this->admin->confirmPassword(App::string($input, 'confirm', 400, false));
+        if ((int)($session['remember'] ?? 0) === 1 && !$plainSave && in_array($action, self::CONFIRM, true) && !$this->admin->confirmedRecently($session)) {
+            $this->admin->confirmPassword(App::string($input, 'confirm', 400, false));
+            $this->admin->markConfirmed($session);   // danach 24 Stunden lang keine Rückfrage mehr, egal welche Änderung
+        }
         // Mitarbeiter-Zugang: nur die freigegebenen Aktionen (Rechte werden bei jeder Anfrage neu gelesen).
         $staff = ($session['role'] ?? 'admin') === 'staff';
         if ($staff) $this->requireStaffRight($action);
