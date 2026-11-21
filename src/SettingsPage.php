@@ -31,24 +31,28 @@ final class SettingsPage {
     public function handle(string $action, array $input, ?string $sessionToken, ?string $csrf): array {
         if ($action === 'status') {
             $session = $this->admin->session($sessionToken);
-            return ['setup_required' => !$this->admin->configured(), 'logged_in' => (bool)$session, 'csrf' => $session['csrf'] ?? null];
+            return ['setup_required' => !$this->admin->configured(), 'logged_in' => (bool)$session, 'csrf' => $session['csrf'] ?? null, 'role' => $session['role'] ?? null];
         }
         if ($action === 'setup' || $action === 'login') {
             $result = $action === 'setup'
                 ? $this->admin->setup(App::string($input, 'token', 100), App::string($input, 'password', 400))
                 : $this->admin->login(App::string($input, 'password', 400));
-            $this->cookie = Admin::cookie($result['token']);
-            return ['logged_in' => true, 'csrf' => $result['csrf']];
+            $this->cookie = Admin::cookie($result['token'], $result['ttl']);
+            return ['logged_in' => true, 'csrf' => $result['csrf'], 'role' => $result['role']];
         }
         $session = $this->admin->session($sessionToken);
         if (!$session) throw new Problem('Bitte anmelden.', 401);
         if (!in_array($action, ['get', 'audit', 'printer_setup', 'printers', 't2med_paid', 'update_check', 'update_status', 'firewall_info', 'firewall_status', 'inbox_overview', 'catalog'], true) && !hash_equals($session['csrf'], (string)$csrf)) throw new Problem('Sitzung abgelaufen. Bitte Seite neu laden.', 403);
+        // Mitarbeiter-Zugang: nur die freigegebenen Aktionen (Rechte werden bei jeder Anfrage neu gelesen).
+        $staff = ($session['role'] ?? 'admin') === 'staff';
+        if ($staff) $this->requireStaffRight($action);
         // Alles, was etwas verändert, im Protokoll festhalten (ohne Werte).
         if (!in_array($action, ['get', 'printers', 't2med_paid', 'update_check', 'update_status', 'status', 'audit', 'inbox_overview', 'catalog', 'firewall_info', 'firewall_status', 'terminzettel_preview', 'printer_discover', 'test'], true)) {
-            $this->admin->audit->write($action, $action === 'save' ? App::string($input, 'section', 40) : '');
+            $this->admin->audit->write($action, $staff ? 'Mitarbeiter' : ($action === 'save' ? App::string($input, 'section', 40) : ''));
         }
-        return match ($action) {
-            'get' => $this->view(),
+        $result = match ($action) {
+            'get' => $staff ? $this->staffView() : $this->view(),
+            'access_save' => $this->accessSave($input),
             'inbox_overview' => InboxOverview::build($this->db, $this->config()),
             'inbox_clear' => (function () { (new InboxLog($this->config()->get('app', 'state_dir')))->clear(); return InboxOverview::build($this->db, $this->config()) + ['message' => 'Liste der abgelehnten Drucke geleert.']; })(),
             'audit' => ['lines' => $this->admin->audit->recent(40)],
@@ -59,7 +63,7 @@ final class SettingsPage {
             'firewall_disable' => $this->firewall()->disable(),
             'save' => $this->save(App::string($input, 'section', 40), is_array($input['values'] ?? null) ? $input['values'] : []),
             'test' => ['message' => $this->test(App::string($input, 'kind', 40))],
-            'password' => $this->password($input),
+            'password' => $this->password($input, $staff ? 'staff' : 'admin'),
             'logout' => $this->logout($sessionToken),
             'printer_setup' => $this->printerSetup(),
             'printers' => $this->printerList(),
@@ -85,6 +89,9 @@ final class SettingsPage {
             'printer_remove' => $this->printerRemove(App::string($input, 'name', 41)),
             default => throw new Problem('Unbekannte Aktion.', 404),
         };
+        // Ohne das Recht „per Post“ blendet der Rechnungseingang die Versand-Schaltflächen aus.
+        if ($staff && isset($result['letter_enabled']) && !in_array('letter', $this->admin->staffRights(), true)) $result['letter_enabled'] = false;
+        return $result;
     }
 
     private function config(): Config { return Settings::effective($this->base); }
@@ -105,7 +112,7 @@ final class SettingsPage {
         $tools = [];
         foreach (['pdftotext' => '/usr/bin/pdftotext', 'smbclient' => '/usr/bin/smbclient', 'lp' => '/usr/bin/lp', 'rsvg-convert' => '/usr/bin/rsvg-convert'] as $name => $path) $tools[$name] = is_executable($path);
         $broken = Settings::read($this->base) && $config === $this->base;
-        return ['sections' => Settings::view($config), 'tools' => $tools + ['gd' => extension_loaded('gd')],
+        return ['access' => $this->admin->access(), 'sections' => Settings::view($config), 'tools' => $tools + ['gd' => extension_loaded('gd')],
             'base_url' => $config->get('app', 'base_url'), 'version' => trim((string)@file_get_contents(dirname(__DIR__) . '/VERSION')),
             'mode' => $config->get('sumup', 'mode'), 'fhir_mode' => $config->get('fhir', 'mode'),
             'warning' => $broken ? 'Gespeicherte Einstellungen passen nicht zur aktuellen Version und werden ignoriert. Bitte die Bereiche prüfen und neu speichern.' : null,
@@ -163,11 +170,31 @@ final class SettingsPage {
         }
     }
 
-    private function password(array $input): array {
-        $this->admin->changePassword(App::string($input, 'current', 400), App::string($input, 'new', 400));
+    private function password(array $input, string $role = 'admin'): array {
+        $this->admin->changePassword(App::string($input, 'current', 400), App::string($input, 'new', 400), $role);
         $result = $this->admin->login(App::string($input, 'new', 400));
-        $this->cookie = Admin::cookie($result['token']);
+        $this->cookie = Admin::cookie($result['token'], $result['ttl']);
         return ['csrf' => $result['csrf'], 'message' => 'Passwort geändert.'];
+    }
+
+    /** Aktionen, die jeder angemeldete Mitarbeiter ausführen darf. */
+    private const STAFF_ALWAYS = ['get', 'status', 'password', 'logout'];
+    private function requireStaffRight(string $action): void {
+        if (in_array($action, self::STAFF_ALWAYS, true)) return;
+        foreach ($this->admin->staffRights() as $right) if (in_array($action, Admin::RIGHTS[$right][1], true)) return;
+        $this->admin->audit->write('verweigert', $action . ' Mitarbeiter');
+        throw new Problem('Dafür fehlt dem Mitarbeiter-Zugang die Berechtigung.', 403);
+    }
+    /** Mitarbeiter sehen nur Modus, Version und die freigegebenen Bereiche – keine Einstellungen, Schlüssel oder Zugangsdaten. */
+    private function staffView(): array {
+        $config = $this->config();
+        return ['role' => 'staff', 'rights' => $this->admin->staffRights(), 'mode' => $config->get('sumup', 'mode'), 'fhir_mode' => $config->get('fhir', 'mode'),
+            'version' => trim((string)@file_get_contents(dirname(__DIR__) . '/VERSION')), 'export_years' => (new TaxExport($this->db, $config))->years()];
+    }
+    private function accessSave(array $input): array {
+        $this->admin->saveAccess((int)($input['idle_minutes'] ?? 0), (int)($input['max_hours'] ?? 0), is_array($input['rights'] ?? null) ? $input['rights'] : [],
+            App::string($input, 'staff_password', 400, false), ($input['remove_staff'] ?? false) === true);
+        return $this->admin->access() + ['message' => 'Zugang gespeichert. Die Abmeldezeit gilt ab der nächsten Anmeldung.'];
     }
 
     private function logout(?string $token): array {
@@ -231,7 +258,7 @@ final class SettingsPage {
 
     /** Einrichtungspaket für Arbeitsplätze als Download; nur mit Admin-Sitzung. */
     public function clientDownload(?string $sessionToken, string $system, callable $header, callable $write, string $certificate = '/etc/kienzle-sumup/server.crt'): void {
-        if (!$this->admin->session($sessionToken)) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        if (($this->admin->session($sessionToken)['role'] ?? null) !== 'admin') throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
         $this->admin->audit->write('arbeitsplatz-paket', $system);
         $package = new ClientPackage($this->config(), dirname(__DIR__), $certificate);
         $files = $package->files($system);
@@ -306,7 +333,9 @@ final class SettingsPage {
 
     /** Excel-Listen (Steuerberatung bzw. bezahlte T2med-Rechnungen); nur mit Admin-Sitzung. */
     public function taxExport(?string $sessionToken, array $query, callable $header, callable $write): void {
-        if (!$this->admin->session($sessionToken)) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        $session = $this->admin->session($sessionToken);
+        if (!$session) throw new Problem('Bitte zuerst in den Einstellungen anmelden.', 401);
+        if (($session['role'] ?? 'admin') === 'staff' && (($query['kind'] ?? '') !== 't2med' || !in_array('paid', $this->admin->staffRights(), true))) throw new Problem('Dafür fehlt dem Mitarbeiter-Zugang die Berechtigung.', 403);
         $this->admin->audit->write('export', (string)($query['kind'] ?? 'steuer'));
         $export = new TaxExport($this->db, $this->config());
         if (($query['kind'] ?? '') === 't2med') {

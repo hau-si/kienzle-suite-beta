@@ -26,7 +26,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted small">Passwort vergessen? Auf dem Server <code>sudo bash scripts/install-server.sh --admin-reset</code> ausführen.</p></section>
 
 <div id="settings" hidden>
-<nav id="tabs" class="tab-bar" role="tablist" aria-label="Bereiche"><a id="update-bell" class="bell" href="#s-update" hidden><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.5 16v1h15v-1L18 12.6V9a6 6 0 0 0-6-6zm-2 15a2 2 0 0 0 4 0z" fill="currentColor"/></svg><span class="bell-dot"></span></a></nav>
+<nav id="tabs" class="tab-bar" role="tablist" aria-label="Bereiche"><a id="update-bell" class="bell" href="#s-update" title="Aktualisierung" aria-label="Aktualisierung"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.5 16v1h15v-1L18 12.6V9a6 6 0 0 0-6-6zm-2 15a2 2 0 0 0 4 0z" fill="currentColor"/></svg><span class="bell-dot"></span></a></nav>
 <p id="warning" class="inline-error" hidden></p>
 <div id="tab-panels"></div>
 <div id="sections" hidden></div>
@@ -73,7 +73,9 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <p class="muted">Anmeldungen, Fehlversuche und Änderungen an dieser Einstellungsseite mit Zeit und Adresse des Geräts – nie mit Passwörtern. Viele „fehlgeschlagen“-Zeilen von unbekannten Adressen deuten auf einen Angriffsversuch hin; der betroffene Absender wird dann automatisch gesperrt.</p>
 <div class="row-buttons"><button id="audit-load" class="secondary" type="button">Letzte Vorgänge anzeigen</button></div>
 <pre id="audit-list" class="audit-list" hidden></pre></section>
-<section class="card settings-card" id="s-password"><h2>Admin-Passwort ändern</h2>
+<section class="card settings-card" id="s-access"><h2>Abmeldung und Mitarbeiter-Zugang</h2>
+<form id="access-form" class="settings-form"></form></section>
+<section class="card settings-card" id="s-password"><h2 id="password-title">Admin-Passwort ändern</h2>
 <form id="password-form"><label>Bisheriges Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
 <label>Neues Passwort (mind. 10 Zeichen)<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>
 <button class="secondary" type="submit">Passwort ändern</button></form></section>

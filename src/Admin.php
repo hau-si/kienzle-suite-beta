@@ -8,8 +8,16 @@ namespace KienzleSumup;
  */
 final class Admin {
     public const COOKIE = 'ks_admin';
-    private const TTL = 1800;          // Leerlauf: nach 30 Minuten ohne Aktion abgemeldet
-    private const MAX_AGE = 43200;     // Höchstdauer einer Sitzung: 12 Stunden, auch bei ständiger Nutzung
+    private const TTL = 1800;          // Leerlauf: Standard 30 Minuten ohne Aktion (einstellbar)
+    private const MAX_AGE = 43200;     // Höchstdauer einer Sitzung: Standard 12 Stunden (einstellbar)
+    /** Rechte des Mitarbeiter-Zugangs (Schalter in den Einstellungen) und die Aktionen, die sie freigeben. */
+    public const RIGHTS = [
+        'paid' => ['Bezahlt-Liste abhaken', ['t2med_paid', 't2med_done', 't2med_correct']],
+        'inbox' => ['Rechnungseingang ansehen und Rechnungen löschen', ['inbox_overview', 'inbox_delete', 'inbox_delete_many', 'inbox_clear']],
+        'letter' => ['Rechnungen per Post (Letterxpress) senden', ['inbox_overview', 'inbox_letter', 'inbox_letter_many']],
+        'catalog' => ['Leistungen und GOÄ-Positionen bearbeiten', ['catalog', 'catalog_service_save', 'catalog_service_delete', 'catalog_group_save', 'catalog_group_delete']],
+    ];
+    public const DEFAULT_RIGHTS = ['paid', 'inbox'];
     private const GLOBAL_LIMIT = 200;  // Fehlversuche aller Absender je Stunde, bevor Anmeldungen kurz pausieren
 
     /** Wartezeit nach falschem Passwort in Mikrosekunden (bremst Raten; Tests setzen 0). */
@@ -59,16 +67,77 @@ final class Admin {
         $this->checkLock();
         $hash = $this->setting('admin_password_hash');
         if ($hash === null) throw new Problem('Noch kein Admin-Passwort festgelegt. Bitte den Einrichtungslink aus dem Installer öffnen.', 409);
-        if (!password_verify($password, $hash)) { $this->failed('login'); usleep(self::$failDelay); throw new Problem('Passwort falsch.', 401); }
+        $staff = $this->setting('staff_password_hash');
+        if (!password_verify($password, $hash)) {
+            if ($staff !== null && password_verify($password, $staff)) {   // Mitarbeiter-Zugang mit eigenem Passwort
+                $this->throttle->clear('login');
+                $this->audit->write('login-ok', 'Mitarbeiter');
+                return $this->open('staff');
+            }
+            $this->failed('login'); usleep(self::$failDelay); throw new Problem('Passwort falsch.', 401);
+        }
         $this->throttle->clear('login');
         $this->audit->write('login-ok');
         if (password_needs_rehash($hash, self::algorithm())) $this->setPassword($password);
         return $this->open();
     }
 
-    public function changePassword(string $current, string $new): void {
+    // ---- Zugang: Abmeldezeiten und Mitarbeiter-Zugang ----------------------------------------
+    /** Minuten ohne Aktion bis zur Abmeldung (5 bis 480). */
+    public function idleSeconds(): int { return max(5, min(480, (int)($this->setting('admin_idle_minutes') ?? self::TTL / 60))) * 60; }
+    /** Stunden bis zur Zwangs-Abmeldung auch bei ständiger Nutzung (1 bis 72). */
+    public function maxSeconds(): int { return max(1, min(72, (int)($this->setting('admin_max_hours') ?? self::MAX_AGE / 3600))) * 3600; }
+    public function staffConfigured(): bool { return $this->setting('staff_password_hash') !== null; }
+    /** Aktuell freigegebene Rechte des Mitarbeiter-Zugangs. */
+    public function staffRights(): array {
+        $stored = json_decode((string)$this->setting('staff_rights'), true);
+        return array_values(array_intersect(array_keys(self::RIGHTS), is_array($stored) ? $stored : self::DEFAULT_RIGHTS));
+    }
+    public function access(): array {
+        $rights = [];
+        foreach (self::RIGHTS as $key => [$label]) $rights[] = ['key' => $key, 'label' => $label];
+        return ['idle_minutes' => intdiv($this->idleSeconds(), 60), 'max_hours' => intdiv($this->maxSeconds(), 3600), 'staff' => $this->staffConfigured(),
+            'staff_rights' => $this->staffRights(), 'rights' => $rights];
+    }
+    /** Speichert Abmeldezeiten und Mitarbeiter-Zugang. $password leer = Passwort unverändert; $remove löscht den Zugang. */
+    public function saveAccess(int $idleMinutes, int $maxHours, array $rights, string $password, bool $remove): void {
+        if ($idleMinutes < 5 || $idleMinutes > 480) throw new Problem('Die Abmeldung bei Inaktivität muss zwischen 5 und 480 Minuten liegen.', 422);
+        if ($maxHours < 1 || $maxHours > 72) throw new Problem('Die Höchstdauer einer Sitzung muss zwischen 1 und 72 Stunden liegen.', 422);
+        if ($idleMinutes * 60 > $maxHours * 3600) throw new Problem('Die Abmeldung bei Inaktivität darf nicht länger sein als die Höchstdauer der Sitzung.', 422);
+        $rights = array_values(array_intersect(array_keys(self::RIGHTS), array_map('strval', $rights)));
+        if ($password !== '') {
+            $admin = (string)$this->setting('admin_password_hash');
+            if (password_verify($password, $admin)) throw new Problem('Das Mitarbeiter-Passwort muss sich vom Admin-Passwort unterscheiden.', 422);
+            $this->checkPassword($password);
+        } elseif (!$remove && !$this->staffConfigured() && $rights) {
+            throw new Problem('Bitte ein Passwort für den Mitarbeiter-Zugang festlegen.', 422);
+        }
+        $this->store('admin_idle_minutes', (string)$idleMinutes);
+        $this->store('admin_max_hours', (string)$maxHours);
+        $this->store('staff_rights', json_encode($rights));
+        if ($remove) {
+            $this->db->query("DELETE FROM settings WHERE key='staff_password_hash'");
+            $this->db->query("DELETE FROM admin_sessions WHERE role='staff'");
+        } elseif ($password !== '') {
+            $this->store('staff_password_hash', password_hash($password, self::algorithm()));
+            $this->db->query("DELETE FROM admin_sessions WHERE role='staff'");
+        }
+        $this->audit->write('zugang-gespeichert', $remove ? 'Mitarbeiter entfernt' : ($password !== '' ? 'Mitarbeiter-Passwort neu' : ''));
+    }
+
+    public function changePassword(string $current, string $new, string $role = 'admin'): void {
         $this->checkLock();
+        if ($role === 'staff') {
+            if (!password_verify($current, (string)$this->setting('staff_password_hash'))) { $this->failed('login'); usleep(self::$failDelay); throw new Problem('Bisheriges Passwort falsch.', 401); }
+            if (password_verify($new, (string)$this->setting('admin_password_hash'))) throw new Problem('Das Mitarbeiter-Passwort muss sich vom Admin-Passwort unterscheiden.', 422);
+            $this->checkPassword($new);
+            $this->store('staff_password_hash', password_hash($new, self::algorithm()));
+            $this->db->query("DELETE FROM admin_sessions WHERE role='staff'");
+            $this->audit->write('passwort-geaendert', 'Mitarbeiter');
+            return;
+        }
         if (!password_verify($current, (string)$this->setting('admin_password_hash'))) { $this->failed('login'); usleep(self::$failDelay); throw new Problem('Bisheriges Passwort falsch.', 401); }
+        if ($this->staffConfigured() && password_verify($new, (string)$this->setting('staff_password_hash'))) throw new Problem('Das Admin-Passwort muss sich vom Mitarbeiter-Passwort unterscheiden.', 422);
         $this->setPassword($new);
         $this->audit->write('passwort-geaendert');
     }
@@ -78,11 +147,11 @@ final class Admin {
         if (!$token || !preg_match('/^[A-Za-z0-9_-]{40,64}$/D', $token)) return null;
         $row = $this->db->one('SELECT * FROM admin_sessions WHERE token_hash=? AND expires_at>?', [hash('sha256', $token), time()]);
         if (!$row) return null;
-        if ((int)$row['created_at'] < time() - self::MAX_AGE) {   // zu alt: auch bei Dauernutzung neu anmelden
+        if ((int)$row['created_at'] < time() - $this->maxSeconds()) {   // zu alt: auch bei Dauernutzung neu anmelden
             $this->db->query('DELETE FROM admin_sessions WHERE token_hash=?', [$row['token_hash']]);
             return null;
         }
-        $this->db->query('UPDATE admin_sessions SET expires_at=? WHERE token_hash=?', [min(time() + self::TTL, (int)$row['created_at'] + self::MAX_AGE), $row['token_hash']]);
+        $this->db->query('UPDATE admin_sessions SET expires_at=? WHERE token_hash=?', [min(time() + $this->idleSeconds(), (int)$row['created_at'] + $this->maxSeconds()), $row['token_hash']]);
         return $row;
     }
     public function logout(?string $token): void {
@@ -92,19 +161,22 @@ final class Admin {
         return self::COOKIE . '=' . $value . '; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=' . $ttl;
     }
 
-    private function open(): array {
+    private function open(string $role = 'admin'): array {
         $this->db->query('DELETE FROM admin_sessions WHERE expires_at<?', [time()]);
         $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $csrf = bin2hex(random_bytes(24));
-        $this->db->query('INSERT INTO admin_sessions(token_hash,csrf,created_at,expires_at) VALUES(?,?,?,?)', [hash('sha256', $token), $csrf, time(), time() + self::TTL]);
-        return ['token' => $token, 'csrf' => $csrf];
+        $this->db->query('INSERT INTO admin_sessions(token_hash,csrf,created_at,expires_at,role) VALUES(?,?,?,?,?)', [hash('sha256', $token), $csrf, time(), time() + $this->idleSeconds(), $role]);
+        return ['token' => $token, 'csrf' => $csrf, 'role' => $role, 'ttl' => $this->maxSeconds()];
     }
     private function setPassword(string $password): void {
+        $this->checkPassword($password);
+        $this->store('admin_password_hash', password_hash($password, self::algorithm()));
+        $this->db->query('DELETE FROM admin_sessions');   // andere Sitzungen abmelden
+    }
+    private function checkPassword(string $password): void {
         if (mb_strlen($password) < 10) throw new Problem('Das Admin-Passwort muss mindestens 10 Zeichen lang sein.', 422);
         if (mb_strlen($password) > 200) throw new Problem('Das Admin-Passwort ist zu lang.', 422);
         if (self::weak($password)) throw new Problem('Dieses Passwort ist zu einfach zu erraten. Bitte mehrere Wörter oder eine längere Zeichenfolge wählen, die nicht „passwort“, „admin“ oder eine Zahlenreihe enthält.', 422);
-        $this->store('admin_password_hash', password_hash($password, self::algorithm()));
-        $this->db->query('DELETE FROM admin_sessions');   // andere Sitzungen abmelden
     }
     private static function algorithm(): string|int { return defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT; }
     /** Häufige und offensichtliche Passwörter ablehnen (Länge prüft der Aufrufer). */

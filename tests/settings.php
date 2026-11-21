@@ -135,6 +135,39 @@ try {
     problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'amount', 'amount' => 'abc'], $session, $login['csrf']), 'Ungültiger Betrag bei Korrektur', 400);
     problem(fn() => $page->handle('t2med_correct', ['id' => str_repeat('a', 32), 'change' => 'void'], $session, $login['csrf']), 'Unbekannte Zahlung storniert', 404);
 
+    // Abmeldezeiten und Mitarbeiter-Zugang.
+    $acc = $page->handle('get', [], $session, $login['csrf'])['access'];
+    check($acc['idle_minutes'] === 30 && $acc['max_hours'] === 12 && $acc['staff'] === false, 'Standard-Abmeldezeiten falsch');
+    problem(fn() => $page->handle('access_save', ['idle_minutes' => 3, 'max_hours' => 12, 'rights' => []], $session, $login['csrf']), 'Zu kurze Abmeldezeit akzeptiert', 422);
+    problem(fn() => $page->handle('access_save', ['idle_minutes' => 120, 'max_hours' => 1, 'rights' => []], $session, $login['csrf']), 'Inaktivität länger als Höchstdauer', 422);
+    problem(fn() => $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 12, 'rights' => ['paid']], $session, $login['csrf']), 'Rechte ohne Passwort', 422);
+    problem(fn() => $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 12, 'rights' => ['paid'], 'staff_password' => 'ein-langes-passwort'], $session, $login['csrf']), 'Mitarbeiter-Passwort gleich Admin-Passwort', 422);
+    problem(fn() => $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 12, 'rights' => ['paid']], $session, null), 'Zugang ohne CSRF', 403);
+    $acc = $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 10, 'rights' => ['paid', 'inbox', 'unsinn'], 'staff_password' => 'Mitarbeiter-Kaffee-2026'], $session, $login['csrf']);
+    check($acc['idle_minutes'] === 60 && $acc['max_hours'] === 10 && $acc['staff'] === true && $acc['staff_rights'] === ['paid', 'inbox'], 'Zugang nicht gespeichert');
+    $staffPage = new SettingsPage($base);
+    $st = $staffPage->handle('login', ['password' => 'Mitarbeiter-Kaffee-2026'], null, null);
+    check($st['role'] === 'staff' && str_contains((string)$staffPage->cookie(), 'Max-Age=36000'), 'Mitarbeiter-Anmeldung falsch');
+    preg_match('/^ks_admin=([A-Za-z0-9_-]+);/', (string)$staffPage->cookie(), $sm); $ssession = $sm[1];
+    $sv = $staffPage->handle('get', [], $ssession, $st['csrf']);
+    check($sv['role'] === 'staff' && !isset($sv['sections']) && !isset($sv['access']) && !str_contains(json_encode($sv), 'api_key'), 'Mitarbeiter-Ansicht enthält Einstellungen');
+    $staffPage->handle('t2med_paid', [], $ssession, $st['csrf']); $staffPage->handle('inbox_overview', [], $ssession, $st['csrf']);
+    check($staffPage->handle('inbox_overview', [], $ssession, $st['csrf'])['letter_enabled'] === false, 'Postversand ohne Recht sichtbar');
+    foreach (['save' => ['section' => 'sumup', 'values' => []], 'catalog' => [], 'inbox_letter' => ['id' => 'x'], 'access_save' => ['idle_minutes' => 30, 'max_hours' => 12, 'rights' => ['paid','inbox','letter','catalog']],
+              'printer_setup' => [], 'audit' => [], 'update_start' => [], 'firewall_apply' => [], 'catalog_service_delete' => ['id' => 'x']] as $act => $in)
+        problem(fn() => $staffPage->handle($act, $in, $ssession, $st['csrf']), "Mitarbeiter darf $act", 403);
+    problem(fn() => $staffPage->handle('t2med_done', ['ids' => []], $ssession, null), 'Mitarbeiter ohne CSRF', 403);
+    $tmp = []; problem(function () use ($staffPage, $ssession) { $staffPage->clientDownload($ssession, 'windows', fn($h) => null, fn($d) => null); }, 'Mitarbeiter lädt Arbeitsplatz-Paket', 401);
+    problem(function () use ($staffPage, $ssession) { $staffPage->taxExport($ssession, ['kind' => 'steuer', 'year' => '2026'], fn($h) => null, fn($d) => null); }, 'Mitarbeiter lädt Steuer-Export', 403);
+    // Rechte ändern gilt sofort; Passwortwechsel des Mitarbeiters trennt dessen Sitzungen.
+    $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 10, 'rights' => ['inbox', 'letter']], $session, $login['csrf']);
+    problem(fn() => $staffPage->handle('t2med_paid', [], $ssession, $st['csrf']), 'Entzogenes Recht gilt noch', 403);
+    check($staffPage->handle('inbox_overview', [], $ssession, $st['csrf']) !== [], 'Freigegebenes Recht fehlt');
+    $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 10, 'rights' => ['inbox'], 'remove_staff' => true], $session, $login['csrf']);
+    problem(fn() => $staffPage->handle('get', [], $ssession, $st['csrf']), 'Mitarbeiter-Sitzung nach Entfernen gültig', 401);
+    problem(fn() => (new SettingsPage($base))->handle('login', ['password' => 'Mitarbeiter-Kaffee-2026'], null, null), 'Entfernter Mitarbeiter meldet sich an', 401);
+    $page->handle('access_save', ['idle_minutes' => 30, 'max_hours' => 12, 'rights' => []], $session, $login['csrf']);
+
     for ($i = 0; $i < 5; $i++) { try { $admin->login('falsch'); } catch (Problem) {} }
     problem(fn() => $admin->login('ein-langes-passwort'), 'Keine Sperre nach Fehlversuchen', 429);
     $page->handle('logout', [], $session, $login['csrf']);

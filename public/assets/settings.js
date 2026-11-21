@@ -189,9 +189,11 @@ function renderUpdate(info) {
   // Die Glocke steht in der Reiterleiste und ist auf jedem Reiter sichtbar, sobald eine neue Version bereitsteht.
   const group = document.querySelector('#group-update > summary');
   if (group) group.textContent = 'Aktualisierung' + (running ? ' · läuft …' : info.available ? ' · Neue Version ' + info.remote + ' verfügbar' : '');
-  const bell = $('update-bell'); bell.hidden = !(info.available && !running);
-  bell.title = info.available ? 'Neue Version ' + info.remote + ' verfügbar' : '';
-  bell.setAttribute('aria-label', bell.title || 'Aktualisierung');
+  // Immer sichtbar: grün = aktuelle Version, rot = Update verfügbar. Ein Klick öffnet die Aktualisierung.
+  const bell = $('update-bell'); bell.hidden = false;
+  bell.className = 'bell ' + (info.available ? 'update' : 'current');
+  bell.title = info.available ? 'Neue Version ' + info.remote + ' verfügbar – zur Aktualisierung' : 'Die Version ist aktuell – zur Aktualisierung';
+  bell.setAttribute('aria-label', bell.title);
   if ((info.available || running || failed) && !updateOpened) { updateOpened = true; openGroupOf('s-update'); }
   if (running) { updateProgress(info.status); return; }
   const facts = el('dl', null, 'update-facts');
@@ -243,7 +245,7 @@ const GROUPS = [
   {id: 'drucker', label: 'Drucker', cards: ['s-printers', 's-printing', 's-office_printing']},
   {id: 'terminzettel', label: 'Terminzettel', cards: ['s-terminzettel']},
   {id: 'netz', label: 'Arbeitsplätze & Netzwerk', cards: ['s-clients', 's-firewall']},
-  {id: 'sicherheit', label: 'Sicherheit', cards: ['s-audit', 's-password']},
+  {id: 'sicherheit', label: 'Sicherheit', cards: ['s-audit', 's-access', 's-password']},
 ];
 const TABS = [
   {id: 'abrechnung', label: 'Abrechnung', hint: 'laufend', cards: ['s-inbox-list', 's-t2med-paid', 's-export']},
@@ -371,7 +373,53 @@ async function busy(button, action) {
   button.disabled = true;
   try { await action(); } catch (error) { message(error.message, true); } finally { button.disabled = false; }
 }
-async function loadSettings() { render(await api('get')); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); loadInbox(); loadCatalog(); }
+async function loadSettings() {
+  const data = await api('get');
+  if (data.role === 'staff') { staffMode(data); return; }
+  document.body.classList.remove('staff'); $('password-title').textContent = 'Admin-Passwort ändern';
+  render(data); renderAccess(data.access); show('settings'); loadPrinters(); loadUpdate(false); loadFirewall(); loadInbox(); loadCatalog();
+}
+
+// Mitarbeiter-Zugang: nur die freigegebenen Bereiche, keine Einstellungen oder Schlüssel.
+function staffMode(data) {
+  csrf = csrf || ''; document.body.classList.add('staff');
+  $('mode').hidden = false; $('mode').textContent = data.mode === 'live' ? (data.fhir_mode === 'live' ? 'LIVE' : 'LIVE · T2MED TESTMODUS') : 'TESTMODUS'; $('mode').classList.toggle('live', data.mode === 'live');
+  $('tabs').hidden = true; $('sections').replaceChildren(); $('warning').hidden = true;
+  const panel = $('tab-panels'); panel.replaceChildren(); panel.hidden = false;
+  const rights = data.rights || [], can = r => rights.includes(r);
+  const take = id => { const card = $(id); if (card) { card.hidden = false; panel.append(card); } };
+  if (can('paid')) { take('s-t2med-paid'); t2medPaidSetup(data.export_years || [], data.mode); }
+  if (can('inbox') || can('letter')) { take('s-inbox-list'); loadInbox(); }
+  if (can('catalog')) { take('s-catalog'); loadCatalog(); }
+  if (!panel.children.length) panel.append(el('p', 'Für diesen Zugang sind keine Bereiche freigegeben. Bitte beim Administrator melden.', 'muted'));
+  take('s-password'); $('password-title').textContent = 'Passwort ändern';
+  show('settings');
+}
+function renderAccess(access) {
+  const form = $('access-form'); form.replaceChildren();
+  const field = (label, input, hint) => { const f = el('div', null, 'field'); f.append(el('label', label), input); if (hint) f.append(el('p', hint, 'muted small')); return f; };
+  const idle = el('input', null, null, {type: 'number', min: '5', max: '480', step: '5', value: String(access.idle_minutes), id: 'access-idle'});
+  const max = el('input', null, null, {type: 'number', min: '1', max: '72', value: String(access.max_hours), id: 'access-max'});
+  form.append(field('Abmeldung bei Inaktivität (Minuten)', idle, 'Nach so langer Zeit ohne Aktion muss man sich neu anmelden (5 bis 480).'),
+    field('Höchstdauer einer Anmeldung (Stunden)', max, 'Auch bei ständiger Nutzung wird nach dieser Zeit abgemeldet (1 bis 72).'));
+  form.append(el('h3', 'Mitarbeiter-Zugang'));
+  form.append(el('p', 'Ein zweiter Zugang mit eigenem Passwort, der nur die angekreuzten Bereiche sieht. Er hat keinen Zugriff auf Schlüssel, Zugangsdaten und Einstellungen. Das Passwort wird beim Anmelden im selben Feld eingegeben.', 'muted small'));
+  const boxes = {};
+  for (const r of access.rights) {
+    const label = el('label', null, 'check'); const box = el('input', null, null, {type: 'checkbox'}); box.checked = access.staff_rights.includes(r.key); boxes[r.key] = box;
+    label.append(box, document.createTextNode(' ' + r.label)); form.append(label);
+  }
+  const pw = el('input', null, null, {type: 'password', autocomplete: 'new-password', minlength: '10', id: 'access-staff-pw'});
+  form.append(field(access.staff ? 'Neues Mitarbeiter-Passwort (leer lassen = unverändert)' : 'Mitarbeiter-Passwort festlegen (mind. 10 Zeichen)', pw));
+  const buttons = el('div', null, 'row-buttons'); const save = el('button', 'Speichern', 'primary', {type: 'submit'}); buttons.append(save);
+  const send = remove => busy(save, async () => {
+    const result = await api('access_save', {idle_minutes: Number(idle.value), max_hours: Number(max.value), rights: Object.keys(boxes).filter(k => boxes[k].checked), staff_password: pw.value, remove_staff: remove});
+    renderAccess(result); message(result.message);
+  });
+  form.onsubmit = event => { event.preventDefault(); send(false); };
+  if (access.staff) { const del = el('button', 'Mitarbeiter-Zugang entfernen', 'secondary', {type: 'button'}); del.onclick = () => { if (confirm('Mitarbeiter-Zugang wirklich entfernen?')) send(true); }; buttons.append(del); }
+  form.append(buttons);
+}
 
 $('setup-form').onsubmit = event => { event.preventDefault(); busy(event.submitter, async () => {
   if ($('setup-password').value !== $('setup-password2').value) throw new Error('Die Passwörter stimmen nicht überein.');
