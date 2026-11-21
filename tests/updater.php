@@ -24,9 +24,10 @@ try {
     file_put_contents($root . '/app/VERSION', "1.4.1-rechnung.12\n");
     Updater::$conf = $root . '/update.conf'; Updater::$state = $root . '/state'; Updater::$service = $root . '/service';
     $db = new Database($root . '/data'); $db->migrate();
-    $calls = []; $remote = "1.4.1-rechnung.14\n";
-    $fetch = function (string $url) use (&$calls, &$remote, $release): ?string {
+    $calls = []; $remote = "1.4.1-rechnung.14\n"; $mainRemote = "1.4.1\n";
+    $fetch = function (string $url) use (&$calls, &$remote, &$mainRemote, $release): ?string {
         $calls[] = $url;
+        if (str_contains($url, 'thomaskien/t2med-sumup/main/VERSION')) return $mainRemote;
         return str_ends_with($url, '/VERSION') ? $remote : (str_ends_with($url, '/docs/RELEASE.md') ? $release : null);
     };
     $updater = new Updater($db, $root . '/app', $fetch);
@@ -35,6 +36,7 @@ try {
     $info = $updater->check();
     check($info['available'] && $info['remote'] === '1.4.1-rechnung.14' && count($info['notes']) === 2, 'Neue Version nicht erkannt: ' . json_encode($info));
     check($calls[0] === 'https://raw.githubusercontent.com/hau-si/kienzle-suite-beta/rechnungseingang/VERSION', 'Falsche Abfrageadresse: ' . $calls[0]);
+    check($info['main_available'] === false, 'Hauptzweig ohne neuere Version als Update gemeldet');
     $n = count($calls); $updater->check();
     check(count($calls) === $n, 'Zwischenspeicher nicht genutzt');
     $remote = null; $info = $updater->check(true);
@@ -49,6 +51,8 @@ try {
     problem(fn() => $updater->setChannel('irgendwas'), 'Unbekannter Kanal akzeptiert', 422);
     $updater->setChannel('beta');
     check($updater->check()['source'] === Updater::BETA, 'Beta-Kanal nicht gewählt');
+    $mainRemote = "1.5.0\n"; $info = $updater->check(true);
+    check($info['main_available'] === true && $info['main_remote'] === '1.5.0', 'Neuere Version im Hauptzweig nicht erkannt');
     $script = (string)file_get_contents(dirname(__DIR__) . '/scripts/self-update.sh');
     check(str_contains($script, 'repo=' . Updater::STABLE['repo'] . '; branch=' . Updater::STABLE['branch']) && str_contains($script, 'repo=' . Updater::BETA['repo'] . '; branch=' . Updater::BETA['branch']), 'Kanalquellen in PHP und Skript verschieden');
 

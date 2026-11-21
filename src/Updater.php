@@ -14,7 +14,6 @@ final class Updater {
     /** Feste Quellen der Kanäle: Stabil = Hauptzweig des Projekts, Beta = Vorabversion dieses Forks. */
     public const STABLE = ['repo' => 'thomaskien/t2med-sumup', 'branch' => 'main'];
     public const BETA = ['repo' => 'hau-si/kienzle-suite-beta', 'branch' => 'rechnungseingang'];
-    /** Bisheriger Name des Forks: Installationen mit dieser Quelle in update.conf gelten als Beta. */
     private const CACHE = 'update_check';
     private const CACHE_SECONDS = 21600;   // 6 Stunden
 
@@ -86,12 +85,20 @@ final class Updater {
             } else {
                 $cached = ['checked_at' => time(), 'source' => $source, 'remote' => $version, 'notes' => self::notes((string)($this->fetch)($raw . 'docs/RELEASE.md'), $local), 'error' => null];
             }
+            // Beta-Abonnenten sehen zusätzlich, ob im Hauptzweig (Stabil) eine neuere Version liegt.
+            if ($source === self::BETA) {
+                $main = ($this->fetch)('https://raw.githubusercontent.com/' . self::STABLE['repo'] . '/' . self::STABLE['branch'] . '/VERSION');
+                $main = is_string($main) ? trim($main) : '';
+                $cached['main_remote'] = preg_match('/^\d+(\.\d+)+([.+-][0-9A-Za-z.-]+)?$/D', $main) ? $main : null;
+            }
             $this->db->query('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at',
                 [self::CACHE, json_encode($cached, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), time()]);
         }
         $remote = $cached['remote'] ?? null;
         return ['configured' => true, 'channel' => $this->channel(), 'source' => $source, 'current' => $local, 'remote' => $remote, 'checked_at' => $cached['checked_at'],
-            'available' => is_string($remote) && self::newer($remote, $local), 'notes' => $cached['notes'] ?? [], 'error' => $cached['error'] ?? null,
+            'available' => is_string($remote) && self::newer($remote, $local),
+            'main_available' => $source === self::STABLE ? (is_string($remote) && self::newer($remote, $local)) : (is_string($cached['main_remote'] ?? null) && self::newer($cached['main_remote'], $local)),
+            'main_remote' => $source === self::STABLE ? $remote : ($cached['main_remote'] ?? null), 'notes' => $cached['notes'] ?? [], 'error' => $cached['error'] ?? null,
             'service' => is_file(self::$service)];
     }
 

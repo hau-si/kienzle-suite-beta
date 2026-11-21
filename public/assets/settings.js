@@ -212,8 +212,8 @@ function renderUpdate(info) {
   if (group) group.textContent = 'Aktualisierung' + (running ? ' · läuft …' : info.available ? ' · Neue Version ' + info.remote + ' verfügbar' : '');
   // Immer sichtbar: grün = aktuelle Version, rot = Update verfügbar. Ein Klick öffnet die Aktualisierung.
   const bell = $('update-bell'); bell.hidden = false;
-  bell.className = 'bell ' + (info.available ? 'update' : 'current');
-  bell.title = info.available ? 'Neue Version ' + info.remote + ' verfügbar – zur Aktualisierung' : 'Die Version ist aktuell – zur Aktualisierung';
+  bell.className = 'bell ' + (info.main_available ? 'main' : info.available ? 'update' : 'current');
+  bell.title = info.main_available ? 'Neue stabile Version ' + info.main_remote + ' im Hauptzweig – zur Aktualisierung' : info.available ? 'Neue Version ' + info.remote + ' verfügbar – zur Aktualisierung' : 'Die Version ist aktuell – zur Aktualisierung';
   bell.setAttribute('aria-label', bell.title);
   if ((info.available || running || failed) && !updateOpened) { updateOpened = true; openGroupOf('s-update'); }
   if (running) { updateProgress(info.status); return; }

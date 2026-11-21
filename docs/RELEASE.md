@@ -1,17 +1,18 @@
-Version 1.4.1-rechnung.54 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.55 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.55: Update-Glocke grau, solange alles aktuell ist; roter Punkt bei neuer Version im abonnierten Kanal; ganz rot, wenn im Hauptzweig (stabil) eine neuere Version liegt. Dazu README mit Ablauf-Überblick, Hardware und Erstinstallation, Anleitung „T2med einrichten“, Installer-Anpassungen für Ubuntu 26.04 und Parallelbetrieb (AppArmor, Paket-Apache), MIT-Lizenz.
 - Neu in rechnung.54: Der Beta-Kanal wird per Kästchen „Beta-Versionen abonnieren“ gewählt; ohne Häkchen kommen Updates aus dem ursprünglichen Projekt (stabil).
-- Neu in rechnung.53: Der Fork heißt jetzt kienzle-suite-beta (hau-si/kienzle-suite-beta). Der Beta-Kanal liest die neue Adresse; Installationen mit dem alten Namen in update.conf gelten weiter als Beta.
+- Neu in rechnung.53: Der Fork heißt jetzt kienzle-suite-beta (hau-si/kienzle-suite-beta). Der Beta-Kanal liest die neue Adresse; .
 - Neu in rechnung.52: Zwischenversion für die Umbenennung des Forks (kienzle-suite-beta): Die Update-Prüfung folgt GitHub-Weiterleitungen, damit Aktualisierungen auch nach dem Umbenennen des Repositorys ankommen.
 - Neu in rechnung.51: „Dieses Gerät merken“ bei der Anmeldung (bis zu 6 Monate, nur aus dem Netz der Anmeldung, in den Einstellungen einsehbar und widerrufbar); heikle Änderungen (Einstellungen speichern, Update, Firewall, Zugang) verlangen auf gemerkten Geräten das Passwort erneut; Pakete mit Schlüsseln nur ohne Gerät merken (Datenbankversion 18).
 - Neu in rechnung.50: Update-Kanal wählbar: „Stabil“ (Hauptzweig thomaskien/t2med-sumup, Standard bei Neuinstallation) oder „Beta“ (dieser Fork). Bestehende Installationen von diesem Fork bleiben zunächst auf Beta.
 - Neu in rechnung.49: Abmeldezeiten bis 6 Monate einstellbar (Minuten, Stunden oder Tage).
 - Neu in rechnung.48: Terminzettel – erste Zeile des Starttexts (z. B. Praxisname) mit eigener Schriftgröße und fett/nicht fett einstellbar.
-- Neu in rechnung.47: Abmeldezeit (Inaktivität und Höchstdauer) einstellbar; Mitarbeiter-Zugang mit eigenem Passwort und ankreuzbaren Rechten (Bezahlt-Liste, Rechnungseingang, Post-Versand, Leistungen), ohne Zugriff auf Schlüssel und Einstellungen; Update-Glocke immer sichtbar (grün = aktuell, rot = Update); Datenbankversion 17.
+- Neu in rechnung.47: Abmeldezeit (Inaktivität und Höchstdauer) einstellbar; Mitarbeiter-Zugang mit eigenem Passwort und ankreuzbaren Rechten (Bezahlt-Liste, Rechnungseingang, Post-Versand, Leistungen), ohne Zugriff auf Schlüssel und Einstellungen; Update-Glocke immer sichtbar; Datenbankversion 17.
 - Neu in rechnung.46: T2med-Rechnungen werden bei Karte und Bar immer auf dem Praxisdrucker gedruckt (abschaltbar in den Einstellungen, `office_printing.invoice_auto`) und bei „Später (Überweisung)“ einmal; Hilfesymbol bei „Leistung auf Verlangen“ (Datenbankversion 16).
 - Neu in rechnung.45: Leistungen mit GOÄ-Ziffer können eine feste Begründung für Faktoren über dem Schwellenwert hinterlegen (Kasse und Adminpanel); sie wird vorausgefüllt und bei fehlender Eingabe verwendet (Datenbankversion 15).
 - Neu in rechnung.44: Letterxpress: Eine live gesendete Rechnung lässt sich nicht mehr ein zweites Mal senden (kein „Nochmal“); ein kleines Brief-Symbol zeigt den Versand. Einrichtungs-Überblick nennt auch die Ablage im Netzwerkordner (optional).
