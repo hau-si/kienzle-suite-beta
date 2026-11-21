@@ -343,11 +343,14 @@ function showUpdate() { activate('einrichtung'); openGroupOf('s-update'); histor
 document.addEventListener('DOMContentLoaded', () => { const bell = $('update-bell'); if (bell) bell.onclick = e => { e.preventDefault(); showUpdate(); }; });
 function badge(tab, count) { const b = $('badge-' + tab); if (!b) return; b.hidden = !count; b.textContent = count ? String(count) : ''; }
 
+const GUIDE_URL = 'https://github.com/hau-si/kienzle-suite-beta/blob/rechnungseingang/docs/T2MED-EINRICHTUNG.md';
 /** Anleitung für T2med: Drittanbieter-Zugriff mit Menüleisten-Button (Aufruf-Adresse zum Kopieren). */
 function t2medSetupHelp() {
   const d = el('details', null, 'tz-how'); d.append(el('summary', 'In T2med einrichten: Button „Kienzle-SumUp“'));
   const ol = el('ol');
-  ol.append(el('li', 'In T2med unter „Drittanbieter-Zugriffe verwalten“ eine neue URL mit dem Namen Kienzle-SumUp anlegen und einem eigenen Menüleisten-Button zuweisen.'));
+  ol.append(el('li', 'In T2med in der Suche „Drittanbieter-Zugriffe verwalten“ öffnen (fehlt die Funktion, muss ein Admin sie für den Benutzer freischalten). Den Eintrag mit dem Stift bearbeiten, Adresse und Bezeichnung (z. B. „Kartenzahlung“) eintragen, Plus anklicken, mit dem Häkchen oben rechts speichern, danach in der Liste auf „aktualisieren“ klicken.'));
+  ol.append(el('li', 'Dann „Funktionsleisten verwalten“: Konfiguration anlegen (Name, Benutzer, Benutzergruppe, Station), „Aktion hinzufügen“, die Aktion unter der vergebenen Bezeichnung suchen, Farbe und Kürzel oder Icon wählen.'));
+  const guide = el('li'); guide.append('Mit Bildern: ', el('a', 'Anleitung „T2med einrichten“', null, {href: GUIDE_URL, target: '_blank', rel: 'noopener'})); ol.append(guide);
   const li = el('li', 'Als Adresse eintragen (genau so, mit den Platzhaltern):'); li.append(el('br'), el('code', 'kienzle-sumup://?kontextId=${kontextId}&fhirBasisUrl=${fhirBasisUrl}&oAuthToken=${oAuthToken}', 'code-copy')); ol.append(li);
   ol.append(el('li', 'Der Starter-Aufruf funktioniert erst, wenn auf dem Arbeitsplatz das Starter-Paket installiert ist (Karte „Arbeitsplätze einrichten“).'));
   ol.append(el('li', 'Die FHIR-Adresse, die T2med beim Aufruf mitgibt, muss unter „Erlaubte fhirBasisUrl aus T2med“ stehen. Bei einer Fehlermeldung zeigt die Seite die tatsächlichen Werte.'));
@@ -379,7 +382,7 @@ function renderChecklist(data) {
     ]},
     {title: 'In T2med', hint: 'Einstellungen in der Praxissoftware', items: [
       {done: data.fhir_mode === 'live', label: data.fhir_mode === 'live' ? 'FHIR-Schnittstelle eingerichtet (T2med-Anbindung live)' : 'FHIR-Schnittstelle einrichten: T2med-Anbindung noch im Testmodus', card: 's-fhir'},
-      {info: true, label: 'Drittanbieter-Zugriff „Kienzle-SumUp“ mit Menüleisten-Button anlegen (Aufruf-Adresse steht bei der T2med-Anbindung)', card: 's-fhir'},
+      {info: true, label: 'Drittanbieter-Zugriff mit Funktionsleisten-Button „Kartenzahlung“ anlegen (Aufruf-Adresse steht bei der T2med-Anbindung)', card: 's-fhir', href: GUIDE_URL, hrefLabel: 'Anleitung mit Bildern'},
       {info: true, label: 'In T2med unter Einstellungen → Kalender → Terminliste (DIN A6) den Drucker „Terminzettel“ wählen', card: 's-terminzettel', detail: tz.printer_url || ''},
       ...(invoiceQueue ? [{info: true, label: 'Rechnungen in T2med auf den zuvor installierten Drucker „SumUp-Rechnung“ drucken', card: 'invoice-printer-help'}] : []),
     ]},
@@ -393,6 +396,7 @@ function renderChecklist(data) {
       const li = el('li', null, item.info ? 'info' : item.done ? 'done' : item.optional ? 'optional' : 'open');
       li.append(el('span', item.info ? 'i' : item.done ? '✓' : '○', 'mark-icon'));
       const text = el('span'); text.append(el('a', item.label, null, {href: '#' + item.card}));
+      if (item.href) text.append(' · ', el('a', item.hrefLabel || 'Anleitung', null, {href: item.href, target: '_blank', rel: 'noopener'}));
       if (item.detail) { text.append(el('br'), el('small', item.detail, 'mono')); }
       li.append(text);
       if (item.optional && !item.done) li.append(el('small', ' optional'));

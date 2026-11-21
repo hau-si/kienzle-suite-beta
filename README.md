@@ -9,6 +9,36 @@ dokumentieren. **Version 1.4.1-rechnung.54**, von Dr. Thomas Kienzle.
 > [T2med-Rechnung kassieren](#t2med-rechnung-kassieren). Die Starter für die Arbeitsplätze
 > sind unverändert und kommen weiterhin aus dem Original-Release `v1.4.1`.
 
+## So funktioniert es
+
+Die Suite läuft auf einem Server in der Praxis. T2med gibt Rechnungen und Patientendaten an die Suite; sie kassiert
+und schreibt die Zahlung zurück in die Akte. Alle Bilder zeigen Testmodus und Beispieldaten.
+
+<p align="center"><img src="docs/screenshots/flow-ueberblick.png" width="760" alt="Überblick des Ablaufs"></p>
+
+**1. Rechnung drucken.** In T2med wie gewohnt die Rechnung erstellen und auf den Drucker „SumUp-Rechnung“ drucken. Sie landet im Rechnungseingang des Servers.
+
+**2. Kassieren per Funktionsleiste.** Ein Klick auf die Schaltfläche beim Patienten schickt die Patientendaten per FHIR an den Server. Die Kasse öffnet sich mit der offenen Rechnung; bezahlt wird mit Karte (SumUp), bar oder „Später“.
+
+<p align="center"><img src="docs/screenshots/flow-druck-simpdf.png" width="400" alt="Druck auf SumUp-Rechnung"> <img src="docs/screenshots/flow-kasse-patient.png" width="300" alt="Kasse mit offener Rechnung"> <img src="docs/screenshots/flow-beleg.png" width="300" alt="Zahlung erfolgreich mit Beleg"></p>
+
+**3. Rückschrieb.** Die Zahlung wird per FHIR als Eintrag mit Zahlart, Betrag, Rechnungsnummer und Transaktionsreferenz in die T2med-Akte geschrieben (schematische Darstellung).
+
+<p align="center"><img src="docs/screenshots/flow-akte.png" width="560" alt="Rückschrieb in die Akte"></p>
+
+**4. IGeL-Tool ohne T2med-Rechnung.** Eine Rechnung in T2med ist aufwendig. Für Atteste und kurze Leistungen genügt ein Klick auf dieselbe Schaltfläche: Die Suite erkennt, dass keine T2med-Rechnung vorliegt, und zeigt die Leistungsliste zum sofortigen Kassieren.
+
+<p align="center"><img src="docs/screenshots/flow-igel.png" width="320" alt="IGeL-Leistungen"></p>
+
+**5. Terminzettel.** Der T2med-Zettel ist klein gedruckt und ohne QR-Code. Die Suite druckt ihn groß und gut lesbar auf dem Bondrucker, mit Praxiskopf (erste Zeile eigens gestaltbar) und Kalender-QR je Termin.
+
+<p align="center"><img src="docs/screenshots/flow-terminzettel.png" width="220" alt="Terminzettel mit QR-Codes"></p>
+
+**6. Per Post, Ablage, Excel.** Rechnungen lassen sich über die Letterxpress-API direkt als Brief versenden, bezahlte Rechnungen als PDF in einen Netzwerkordner für die Steuerberatung ablegen und als Excel exportieren. Einstellungen, Schlüssel und Zugangsdaten sieht nur der Admin; ein Mitarbeiter-Zugang kann auf einzelne Bereiche beschränkt werden.
+
+Die einmalige Einrichtung in T2med (Drittanbieter-Zugriff und Funktionsleiste) ist in der
+[Anleitung „T2med einrichten“](docs/T2MED-EINRICHTUNG.md) mit Bildern beschrieben; im Adminpanel ist sie im Einrichtungs-Überblick verlinkt.
+
 ## Funktionen im Überblick
 
 Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
@@ -823,6 +853,8 @@ Zertifikat einschließlich Name und Laufzeit. Er überträgt den Kontext per HTT
 öffnet einen einmal verwendbaren Browserlink und beendet sich. Es läuft kein lokaler Dienst.
 
 ## T2med-Button einrichten
+
+Schritt für Schritt mit Bildern: [Anleitung „T2med einrichten“](docs/T2MED-EINRICHTUNG.md).
 
 Die Platzhalter folgen dem bereits verwendeten Kienzledoku-Aufruf. Unter
 **Drittanbieter-Zugriffe verwalten** eine zusätzliche URL mit dem Namen **Kienzle-SumUp**
