@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.56**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.57**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -15,6 +15,8 @@ Die Suite läuft auf einem Server in der Praxis. T2med gibt Rechnungen und Patie
 und schreibt die Zahlung zurück in die Akte. Alle Bilder zeigen Testmodus und Beispieldaten.
 
 <p align="center"><img src="docs/screenshots/flow-ueberblick.png" width="760" alt="Überblick des Ablaufs"></p>
+
+**Erklärvideo** (ca. 4:40 Min., ohne Ton, nur Beispieldaten): [docs/video/Kienzle-Suite-Erklaervideo.mp4](docs/video/Kienzle-Suite-Erklaervideo.mp4)
 
 **1. Rechnung drucken.** In T2med wie gewohnt die Rechnung erstellen und auf den Drucker „SumUp-Rechnung“ drucken. Sie landet im Rechnungseingang des Servers.
 

@@ -1,9 +1,10 @@
-Version 1.4.1-rechnung.56 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.57 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.57: Erklärvideo (ca. 4:40 Min., nur Beispieldaten) im Repository, im README verlinkt.
 - Neu in rechnung.56: Tooltips werden am rechten oder linken Rand nach innen geschoben und nicht mehr abgeschnitten. Auf gemerkten Geräten wird das Admin-Passwort für heikle Änderungen nur einmal erfragt und dann 24 Stunden lang nicht mehr (Datenbankversion 19). Installer und Aktualisierung warten bis zu 10 Minuten auf die Paketsperre (dpkg), wenn gerade ein anderer Paketvorgang läuft (z. B. automatische Updates), statt mit „Installer fehlgeschlagen“ abzubrechen.
 - Neu in rechnung.55: Terminzettel – Reihenfolge „erste Zeile, dann Adressbereich“, Änderungen daran verlangen auf gemerkten Geräten kein Passwort mehr. Update-Glocke grau, solange alles aktuell ist; roter Punkt bei neuer Version im abonnierten Kanal; ganz rot, wenn im Hauptzweig (stabil) eine neuere Version liegt. Dazu README mit Ablauf-Überblick, Hardware und Erstinstallation, Anleitung „T2med einrichten“, Installer-Anpassungen für Ubuntu 26.04 und Parallelbetrieb (AppArmor, Paket-Apache), MIT-Lizenz.
 - Neu in rechnung.54: Der Beta-Kanal wird per Kästchen „Beta-Versionen abonnieren“ gewählt; ohne Häkchen kommen Updates aus dem ursprünglichen Projekt (stabil).
