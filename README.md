@@ -39,6 +39,120 @@ und schreibt die Zahlung zurück in die Akte. Alle Bilder zeigen Testmodus und B
 Die einmalige Einrichtung in T2med (Drittanbieter-Zugriff und Funktionsleiste) ist in der
 [Anleitung „T2med einrichten“](docs/T2MED-EINRICHTUNG.md) mit Bildern beschrieben; im Adminpanel ist sie im Einrichtungs-Überblick verlinkt.
 
+<details>
+<summary>Bildergalerie: die Folien aus dem Erklärvideo</summary>
+
+**Überblick**
+
+<img src="docs/video/s01.jpg" width="700" alt="Überblick">
+
+**Rechnung in T2med drucken**
+
+<img src="docs/video/s08.jpg" width="700" alt="Rechnung in T2med drucken">
+
+**Funktionsleiste beim Patienten anklicken**
+
+<img src="docs/video/s09.jpg" width="700" alt="Funktionsleiste beim Patienten anklicken">
+
+**Rechnungseingang auf dem Server**
+
+<img src="docs/video/s10.jpg" width="700" alt="Rechnungseingang auf dem Server">
+
+**Zahlungsart wählen**
+
+<img src="docs/video/s11.jpg" width="700" alt="Zahlungsart wählen">
+
+**Zahlungsfenster**
+
+<img src="docs/video/s12.jpg" width="700" alt="Zahlungsfenster">
+
+**Beleg und Dokumentation**
+
+<img src="docs/video/s13.jpg" width="700" alt="Beleg und Dokumentation">
+
+**Rückschrieb in die T2med-Akte**
+
+<img src="docs/video/s14.jpg" width="700" alt="Rückschrieb in die T2med-Akte">
+
+**Barzahlung**
+
+<img src="docs/video/s15.jpg" width="700" alt="Barzahlung">
+
+**IGeL-Tool: kurze Leistungen schnell kassieren**
+
+<img src="docs/video/s16.jpg" width="700" alt="IGeL-Tool: kurze Leistungen schnell kassieren">
+
+**Leistungen auswählen**
+
+<img src="docs/video/s17.jpg" width="700" alt="Leistungen auswählen">
+
+**Abschluss mit Leistungsbeleg**
+
+<img src="docs/video/s18.jpg" width="700" alt="Abschluss mit Leistungsbeleg">
+
+**Leistungen und GOÄ verwalten**
+
+<img src="docs/video/s19.jpg" width="700" alt="Leistungen und GOÄ verwalten">
+
+**Einrichtungs-Dashboard**
+
+<img src="docs/video/s20.jpg" width="700" alt="Einrichtungs-Dashboard">
+
+**Terminzettel: vorher und nachher**
+
+<img src="docs/video/s21.jpg" width="700" alt="Terminzettel: vorher und nachher">
+
+**Terminzettel einstellen**
+
+<img src="docs/video/s22.jpg" width="700" alt="Terminzettel einstellen">
+
+**Briefversand über Letterxpress**
+
+<img src="docs/video/s23.jpg" width="700" alt="Briefversand über Letterxpress">
+
+**Letterxpress einrichten**
+
+<img src="docs/video/s24.jpg" width="700" alt="Letterxpress einrichten">
+
+**Netzwerkordner und Excel-Export**
+
+<img src="docs/video/s25.jpg" width="700" alt="Netzwerkordner und Excel-Export">
+
+**Bezahlt-Liste für T2med**
+
+<img src="docs/video/s26.jpg" width="700" alt="Bezahlt-Liste für T2med">
+
+**Zugang, Abmeldezeit und Mitarbeiter (nur Admin)**
+
+<img src="docs/video/s27.jpg" width="700" alt="Zugang, Abmeldezeit und Mitarbeiter (nur Admin)">
+
+**Updates und Beta-Kanal (nur Admin)**
+
+<img src="docs/video/s28.jpg" width="700" alt="Updates und Beta-Kanal (nur Admin)">
+
+</details>
+
+## Empfohlene Hardware und Geräte
+
+**Server:** eine virtuelle Maschine (VM) auf dem Praxisserver mit mindestens **2 Kernen** und **100 GB Speicher**.
+Dazu Ubuntu Server (siehe [Erstinstallation Schritt für Schritt](#erstinstallation-schritt-für-schritt)).
+
+**Kartenterminal:** **SumUp Solo.** Das SumUp Terminal lässt sich nicht über die API ansteuern und ist deshalb nicht nutzbar.
+
+**Bondrucker** (Belege, Quittungen, Terminzettel), unterstützt sind zwei Epson-Modelle:
+
+| | Epson TM-m10 | Epson TM-m30III |
+|---|---|---|
+| Rollenbreite | 58 mm | 80 mm |
+| Rollen | Spezialrollen 58 mm | günstige 80-mm-Standardkassenrollen |
+| Geschwindigkeit | langsamer | schneller |
+| Anbindung | LAN/WLAN | LAN/WLAN |
+| Zeichen je Zeile (Normalschrift) | 35 | 48 |
+
+Der TM-m30III ist die Empfehlung: schneller, mehr Platz pro Zeile und die gängigen 80-mm-Rollen sind günstiger.
+Beide Drucker hängen im Praxisnetz und werden per LAN oder WLAN angesprochen, nicht per USB am Server.
+Einrichtung: [Bondrucker](#bondrucker-epson-tm-m10-oder-tm-m30iii).
+
 ## Funktionen im Überblick
 
 Alle Bilder zeigen die Anwendung im Testmodus mit erfundenen Beispieldaten.
@@ -562,6 +676,64 @@ Kein Hintergrundjob und kein Webhook. Bei geschlossenem Browser findet keine wei
 Statusabfrage oder automatische Dokumentation statt. Erneut aus demselben t2med-Kontext
 öffnen setzt einen unvollständigen Vorgang fort. Ein neuer Behandlungskontext kann eine
 alte Zahlung nicht automatisch übernehmen.
+
+## Erstinstallation Schritt für Schritt
+
+Vorbereitung: Ubuntu-Server-ISO (**24.04 LTS**) von ubuntu.com, eine VM wie oben und eine feste Adresse im Praxisnetz
+(am besten eine DHCP-Reservierung im Router für die VM). Der Server braucht Internet, zugänglich ist er nur im Praxisnetz.
+
+**A. Ubuntu Server installieren**
+
+1. VM mit mindestens 2 Kernen, 4 GB RAM und 100-GB-Festplatte anlegen, die ISO einlegen und starten.
+2. Im Installer **Deutsch** und die deutsche Tastatur wählen, „Ubuntu Server“ (nicht „minimized“) installieren.
+3. Netzwerk: die automatisch erkannte Verbindung (DHCP) übernehmen. Eine feste IP kann später im Router reserviert werden.
+4. Speicher: „Use an entire disk“ mit den Standardwerten übernehmen.
+5. Profil: Name, **Rechnername** (z. B. `praxisserver`), Benutzername und ein starkes Passwort festlegen. Der Rechnername
+   erscheint später in der Adresse `https://praxisserver:7868`.
+6. **„Install OpenSSH server“ ankreuzen**, damit sich der Server von einem Arbeitsplatz aus verwalten lässt. Zusätzliche „Snaps“ nicht auswählen.
+7. Installation abwarten, mit „Reboot Now“ neu starten, das Installationsmedium entfernen und mit dem eben angelegten Benutzer anmelden.
+
+**B. System aktualisieren**
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git
+sudo timedatectl set-timezone Europe/Berlin
+```
+
+Bei der Frage nach einem Neustart (Kernel-Update) einmal `sudo reboot` ausführen.
+
+**C. Kienzle-Suite installieren**
+
+```bash
+git clone https://github.com/thomaskien/t2med-sumup.git
+cd t2med-sumup
+sudo bash scripts/install-server.sh
+```
+
+Wer die Beta-Version nutzen will: statt der ersten Zeile
+`git clone -b rechnungseingang https://github.com/hau-si/kienzle-suite-beta.git` und danach `cd kienzle-suite-beta`.
+
+Der Installer stellt keine Fragen, richtet Webserver, PHP, Drucksystem, Terminzettel-Dienst und automatische Sicherheitsupdates ein
+und braucht einige Minuten. Am Ende gibt er einen einmaligen **Einrichtungslink** aus.
+
+**D. Ersteinrichtung im Browser**
+
+1. Den Link `https://praxisserver:7868/settings.php#setup=…` auf einem Arbeitsplatz öffnen. Die Zertifikatswarnung erscheint,
+   weil das Zertifikat selbst erstellt ist; ausnahmsweise bestätigen (die Starter auf den Arbeitsplätzen prüfen es genau).
+   Ist der Rechnername im Netz nicht auflösbar, die IP-Adresse des Servers statt des Namens eintragen.
+2. Ein **Admin-Passwort** mit mindestens 10 Zeichen festlegen.
+3. Im Reiter **Einrichtung** die Punkte des Einrichtungs-Überblicks von oben nach unten abarbeiten: Praxisname und Anschrift, SumUp
+   (zuerst Testmodus, dann Zugangsdaten und Live), Bondrucker, Praxisdrucker (A4), Terminzettel. Optional: Rechnung per Post (Letterxpress) und
+   Netzwerkordner für die Steuerberatung. Zum Schluss die Firewall auf das Praxisnetz beschränken.
+4. Unter „Drucker „SumUp-Rechnung“ anlegen“ die Übernahme von T2med-Rechnungen einschalten.
+5. Auf jedem Kassen-PC das **Starter-Paket** installieren (Karte „Arbeitsplätze einrichten“) und den Drucker **„SumUp-Rechnung“** (und am
+   Arbeitsplatz für den Zettel **„Terminzettel“**) als IPP-Drucker hinzufügen. Die Adressen zeigt der Überblick.
+6. In T2med Drittanbieter-Zugriff, Funktionsleiste und Druckerzuordnung einrichten:
+   [Anleitung „T2med einrichten“](docs/T2MED-EINRICHTUNG.md).
+7. Mit einer Testrechnung im Testmodus alles prüfen, dann SumUp auf Live stellen.
+
+Später genügt zum Aktualisieren der Knopf im Adminpanel (Glocke oben); siehe [Aktualisieren im Webinterface](#aktualisieren-im-webinterface).
 
 ## Server installieren
 
