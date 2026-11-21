@@ -23,8 +23,8 @@ final class Updater {
     public function __construct(private Database $db, private string $root, ?callable $fetch = null) {
         $this->fetch = $fetch ?? static function (string $url): ?string {
             $curl = curl_init($url);
-            curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_USERAGENT => 'kienzle-sumup-update', CURLOPT_MAXFILESIZE => 262144]);
+            curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_USERAGENT => 'kienzle-sumup-update', CURLOPT_MAXFILESIZE => 262144]);
             $body = curl_exec($curl);
             $code = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
             curl_close($curl);
