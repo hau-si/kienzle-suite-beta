@@ -75,6 +75,7 @@ final class Settings {
             'cups_server' => ['type' => 'string', 'label' => 'CUPS-Server (leer: dieser Server)'],
             'media' => ['type' => 'choice', 'label' => 'Papier', 'choices' => ['A4' => 'A4', 'Letter' => 'Letter']],
             'duplex' => ['type' => 'bool', 'label' => 'Beidseitig drucken'],
+            'invoice_auto' => ['type' => 'bool', 'label' => 'T2med-Rechnungen immer automatisch drucken (Karte, Bar und „Später“)', 'default' => true],
         ]],
         'terminzettel' => ['label' => 'Terminzettel', 'fields' => [
             'enabled' => ['type' => 'bool', 'label' => 'Terminzettel aus T2med auf dem Bondrucker drucken', 'default' => true],

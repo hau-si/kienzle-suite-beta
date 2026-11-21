@@ -85,7 +85,7 @@ final class Config {
             $width = $this->get('printing', 'width_dots', self::PRINTER_MODELS[$model]['width_dots']);
             if (!is_int($width) || $width < 128 || $width > $max) throw new \RuntimeException('Druckbreite für ' . self::PRINTER_MODELS[$model]['label'] . ' muss 128 bis ' . $max . ' Punkte betragen.');
         }
-        if (!is_bool($this->get('office_printing', 'enabled', false)) || !is_bool($this->get('office_printing', 'duplex', false))) throw new \RuntimeException('office_printing.enabled/duplex muss true oder false sein.');
+        if (!is_bool($this->get('office_printing', 'enabled', false)) || !is_bool($this->get('office_printing', 'duplex', false)) || !is_bool($this->get('office_printing', 'invoice_auto', true))) throw new \RuntimeException('office_printing.enabled/duplex muss true oder false sein.');
         if ($this->get('office_printing', 'enabled', false)) {
             $this->cupsTarget('office_printing');
             if (!in_array($this->get('office_printing', 'media', 'A4'), ['A4', 'Letter'], true)) throw new \RuntimeException('office_printing.media muss A4 oder Letter sein.');

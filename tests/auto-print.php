@@ -115,15 +115,38 @@ try {
     check(count($office->jobs) === 2, 'Nachdruck auf Wunsch nicht ausgeführt');
     check($app->db->one('SELECT pdf FROM invoice_inbox WHERE id=?', [$invoiceId])['pdf'] === $pdf, 'PDF vor dem Abschluss gelöscht (Nachdruck unmöglich)');
 
-    // 4. Häkchen pro Zahlung abgewählt: kein Druck.
+    // 4. T2med-Rechnungen drucken immer (Einstellung der Praxis); das Häkchen der Zahlungsseite gilt nur für App-Rechnungen.
     [$v2, $b2] = visit($app, 'print-2');
     $app->storeInvoice(['number' => 'RE2026-0043'] + $parsed, $pdf);
     $id = $app->state($v2, $b2)['invoices'][0]['id'];
     $p = $app->poll($v2, $app->startInvoice($v2, ['request_id' => App::id(), 'invoice_id' => $id, 'auto_print' => false])['id']);
-    check($p['invoice_print'] === null && count($office->jobs) === 2, 'Abgewähltes Häkchen trotzdem gedruckt');
-    check($app->db->one('SELECT pdf FROM invoice_inbox WHERE id=?', [$id])['pdf'] === $pdf, 'PDF zu früh gelöscht (manueller Druck noch möglich)');
-    $manual = $app->invoicePrint($v2, ['payment_id' => $p['id']]);
-    check($manual['invoice_print']['status'] === 'done' && count($office->jobs) === 3, 'Manueller Druck ohne Häkchen nicht möglich');
+    check(($p['invoice_print']['status'] ?? '') === 'pending', 'T2med-Rechnung trotz abgewähltem Häkchen nicht zum Drucken vorgemerkt');
+    $app->invoicePrint($v2, ['payment_id' => $p['id']]);
+    check(count($office->jobs) === 3, 'T2med-Rechnung nicht gedruckt');
+    check($app->db->one('SELECT pdf FROM invoice_inbox WHERE id=?', [$id])['pdf'] === $pdf, 'PDF zu früh gelöscht (Nachdruck noch möglich)');
+    $manual = $app->invoicePrint($v2, ['payment_id' => $p['id'], 'again' => true]);
+    check($manual['invoice_print']['status'] === 'done' && count($office->jobs) === 4, 'Nachdruck nicht möglich');
+
+    // 4b. „Später (Überweisung)“ druckt einmal; die spätere Zahlung druckt nicht noch einmal.
+    [$v4, $b4] = visit($app, 'print-later');
+    $app->storeInvoice(['number' => 'RE2026-0044'] + $parsed, $pdf);
+    $lid = $app->state($v4, $b4)['invoices'][0]['id'];
+    $later = $app->invoiceLater($v4, ['invoice_id' => $lid]);
+    check($later['printed'] === true && count($office->jobs) === 5 && $app->state($v4, $b4)['invoices'][0]['printed_at'] > 0, 'Später-Druck nicht ausgeführt');
+    $app->invoiceLater($v4, ['invoice_id' => $lid]);
+    check(count($office->jobs) === 5, 'Später-Druck doppelt ausgeführt');
+    $lp = $app->poll($v4, $app->startInvoice($v4, ['request_id' => App::id(), 'invoice_id' => $lid])['id']);
+    $app->invoicePrint($v4, ['payment_id' => $lp['id']]);
+    check(count($office->jobs) === 5 && str_contains((string)($app->db->one('SELECT print_info FROM payments WHERE id=?', [$lp['id']])['print_info']), 'Schon vor der Zahlung'), 'Nach Später-Druck erneut gedruckt');
+    // Einstellung aus: weder automatisch noch bei „Später“.
+    $off = values(); $off['office_printing']['invoice_auto'] = false; $offCfg = new Config($off); $dirs[] = $offCfg->get('app', 'state_dir');
+    $offOffice = new FakeOffice($offCfg); $offApp = new App($offCfg, new PrintHttp(), null, new FakeReceipt($offCfg), null, $offOffice); $offApp->db->migrate();
+    [$ov, $ob] = visit($offApp, 'print-off');
+    $offApp->storeInvoice(['number' => 'RE2026-0045'] + $parsed, $pdf);
+    $oid = $offApp->state($ov, $ob)['invoices'][0]['id'];
+    check($offApp->invoiceLater($ov, ['invoice_id' => $oid])['printed'] === false && $offOffice->jobs === [], 'Später-Druck trotz ausgeschalteter Einstellung');
+    $op = $offApp->poll($ov, $offApp->startInvoice($ov, ['request_id' => App::id(), 'invoice_id' => $oid])['id']);
+    check($op['invoice_print'] === null && $offOffice->jobs === [], 'Automatischer Druck trotz ausgeschalteter Einstellung');
 
     // 5. App-Rechnung auf dem Bondrucker (TM-m30III per CUPS-RAW).
     [$v3] = visit($app, 'print-3');

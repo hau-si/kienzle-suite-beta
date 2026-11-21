@@ -49,6 +49,7 @@ try {
             'start' => $app->start($visit, $input),
             'start_invoice' => $app->startInvoice($visit, $input),
             'invoice_letter' => $app->invoiceLetter($visit, $input),
+            'invoice_later' => $app->invoiceLater($visit, $input),
             'invoice_export' => $app->invoiceExport($visit, App::string($input, 'payment_id', 32)),
             'invoice_print' => $app->invoicePrint($visit, $input),
             'print_settings' => $app->savePrintSettings($visit, $input),

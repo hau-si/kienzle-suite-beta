@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS invoice_inbox (
     patient_name TEXT NOT NULL, patient_birthdate TEXT NOT NULL,
     received_at INTEGER NOT NULL, superseded_at INTEGER,
     pdf BLOB, export_status TEXT NOT NULL DEFAULT '', export_error TEXT NOT NULL DEFAULT '', export_path TEXT NOT NULL DEFAULT '',
-    lxp_status TEXT NOT NULL DEFAULT '', lxp_job_id TEXT NOT NULL DEFAULT '', lxp_sent_at INTEGER, lxp_mode TEXT NOT NULL DEFAULT '', lxp_error TEXT NOT NULL DEFAULT ''
+    printed_at INTEGER, lxp_status TEXT NOT NULL DEFAULT '', lxp_job_id TEXT NOT NULL DEFAULT '', lxp_sent_at INTEGER, lxp_mode TEXT NOT NULL DEFAULT '', lxp_error TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS invoice_inbox_number ON invoice_inbox(invoice_number, superseded_at);
 CREATE TABLE IF NOT EXISTS settings (

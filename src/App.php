@@ -404,13 +404,13 @@ final class App {
     private function openInvoices(array $visit): array {
         if (!$this->config->get('invoice_inbox', 'enabled', false) || $visit['patient_birthdate'] === '') return [];
         $limit = time() - $this->config->get('invoice_inbox', 'max_age_days', 14) * 86400;
-        $rows = $this->db->query("SELECT i.id,i.invoice_number,i.invoice_date,i.amount_cents,i.patient_name,i.patient_birthdate,i.lxp_status,i.lxp_sent_at,i.lxp_mode,i.lxp_job_id,i.lxp_error,(i.pdf IS NOT NULL) AS has_pdf FROM invoice_inbox i WHERE i.superseded_at IS NULL AND i.received_at >= ? AND i.patient_birthdate=?
+        $rows = $this->db->query("SELECT i.id,i.invoice_number,i.invoice_date,i.amount_cents,i.patient_name,i.patient_birthdate,i.lxp_status,i.lxp_sent_at,i.lxp_mode,i.lxp_job_id,i.lxp_error,i.printed_at,(i.pdf IS NOT NULL) AS has_pdf FROM invoice_inbox i WHERE i.superseded_at IS NULL AND i.received_at >= ? AND i.patient_birthdate=?
             AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.t2med_invoice=i.invoice_number AND p.payment_status IN ('starting','pending','unknown','cancel_requested','successful'))
             ORDER BY i.received_at DESC", [$limit, $visit['patient_birthdate']])->fetchAll();
         $result = [];
         foreach ($rows as $row) {
             if (!T2medInvoice::matches($row, $visit['patient_name'], $visit['patient_birthdate'])) continue;
-            $result[] = ['id' => $row['id'], 'number' => $row['invoice_number'], 'invoice_date' => $row['invoice_date'], 'amount_cents' => $row['amount_cents'], 'letter' => Letterxpress::state($row) + ['postable' => (bool)$row['has_pdf']]];
+            $result[] = ['id' => $row['id'], 'number' => $row['invoice_number'], 'invoice_date' => $row['invoice_date'], 'amount_cents' => $row['amount_cents'], 'printed_at' => $row['printed_at'] !== null ? (int)$row['printed_at'] : null, 'letter' => Letterxpress::state($row) + ['postable' => (bool)$row['has_pdf']]];
         }
         return $result;
     }
@@ -476,6 +476,28 @@ final class App {
         $open = array_column($this->openInvoices($fresh), null, 'id');
         if (!isset($open[$invoiceId])) throw new Problem('Diese Rechnung ist nicht mehr offen oder gehört nicht zu diesem Patienten. Bitte Seite neu laden.', 409);
         return $this->letter->send($invoiceId);
+    }
+    /** „Später (Überweisung)“: Original-Rechnung einmal auf dem Praxisdrucker ausgeben (ohne Zahlung). */
+    public function invoiceLater(array $visit, array $input): array {
+        $invoiceId = self::string($input, 'invoice_id', 32);
+        if (!preg_match('/^[a-f0-9]{32}$/D', $invoiceId)) throw new Problem('Ungültige Rechnung.');
+        $fresh = $this->db->one('SELECT * FROM visits WHERE id=?', [$visit['id']]);
+        $this->editable($fresh);
+        $open = array_column($this->openInvoices($fresh), null, 'id');
+        if (!isset($open[$invoiceId])) throw new Problem('Diese Rechnung ist nicht mehr offen oder gehört nicht zu diesem Patienten. Bitte Seite neu laden.', 409);
+        $settings = $this->printSettings();
+        if (!$settings['t2med_auto']) return ['printed' => false, 'printed_at' => null, 'message' => ''];
+        return $this->db->locked('invoice-later-' . $invoiceId, function () use ($invoiceId, $settings): array {
+            $row = $this->db->one('SELECT invoice_number,pdf,printed_at FROM invoice_inbox WHERE id=?', [$invoiceId]);
+            if (!$row) throw new Problem('Diese Rechnung gibt es nicht (mehr).', 404);
+            if ($row['printed_at'] !== null) return ['printed' => true, 'printed_at' => (int)$row['printed_at'], 'message' => 'Diese Rechnung wurde schon gedruckt.'];
+            if ($row['pdf'] === null) throw new Problem('Original-PDF liegt nicht mehr vor. Bitte die Rechnung in T2med erneut auf „SumUp-Rechnung“ drucken.', 409);
+            if ($this->config->get('sumup', 'mode') !== 'live') $info = 'Test: ' . $settings['office_label'] . ' (nichts gesendet)';
+            else $info = $settings['office_label'] . ', Auftrag ' . $this->office->send($row['pdf'], 'Rechnung ' . $row['invoice_number']);
+            $now = time();
+            $this->db->query('UPDATE invoice_inbox SET printed_at=? WHERE id=?', [$now, $invoiceId]);
+            return ['printed' => true, 'printed_at' => $now, 'message' => 'Rechnung ' . $row['invoice_number'] . ' gedruckt: ' . $info . '.'];
+        });
     }
     private function payment(array $visit, string $id): array {
         return $this->db->one('SELECT * FROM payments WHERE id=? AND visit_id=?', [$id, $visit['id']]) ?? throw new Problem('Zahlung nicht gefunden.', 404);
@@ -751,7 +773,7 @@ final class App {
         return ['office' => $office, 'receipt' => $receipt, 'auto_print' => ($rows['auto_print'] ?? '0') === '1' && ($office || $receipt),
             'app_target' => $target, 'office_label' => $office ? 'Praxisdrucker „' . $this->office->label() . '“' : '',
             'receipt_label' => $receipt ? (Config::PRINTER_MODELS[$model]['label'] ?? 'Bondrucker') : '',
-            't2med_possible' => $office, 'app_possible' => $this->config->practiceReady() && ($target === 'office' ? $office : $receipt)];
+            't2med_possible' => $office, 't2med_auto' => $office && (bool)$this->config->get('office_printing', 'invoice_auto', true), 'app_possible' => $this->config->practiceReady() && ($target === 'office' ? $office : $receipt)];
     }
     public function savePrintSettings(array $visit, array $input): array {
         $auto = $input['auto_print'] ?? null; $target = $input['app_target'] ?? null;
@@ -773,7 +795,9 @@ final class App {
     /** Häkchen der Zahlungsseite; ohne Angabe gilt die praxisweite Einstellung. */
     private function markAutoPrint(string $paymentId, array $input): void {
         $payment = $this->db->one('SELECT * FROM payments WHERE id=?', [$paymentId]);
-        $wanted = array_key_exists('auto_print', $input) ? $input['auto_print'] === true : $this->printSettings()['auto_print'];
+        // T2med-Rechnungen: Einstellung der Praxis (Einrichtung), keine Abfrage bei der Zahlung.
+        if (!empty($payment['inbox_id'])) $wanted = $this->printSettings()['t2med_auto'];
+        else $wanted = array_key_exists('auto_print', $input) ? $input['auto_print'] === true : $this->printSettings()['auto_print'];
         $this->db->query('UPDATE payments SET auto_print=? WHERE id=?', [$wanted && $this->printTarget($payment) ? 1 : 0, $paymentId]);
     }
     /** Druckt die Rechnung höchstens einmal automatisch; Fehler werden gespeichert, nicht geworfen. */
@@ -782,6 +806,11 @@ final class App {
             $payment = $this->db->one('SELECT * FROM payments WHERE id=?', [$paymentId]);
             if (!$payment || $payment['payment_status'] !== 'successful' || !$payment['auto_print']) return;
             if (!$again && in_array($payment['print_status'], ['done', 'simulated'], true)) return;
+            // Bei „Später (Überweisung)“ schon gedruckte T2med-Rechnung nicht noch einmal drucken.
+            if (!$again && !empty($payment['inbox_id']) && ($this->db->one('SELECT printed_at FROM invoice_inbox WHERE id=?', [$payment['inbox_id']])['printed_at'] ?? null) !== null) {
+                $this->db->query("UPDATE payments SET print_status='done',print_error='',print_info=? WHERE id=?", ['Schon vor der Zahlung gedruckt.', $paymentId]);
+                return;
+            }
             $target = $this->printTarget($payment);
             try {
                 if (!$target) throw new Problem('Kein passender Drucker eingerichtet.', 409);

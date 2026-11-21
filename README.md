@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.45**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.46**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -156,7 +156,11 @@ Ablauf und Schutz:
 Über der Leistungsauswahl steht das Häkchen **„Rechnung nach der Zahlung drucken“**. Ist es
 gesetzt, wird die Rechnung nach der erfolgreichen Zahlung automatisch gedruckt:
 
-- **T2med-Rechnungen** immer auf dem **Praxisdrucker** (A4): die Original-PDF aus T2med, unverändert.
+- **T2med-Rechnungen** immer auf dem **Praxisdrucker** (A4): die Original-PDF aus T2med, unverändert. Das gilt für
+  Karte und Bar ohne Abfrage und auch für **„Später (Überweisung)“**: Dort wird die Rechnung einmal gedruckt (Hinweis
+  „gedruckt am …“), eine spätere Zahlung druckt sie nicht noch einmal. Beim Versand per Post (Letterxpress) wird nicht
+  gedruckt. Abschalten lässt sich das in den Einstellungen beim Praxisdrucker („T2med-Rechnungen immer automatisch
+  drucken“, TOML `office_printing.invoice_auto`).
 - **In der App erzeugte Rechnungen/Leistungsbelege** wahlweise auf dem **Praxisdrucker**
   (als A4-Seite mit vergrößertem Beleg) oder auf dem **Bondrucker** (wie „Beleg drucken“).
 

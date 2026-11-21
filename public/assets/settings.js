@@ -725,6 +725,8 @@ function renderCatalog(data) {
   if (data.tax.small_business) { vat.disabled = true; vatRow.append(el('small', ' – Kleinunternehmerregelung ist eingeschaltet, Rechnungen werden ohne MwSt. erstellt.', 'muted')); }
   const onRequest = el('input', null, null, {type: 'checkbox', id: 'cat-on-request'});
   const onRow = el('label', null, 'check'); onRow.append(onRequest, document.createTextNode(' Leistung auf Verlangen'));
+  const onTip = tip({label: 'Leistung auf Verlangen', tip: 'Für Leistungen, die der Patient ausdrücklich wünscht und die medizinisch nicht notwendig sind. Nach § 1 Abs. 2 GOÄ dürfen solche Leistungen nur auf Verlangen berechnet werden und müssen in der Rechnung entsprechend gekennzeichnet sein. Die App vermerkt „Auf Verlangen“ bei der Position im Beleg und im Akteneintrag in T2med; Preis, Faktor und Steuer ändern sich dadurch nicht. Bei medizinisch notwendigen Leistungen nicht ankreuzen.'});
+  const onWrap = el('div', null, 'tip-row'); onWrap.append(onRow); if (onTip) onWrap.append(onTip);
   // GOÄ
   const goae = el('details', null, 'catalog-details', {id: 'cat-goae'}); goae.append(el('summary', 'GOÄ-Angaben und Rechner (optional)'));
   const code = el('input', null, null, {type: 'text', id: 'cat-code', maxlength: '20', placeholder: 'z. B. 250'});
@@ -770,7 +772,7 @@ function renderCatalog(data) {
   const clear = () => { form.reset(); id.value = ''; factor.value = '2,3'; goae.open = false; show(''); save.textContent = 'Leistung hinzufügen'; reset.hidden = true; $('cat-form-title').textContent = 'Leistung anlegen oder ändern'; };
   reset.onclick = clear;
   const buttons = el('div', null, 'row-buttons'); buttons.append(save, reset);
-  form.append(id, catField('Bezeichnung', label), catField('Preis in Euro', price), vatRow, goae, onRow, buttons);
+  form.append(id, catField('Bezeichnung', label), catField('Preis in Euro', price), vatRow, goae, onWrap, buttons);
   form.onsubmit = e => { e.preventDefault(); busy(save, async () => apply(await api('catalog_service_save', {id: id.value, label: label.value, price: price.value,
     goae_code: code.value, fee_type: type.value, factor: factor.value, base: base.value, on_request: onRequest.checked, default_reason: reason.value, vat: vat.checked && !vat.disabled}))); };
   window.fillCatalogForm = sv => {

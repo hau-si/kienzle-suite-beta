@@ -81,8 +81,13 @@ function renderInvoices() {
     const cash = element('button','Bar bezahlt','secondary wide invoice-cash');
     cash.onclick = () => { if (confirm(euro(invoice.amount_cents)+' bar erhalten? Die Zahlung wird als bezahlt erfasst.')) pay('cash')(); };
     const later = element('button','Später (Überweisung)','text-button invoice-later');
-    later.onclick = () => { invoiceLater.add(invoice.id); renderInvoices(); };
+    later.onclick = () => run(async() => {
+      // Ist der Rechnungsdruck eingeschaltet, kommt die Rechnung jetzt einmal auf den Praxisdrucker (für die Überweisung).
+      if (state.print?.t2med_auto && !invoice.printed_at) { const result = await api('invoice_later', {invoice_id: invoice.id}); if (result.message) message(result.message); }
+      invoiceLater.add(invoice.id); await load();
+    });
     box.append(line, card, cash, later);
+    if (invoice.printed_at) box.append(element('p', '🖨 Rechnung gedruckt am ' + new Date(invoice.printed_at * 1000).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}), 'muted invoice-letter-note'));
     if (state.letter?.enabled && invoice.letter?.postable) {
       const sent = invoice.letter || {};
       const when = sent.sent_at ? new Date(sent.sent_at * 1000).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '';
@@ -306,7 +311,7 @@ function renderPrintBox() {
   if ($('print-box').hidden) return;
   if (!printTouched) $('auto-print').checked = s.auto_print;
   const parts = [];
-  if (s.t2med_possible && (state.invoices || []).length) parts.push('T2med-Rechnung → ' + s.office_label);
+  if (s.t2med_possible && (state.invoices || []).length) parts.push('T2med-Rechnung → ' + s.office_label + (s.t2med_auto ? ' (immer, auch bei „Später“)' : ''));
   if (s.app_possible) parts.push('Rechnung aus der Leistungsauswahl → ' + (s.app_target === 'office' ? s.office_label : s.receipt_label));
   if (!parts.length) parts.push(s.office ? 'T2med-Rechnungen → ' + s.office_label : 'Für App-Rechnungen Praxisdaten im Installer eintragen.');
   $('print-targets').textContent = parts.join(' · ');
@@ -521,3 +526,11 @@ async function init() {
   } else if(['localhost','127.0.0.1'].includes(location.hostname)) $('demo').hidden=false;
 }
 init().catch(e=>message(e.message));
+
+// Hilfe-Symbole („i“): Antippen öffnet und schließt den Hinweis.
+document.addEventListener('click', event => {
+  const button = event.target.closest('.tip');
+  document.querySelectorAll('.tip.open').forEach(t => { if (t !== button) t.classList.remove('open'); });
+  if (button) { event.preventDefault(); button.classList.toggle('open'); }
+});
+document.addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelectorAll('.tip.open').forEach(t => t.classList.remove('open')); });
