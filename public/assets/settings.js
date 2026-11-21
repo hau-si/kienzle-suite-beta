@@ -733,9 +733,11 @@ function renderCatalog(data) {
   const factor = el('input', null, null, {type: 'text', id: 'cat-factor', inputmode: 'decimal', maxlength: '8', value: '2,3'});
   const type = el('select', null, null, {id: 'cat-type'});
   for (const [k, v] of Object.entries(data.fee_types)) type.append(el('option', (feeLabels[k] || k) + ' · Schwelle ' + commaFactor(v.threshold * 100) + ' / max. ' + commaFactor(v.max * 100), null, {value: k}));
+  const reason = el('textarea', null, null, {id: 'cat-reason', maxlength: '800', rows: '2', placeholder: 'z. B. überdurchschnittlicher Zeitaufwand wegen …'});
   const result = el('p', null, 'goae-result', {role: 'status', hidden: ''});
   goae.append(catField('GOÄ-Ziffer', code), catField('Einfachsatz (1,0-fach) in Euro', base), catField('Gewünschter Endbetrag in Euro', target), result,
     catField('Steigerungsfaktor', factor), catField('Gebührenrahmen', type),
+    catField('Feste Begründung bei Faktor über dem Schwellenwert (optional)', reason), el('p', 'Wird an der Kasse vorausgefüllt und kann dort pro Abrechnung geändert werden. Steht auf der Rechnung und im Beleg.', 'muted small'),
     el('p', 'Rechner: Einfachsatz und gewünschten Endbetrag eintragen, Faktor und Preis werden berechnet (Gebühr = Einfachsatz × Faktor, auf Cent gerundet; bis zu 4 Nachkommastellen). Ohne Einfachsatz ergänzen GOÄ und Faktor nur den Beleg, der Preis bleibt wie eingetragen. Oberhalb der Schwelle wird bei der Abrechnung eine Begründung erfasst.', 'muted small'));
   const show = (text, level) => { result.hidden = !text; result.textContent = text || ''; result.className = 'goae-result' + (level ? ' ' + level : ''); };
   const calc = source => {
@@ -770,10 +772,10 @@ function renderCatalog(data) {
   const buttons = el('div', null, 'row-buttons'); buttons.append(save, reset);
   form.append(id, catField('Bezeichnung', label), catField('Preis in Euro', price), vatRow, goae, onRow, buttons);
   form.onsubmit = e => { e.preventDefault(); busy(save, async () => apply(await api('catalog_service_save', {id: id.value, label: label.value, price: price.value,
-    goae_code: code.value, fee_type: type.value, factor: factor.value, base: base.value, on_request: onRequest.checked, vat: vat.checked && !vat.disabled}))); };
+    goae_code: code.value, fee_type: type.value, factor: factor.value, base: base.value, on_request: onRequest.checked, default_reason: reason.value, vat: vat.checked && !vat.disabled}))); };
   window.fillCatalogForm = sv => {
     id.value = sv.id; label.value = sv.label; price.value = (sv.price_cents / 100).toFixed(2).replace('.', ','); code.value = sv.goae_code || '';
-    factor.value = (sv.factor || '2.3').replace('.', ','); type.value = sv.fee_type; onRequest.checked = !!sv.on_request; vat.checked = !!sv.vat;
+    factor.value = (sv.factor || '2.3').replace('.', ','); type.value = sv.fee_type; onRequest.checked = !!sv.on_request; reason.value = sv.default_reason || ''; vat.checked = !!sv.vat;
     base.value = sv.base_cents ? (sv.base_cents / 100).toFixed(2).replace('.', ',') : ''; target.value = sv.base_cents ? price.value : '';
     goae.open = !!sv.goae_code; show(''); save.textContent = 'Änderung speichern'; reset.hidden = false;
     $('cat-form-title').textContent = 'Leistung ändern: ' + sv.label; label.focus();

@@ -50,6 +50,7 @@ $version = htmlspecialchars(trim(file_get_contents(dirname(__DIR__) . '/VERSION'
 <label for="service-factor">Steigerungsfaktor</label><input id="service-factor" inputmode="decimal" value="2,3" maxlength="8">
 <label for="service-fee-type">Gebührenrahmen</label><select id="service-fee-type"><option value="standard">Ärztlich · Schwelle 2,3 / max. 3,5</option><option value="technical">Technisch (A, E, O) · Schwelle 1,8 / max. 2,5</option><option value="lab">Labor (M / Nr. 437) · Schwelle 1,15 / max. 1,3</option></select>
 <p class="muted">Rechner: Einfachsatz und gewünschten Endbetrag eintragen – Faktor und Preis werden automatisch berechnet (Gebühr = Einfachsatz × Faktor, auf Cent gerundet). Ohne Einfachsatz ergänzen GOÄ und Faktor nur den Beleg, der Preis bleibt wie eingetragen. Eine Begründung oberhalb der Schwelle wird bei der Abrechnung erfasst.</p>
+<label for="service-reason">Feste Begründung bei Faktor über dem Schwellenwert (optional)</label><textarea id="service-reason" maxlength="800" rows="2" placeholder="z. B. überdurchschnittlicher Zeitaufwand wegen …"></textarea><p class="muted small">Wird an der Kasse vorausgefüllt und lässt sich dort pro Abrechnung ändern.</p>
 </details>
 <label class="check-label"><input id="service-on-request" type="checkbox"> Leistung auf Verlangen</label>
 <div class="actions"><button class="primary" type="submit" id="service-save">Leistung hinzufügen</button><button id="edit-reset" type="button" class="secondary" hidden>Abbrechen</button></div></form>

@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.44**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.45**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -324,7 +324,9 @@ Eine in Kombinationen verwendete Leistung muss vor dem Löschen aus diesen entfe
 Die Gebührenrahmen orientieren sich an [§ 5 GOÄ](https://www.gesetze-im-internet.de/go__1982/__5.html):
 ärztlich 2,3 / maximal 3,5, technisch (A, E, O) 1,8 / maximal 2,5 und Labor (M / Nr. 437)
 1,15 / maximal 1,3. Oberhalb der jeweiligen Schwelle ist vor dem Kassieren eine
-fallbezogene Begründung einzutragen. Sie erscheint auf dem Beleg und im Akteneintrag.
+fallbezogene Begründung einzutragen. Sie erscheint auf dem Beleg und im Akteneintrag. Bei der Leistung lässt sich unter
+„GOÄ-Angaben“ eine feste Begründung hinterlegen: Sie wird an der Kasse vorausgefüllt, ist dort pro Abrechnung änderbar und
+wird sonst automatisch verwendet.
 Das Leistungsdatum ist gesondert wählbar. Die Praxis prüft die fachliche Zuordnung und
 den eingegebenen Preis; die Anwendung prüft keine GOÄ-Ausschlüsse oder Analogbewertungen.
 Hinweise zu Rechnungsangaben: [§ 12 GOÄ](https://www.gesetze-im-internet.de/go__1982/__12.html).

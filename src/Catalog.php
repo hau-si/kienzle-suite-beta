@@ -9,7 +9,7 @@ final class Catalog {
     /** Katalog für die Verwaltung im Adminpanel. */
     public function overview(): array {
         $services = array_map(static fn($s) => ['vat' => (bool)$s['vat'], 'on_request' => (bool)$s['on_request']] + $s,
-            $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll());
+            $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents,default_reason FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll());
         $groups = array_map(static fn($g) => ['id' => $g['id'], 'label' => $g['label'], 'services' => json_decode($g['service_ids_json'], true, 32, JSON_THROW_ON_ERROR)],
             $this->db->query('SELECT * FROM service_groups WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll());
         return ['services' => $services, 'groups' => $groups, 'fee_types' => ServiceCatalog::FEES,
@@ -24,6 +24,7 @@ final class Catalog {
         $code = App::string($input, 'goae_code', 20, false);
         $type = $code !== '' ? App::string($input, 'fee_type', 16, false) ?: 'standard' : 'standard';
         $factor = $code !== '' ? ServiceCatalog::factor(App::string($input, 'factor', 10), $type) : '';
+        $reason = $code !== '' ? App::string($input, 'default_reason', 800, false) : '';
         $onRequest = $input['on_request'] ?? false;
         if (!is_bool($onRequest)) throw new Problem('Ungültige Angabe für Leistung auf Verlangen.');
         $vat = $input['vat'] ?? false;
@@ -36,9 +37,9 @@ final class Catalog {
             if (abs($expected - $cents) > 1) throw new Problem('Einfachsatz × Faktor ergibt ' . Money::format($expected) . ', eingetragen sind ' . Money::format($cents) . '. Bitte den Preis anpassen oder den GOÄ-Rechner verwenden.');
         }
         if ($id === '') {
-            $this->db->query('INSERT INTO services(id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)', [App::id(), $label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, $base, time()]);
+            $this->db->query('INSERT INTO services(id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents,default_reason,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', [App::id(), $label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, $base, $reason, time()]);
         } else {
-            if ($this->db->query('UPDATE services SET label=?,price_cents=?,goae_code=?,factor=?,fee_type=?,on_request=?,vat=?,base_cents=?,updated_at=? WHERE id=? AND active=1', [$label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, $base, time(), $id])->rowCount() !== 1) throw new Problem('Leistung nicht gefunden.', 404);
+            if ($this->db->query('UPDATE services SET label=?,price_cents=?,goae_code=?,factor=?,fee_type=?,on_request=?,vat=?,base_cents=?,default_reason=?,updated_at=? WHERE id=? AND active=1', [$label, $cents, $code, $factor, $type, (int)$onRequest, (int)$vat, $base, $reason, time(), $id])->rowCount() !== 1) throw new Problem('Leistung nicht gefunden.', 404);
         }
     }
     public function deleteService(string $id): void {

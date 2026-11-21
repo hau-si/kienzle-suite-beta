@@ -1,9 +1,10 @@
-Version 1.4.1-rechnung.44 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
+Version 1.4.1-rechnung.45 der Kartenzahlungsseite für T2med und SumUp Solo (Fork).
 
 - Neu: T2med-Rechnung kassieren. Eine auf den virtuellen Drucker „SumUp-Rechnung“
   gedruckte Liquidation erscheint beim passenden Patienten als offene Rechnung und wird
   mit einem Klick am Solo kassiert. Rechnungsnummer als SumUp-Beschreibung, keine
   Patientendaten an SumUp, Akteneintrag mit Rechnungsbezug.
+- Neu in rechnung.45: Leistungen mit GOÄ-Ziffer können eine feste Begründung für Faktoren über dem Schwellenwert hinterlegen (Kasse und Adminpanel); sie wird vorausgefüllt und bei fehlender Eingabe verwendet (Datenbankversion 15).
 - Neu in rechnung.44: Letterxpress: Eine live gesendete Rechnung lässt sich nicht mehr ein zweites Mal senden (kein „Nochmal“); ein kleines Brief-Symbol zeigt den Versand. Einrichtungs-Überblick nennt auch die Ablage im Netzwerkordner (optional).
 - Neu in rechnung.43: Einrichtungs-Überblick nennt die Letterxpress-Anbindung (optional); der PowerShell-Befehl für „SumUp-Rechnung“ stellt das Papier gleich auf A4.
 - Neu in rechnung.42: Letterxpress schlanker: A4-Umwandlung, Vorabprüfung und PDF-Diagnose wieder entfernt, nur das Entfernen des Rechteschutzes bleibt. Hinweis: Das Papierformat des Windows-Druckers „SumUp-Rechnung“ muss A4 sein.

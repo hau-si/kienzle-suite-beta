@@ -136,6 +136,7 @@ function renderBasket() {
     const needsReason=s.goae_code && Math.round(Number(s.factor)*10000)>state.fee_types[s.fee_type].threshold*100;
     if(needsReason) {
       const label=element('label','Begründung für diese Abrechnung (erforderlich)');
+      if(reasons[s.id]===undefined && s.default_reason) reasons[s.id]=s.default_reason;
       const input=document.createElement('textarea'); input.maxLength=800; input.required=true; input.value=reasons[s.id] || '';
       input.oninput=()=>{reasons[s.id]=input.value;startRequest=null;}; label.append(input); row.append(label);
     }
@@ -158,7 +159,7 @@ function renderServices() {
     const edit = element('button','Bearbeiten','text-button'); edit.onclick=() => {
       $('service-id').value=service.id; $('service-label').value=service.label; $('service-price').value=(service.price_cents/100).toFixed(2).replace('.',',');
       $('service-goae').value=service.goae_code; $('service-factor').value=(service.factor || '2.3').replace('.',','); $('service-fee-type').value=service.fee_type;
-      $('service-on-request').checked=!!service.on_request; $('goae-fields').open=!!service.goae_code; $('service-vat').checked=!!service.vat;
+      $('service-on-request').checked=!!service.on_request; $('service-reason').value=service.default_reason || ''; $('goae-fields').open=!!service.goae_code; $('service-vat').checked=!!service.vat;
       $('service-base').value=service.base_cents?(service.base_cents/100).toFixed(2).replace('.',','):''; $('service-target').value=service.base_cents?$('service-price').value:''; goaeResult('');
       $('service-save').textContent='Änderung speichern'; $('edit-reset').hidden=false; $('service-label').focus();
     };
@@ -379,7 +380,7 @@ $('service-fee-type').onchange=()=>{
   const fee=state.fee_types[$('service-fee-type').value];
   if(Number($('service-factor').value.replace(',','.'))*100>fee.max) $('service-factor').value=String(fee.threshold/100).replace('.',',');
 };
-$('service-form').onsubmit=e=>{ e.preventDefault(); run(async()=>{ await api('service_save',{id:$('service-id').value,label:$('service-label').value,price:$('service-price').value,goae_code:$('service-goae').value,factor:$('service-factor').value,fee_type:$('service-fee-type').value,on_request:$('service-on-request').checked,vat:$('service-vat').checked,base:$('service-goae').value?$('service-base').value:''}); resetForm(); await load(); }); };
+$('service-form').onsubmit=e=>{ e.preventDefault(); run(async()=>{ await api('service_save',{id:$('service-id').value,label:$('service-label').value,price:$('service-price').value,goae_code:$('service-goae').value,factor:$('service-factor').value,fee_type:$('service-fee-type').value,on_request:$('service-on-request').checked,default_reason:$('service-reason').value,vat:$('service-vat').checked,base:$('service-goae').value?$('service-base').value:''}); resetForm(); await load(); }); };
 $('group-reset').onclick=resetGroup;
 $('group-form').onsubmit=e=>{e.preventDefault();run(async()=>{
   await api('group_save',{id:$('group-id').value,label:$('group-label').value,services:[...$('group-members').querySelectorAll('input:checked')].map(el=>el.value)});

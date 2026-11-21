@@ -119,7 +119,7 @@ final class App {
         return ['visit_id' => $visit['id'], 'csrf' => $browser['csrf'],
             'patient' => ['name' => $visit['patient_name'], 'birthdate' => $visit['patient_birthdate']],
             'completed' => $visit['completed_at'] !== null,
-            'services' => array_map(static fn($s) => ['vat' => (bool)$s['vat']] + $s, $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
+            'services' => array_map(static fn($s) => ['vat' => (bool)$s['vat']] + $s, $this->db->query('SELECT id,label,price_cents,goae_code,factor,fee_type,on_request,vat,base_cents,default_reason FROM services WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
             'tax' => array_intersect_key(Tax::settings($this->config), ['small_business' => 1, 'rate' => 1, 'manual_vat' => 1]),
             'groups' => array_map(static fn($g) => ['id' => $g['id'], 'label' => $g['label'], 'services' => json_decode($g['service_ids_json'], true, 32, JSON_THROW_ON_ERROR)], $this->db->query('SELECT * FROM service_groups WHERE active=1 ORDER BY label COLLATE NOCASE')->fetchAll()),
             'local_receipts' => $this->config->practiceReady(),
@@ -199,6 +199,8 @@ final class App {
                     // Steuersatz zum Zeitpunkt der Zahlung festhalten; spätere Änderungen betreffen alte Rechnungen nicht.
                     $service['vat_rate'] = Tax::rateFor($tax, (bool)$service['vat']); unset($service['vat']);
                     $service['reason'] = $reasons[$id] ?? '';
+                    // Fest hinterlegte Begründung der Ziffer, wenn keine eigene eingegeben wurde.
+                    if ($service['reason'] === '' && ServiceCatalog::needsReason($service)) $service['reason'] = (string)($this->db->one('SELECT default_reason FROM services WHERE id=?', [$id])['default_reason'] ?? '');
                     if (ServiceCatalog::needsReason($service) && $service['reason'] === '') throw new Problem('Bitte die Faktorsteigerung für „' . $service['label'] . '“ begründen.');
                     $items[] = $service; $amount += $service['price_cents'];
                 }
