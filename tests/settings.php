@@ -139,6 +139,7 @@ try {
     $acc = $page->handle('get', [], $session, $login['csrf'])['access'];
     check($acc['idle_minutes'] === 30 && $acc['max_hours'] === 12 && $acc['staff'] === false, 'Standard-Abmeldezeiten falsch');
     problem(fn() => $page->handle('access_save', ['idle_minutes' => 3, 'max_hours' => 12, 'rights' => []], $session, $login['csrf']), 'Zu kurze Abmeldezeit akzeptiert', 422);
+    problem(fn() => $page->handle('access_save', ['idle_minutes' => 263521, 'max_hours' => 4392, 'rights' => []], $session, $login['csrf']), 'Mehr als 6 Monate Inaktivität akzeptiert', 422);
     problem(fn() => $page->handle('access_save', ['idle_minutes' => 120, 'max_hours' => 1, 'rights' => []], $session, $login['csrf']), 'Inaktivität länger als Höchstdauer', 422);
     problem(fn() => $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 12, 'rights' => ['paid']], $session, $login['csrf']), 'Rechte ohne Passwort', 422);
     problem(fn() => $page->handle('access_save', ['idle_minutes' => 60, 'max_hours' => 12, 'rights' => ['paid'], 'staff_password' => 'ein-langes-passwort'], $session, $login['csrf']), 'Mitarbeiter-Passwort gleich Admin-Passwort', 422);

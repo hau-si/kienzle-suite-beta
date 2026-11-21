@@ -2,7 +2,7 @@
 
 Eine kleine PHP-Webanwendung für Kartenzahlungen am SumUp Solo. Leistungen auswählen,
 Betrag ans Terminal senden und nach erfolgreicher Zahlung bewusst in der Patientenakte
-dokumentieren. **Version 1.4.1-rechnung.48**, von Dr. Thomas Kienzle.
+dokumentieren. **Version 1.4.1-rechnung.49**, von Dr. Thomas Kienzle.
 
 > **Fork mit T2med-Rechnungseingang:** Diese Fassung ergänzt das Kassieren einer in T2med
 > erstellten Rechnung über den virtuellen Drucker **SumUp-Rechnung**, siehe
@@ -1157,7 +1157,8 @@ mit einem vorgesehenen Testkontext prüfen. Details der tatsächlichen Ausführu
 ## Abmeldung und Mitarbeiter-Zugang
 
 In den Einstellungen unter „Einrichtung → Sicherheit → Abmeldung und Mitarbeiter-Zugang“ lassen sich die Abmeldung bei
-Inaktivität (Standard 30 Minuten) und die Höchstdauer einer Anmeldung (Standard 12 Stunden) einstellen. Außerdem gibt es
+Inaktivität (Standard 30 Minuten) und die Höchstdauer einer Anmeldung (Standard 12 Stunden) einstellen, jeweils bis zu
+6 Monaten (Minuten, Stunden oder Tage). Außerdem gibt es
 einen **Mitarbeiter-Zugang** mit eigenem Passwort (gleiche Anmeldeseite, anderes Passwort). Er sieht nur die angekreuzten
 Bereiche: Bezahlt-Liste abhaken, Rechnungseingang ansehen/löschen, Rechnungen per Post senden, Leistungen bearbeiten. Er
 hat keinen Zugriff auf Schlüssel, Zugangsdaten, Drucker-, Netzwerk- und Update-Einstellungen. Rechte gelten sofort.

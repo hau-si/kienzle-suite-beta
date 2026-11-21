@@ -17,6 +17,8 @@ final class Admin {
         'letter' => ['Rechnungen per Post (Letterxpress) senden', ['inbox_overview', 'inbox_letter', 'inbox_letter_many']],
         'catalog' => ['Leistungen und GOÄ-Positionen bearbeiten', ['catalog', 'catalog_service_save', 'catalog_service_delete', 'catalog_group_save', 'catalog_group_delete']],
     ];
+    public const MAX_IDLE_MINUTES = 263520;   // 183 Tage (ca. 6 Monate)
+    public const MAX_HOURS = 4392;            // 183 Tage
     public const DEFAULT_RIGHTS = ['paid', 'inbox'];
     private const GLOBAL_LIMIT = 200;  // Fehlversuche aller Absender je Stunde, bevor Anmeldungen kurz pausieren
 
@@ -84,9 +86,9 @@ final class Admin {
 
     // ---- Zugang: Abmeldezeiten und Mitarbeiter-Zugang ----------------------------------------
     /** Minuten ohne Aktion bis zur Abmeldung (5 bis 480). */
-    public function idleSeconds(): int { return max(5, min(480, (int)($this->setting('admin_idle_minutes') ?? self::TTL / 60))) * 60; }
+    public function idleSeconds(): int { return max(5, min(self::MAX_IDLE_MINUTES, (int)($this->setting('admin_idle_minutes') ?? self::TTL / 60))) * 60; }
     /** Stunden bis zur Zwangs-Abmeldung auch bei ständiger Nutzung (1 bis 72). */
-    public function maxSeconds(): int { return max(1, min(72, (int)($this->setting('admin_max_hours') ?? self::MAX_AGE / 3600))) * 3600; }
+    public function maxSeconds(): int { return max(1, min(self::MAX_HOURS, (int)($this->setting('admin_max_hours') ?? self::MAX_AGE / 3600))) * 3600; }
     public function staffConfigured(): bool { return $this->setting('staff_password_hash') !== null; }
     /** Aktuell freigegebene Rechte des Mitarbeiter-Zugangs. */
     public function staffRights(): array {
@@ -101,8 +103,8 @@ final class Admin {
     }
     /** Speichert Abmeldezeiten und Mitarbeiter-Zugang. $password leer = Passwort unverändert; $remove löscht den Zugang. */
     public function saveAccess(int $idleMinutes, int $maxHours, array $rights, string $password, bool $remove): void {
-        if ($idleMinutes < 5 || $idleMinutes > 480) throw new Problem('Die Abmeldung bei Inaktivität muss zwischen 5 und 480 Minuten liegen.', 422);
-        if ($maxHours < 1 || $maxHours > 72) throw new Problem('Die Höchstdauer einer Sitzung muss zwischen 1 und 72 Stunden liegen.', 422);
+        if ($idleMinutes < 5 || $idleMinutes > self::MAX_IDLE_MINUTES) throw new Problem('Die Abmeldung bei Inaktivität muss zwischen 5 Minuten und 6 Monaten (183 Tagen) liegen.', 422);
+        if ($maxHours < 1 || $maxHours > self::MAX_HOURS) throw new Problem('Die Höchstdauer einer Sitzung muss zwischen 1 Stunde und 6 Monaten (183 Tagen) liegen.', 422);
         if ($idleMinutes * 60 > $maxHours * 3600) throw new Problem('Die Abmeldung bei Inaktivität darf nicht länger sein als die Höchstdauer der Sitzung.', 422);
         $rights = array_values(array_intersect(array_keys(self::RIGHTS), array_map('strval', $rights)));
         if ($password !== '') {

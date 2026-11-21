@@ -398,10 +398,19 @@ function staffMode(data) {
 function renderAccess(access) {
   const form = $('access-form'); form.replaceChildren();
   const field = (label, input, hint) => { const f = el('div', null, 'field'); f.append(el('label', label), input); if (hint) f.append(el('p', hint, 'muted small')); return f; };
-  const idle = el('input', null, null, {type: 'number', min: '5', max: '480', step: '5', value: String(access.idle_minutes), id: 'access-idle'});
-  const max = el('input', null, null, {type: 'number', min: '1', max: '72', value: String(access.max_hours), id: 'access-max'});
-  form.append(field('Abmeldung bei Inaktivität (Minuten)', idle, 'Nach so langer Zeit ohne Aktion muss man sich neu anmelden (5 bis 480).'),
-    field('Höchstdauer einer Anmeldung (Stunden)', max, 'Auch bei ständiger Nutzung wird nach dieser Zeit abgemeldet (1 bis 72).'));
+  // Zeitangaben mit Einheit; gespeichert werden Minuten bzw. Stunden (bis 6 Monate = 183 Tage).
+  const timeField = (label, hint, minutes, units, id) => {
+    const best = [...units].reverse().find(u => minutes % u[1] === 0) || units[0];
+    const num = el('input', null, null, {type: 'number', min: '1', step: '1', value: String(minutes / best[1]), id});
+    const unit = el('select', null, null, {'aria-label': label + ' – Einheit'});
+    for (const [name, factor] of units) unit.append(el('option', name, null, {value: String(factor)}));
+    unit.value = String(best[1]);
+    const row = el('div', null, 'row-buttons'); row.append(num, unit);
+    const f = el('div', null, 'field'); f.append(el('label', label), row, el('p', hint, 'muted small')); form.append(f);
+    return () => Number(num.value) * Number(unit.value);
+  };
+  const idleMinutes = timeField('Abmeldung bei Inaktivität', 'Nach so langer Zeit ohne Aktion muss man sich neu anmelden (5 Minuten bis 6 Monate).', access.idle_minutes, [['Minuten', 1], ['Stunden', 60], ['Tage', 1440]], 'access-idle');
+  const maxHours = timeField('Höchstdauer einer Anmeldung', 'Auch bei ständiger Nutzung wird nach dieser Zeit abgemeldet (1 Stunde bis 6 Monate).', access.max_hours, [['Stunden', 1], ['Tage', 24]], 'access-max');
   form.append(el('h3', 'Mitarbeiter-Zugang'));
   form.append(el('p', 'Ein zweiter Zugang mit eigenem Passwort, der nur die angekreuzten Bereiche sieht. Er hat keinen Zugriff auf Schlüssel, Zugangsdaten und Einstellungen. Das Passwort wird beim Anmelden im selben Feld eingegeben.', 'muted small'));
   const boxes = {};
@@ -413,7 +422,7 @@ function renderAccess(access) {
   form.append(field(access.staff ? 'Neues Mitarbeiter-Passwort (leer lassen = unverändert)' : 'Mitarbeiter-Passwort festlegen (mind. 10 Zeichen)', pw));
   const buttons = el('div', null, 'row-buttons'); const save = el('button', 'Speichern', 'primary', {type: 'submit'}); buttons.append(save);
   const send = remove => busy(save, async () => {
-    const result = await api('access_save', {idle_minutes: Number(idle.value), max_hours: Number(max.value), rights: Object.keys(boxes).filter(k => boxes[k].checked), staff_password: pw.value, remove_staff: remove});
+    const result = await api('access_save', {idle_minutes: idleMinutes(), max_hours: maxHours(), rights: Object.keys(boxes).filter(k => boxes[k].checked), staff_password: pw.value, remove_staff: remove});
     renderAccess(result); message(result.message);
   });
   form.onsubmit = event => { event.preventDefault(); send(false); };
