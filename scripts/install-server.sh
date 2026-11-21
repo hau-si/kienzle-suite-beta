@@ -6,6 +6,9 @@ if [ "$EUID" -ne 0 ]; then echo 'Bitte mit sudo ausführen: sudo bash scripts/in
 if [ ! -f /etc/debian_version ]; then echo 'Dieser Installer unterstützt Debian, Ubuntu und Raspberry Pi OS.'; exit 1; fi
 if ! command -v systemctl >/dev/null; then echo 'systemd wird benötigt.'; exit 1; fi
 umask 077
+# Läuft gerade ein anderer Paketvorgang (z. B. automatische Updates), bis zu 10 Minuten auf die Paketsperre warten statt abzubrechen.
+apt-get() { command apt-get -o DPkg::Lock::Timeout=600 "$@"; }
+export -f apt-get
 # Optionen: --fragen (Einstellungen wie früher im Terminal abfragen), --admin-reset (neuer Einrichtungslink),
 #           --ohne-terminzettel (virtuellen Drucker „Terminzettel“ nicht einrichten).
 ask_flag=""; admin_reset=""; with_terminzettel=1
@@ -27,6 +30,7 @@ apt-get update
 stock_apache_off=0
 if ss -ltn 2>/dev/null | grep -qE ':80[[:space:]]' || command -v nginx >/dev/null 2>&1; then
   stock_apache_off=1
+  trap 'rm -f /usr/sbin/policy-rc.d' EXIT
   printf '#!/bin/sh\n[ "$1" = apache2 ] && exit 101\nexit 0\n' > /usr/sbin/policy-rc.d; chmod 755 /usr/sbin/policy-rc.d
 fi
 DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 php-cli php-fpm php-curl php-sqlite3 php-mbstring openssl ca-certificates python3 curl librsvg2-bin qpdf fonts-dejavu-core libphp-phpmailer poppler-utils tesseract-ocr tesseract-ocr-deu php-gd smbclient cups-client cups ghostscript nftables iproute2

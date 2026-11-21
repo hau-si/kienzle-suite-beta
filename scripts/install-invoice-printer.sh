@@ -3,6 +3,9 @@
 # Aufruf: sudo bash scripts/install-invoice-printer.sh [kienzle-sumup-drucker.json | Ordner]
 # Ohne Angabe: Daten vom Kienzle-SumUp auf diesem Rechner.
 set -euo pipefail
+# Läuft gerade ein anderer Paketvorgang (z. B. automatische Updates), bis zu 10 Minuten auf die Paketsperre warten statt abzubrechen.
+apt-get() { command apt-get -o DPkg::Lock::Timeout=600 "$@"; }
+export -f apt-get
 cd -- "$(dirname -- "$0")/.."
 source_dir=$PWD
 queue=SumUp-Rechnung

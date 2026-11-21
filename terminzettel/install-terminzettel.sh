@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Läuft gerade ein anderer Paketvorgang (z. B. automatische Updates), bis zu 10 Minuten auf die Paketsperre warten statt abzubrechen.
+apt-get() { command apt-get -o DPkg::Lock::Timeout=600 "$@"; }
+export -f apt-get
 SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ "${1:-}" == "--help" ]]; then
