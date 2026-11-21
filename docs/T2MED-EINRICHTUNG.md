@@ -14,8 +14,13 @@ Die Aufruf-Adresse steht im Adminpanel unter *Einrichtung → T2med-Anbindung* (
 
    ![Liste](screenshots/t2med-2-drittanbieter-liste.png)
 
-3. Unter „Neue URL hinzufügen“ die **Adresse** der Kienzle-Suite und eine **Bezeichnung** (z. B. „Kartenzahlung“)
-   eintragen, auf **Plus** klicken, dann oben rechts mit dem **Häkchen** speichern.
+3. Unter „Neue URL hinzufügen“ die **Adresse** (genau so, mit den Platzhaltern)
+
+   ```text
+   kienzle-sumup://?kontextId=${kontextId}&fhirBasisUrl=${fhirBasisUrl}&oAuthToken=${oAuthToken}
+   ```
+
+   und eine **Bezeichnung** (z. B. „Kartenzahlung“) eintragen, auf **Plus** klicken, dann oben rechts mit dem **Häkchen** speichern.
    Danach in der Liste davor die **Aktualisieren-Pfeile** anklicken.
 
    ![URL](screenshots/t2med-3-url.png)
@@ -35,6 +40,7 @@ Die Aufruf-Adresse steht im Adminpanel unter *Einrichtung → T2med-Anbindung* (
    ![Aktion](screenshots/t2med-6-aktion.png)
 
 Jetzt erscheint die Schaltfläche beim Patienten. Ein Klick schickt die Patientendaten per FHIR an die Suite.
+Der Starter-Aufruf funktioniert erst, wenn auf dem Arbeitsplatz das Starter-Paket installiert ist (Adminpanel, Karte „Arbeitsplätze einrichten"). Die FHIR-Adresse, die T2med mitgibt, muss unter „Erlaubte fhirBasisUrl aus T2med“ stehen; bei einer Fehlermeldung zeigt die Seite die tatsächlichen Werte.
 
 ## 3. Drucker „SumUp-Rechnung“
 

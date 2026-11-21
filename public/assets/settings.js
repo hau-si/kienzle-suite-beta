@@ -346,14 +346,15 @@ function badge(tab, count) { const b = $('badge-' + tab); if (!b) return; b.hidd
 const GUIDE_URL = 'https://github.com/hau-si/kienzle-suite-beta/blob/rechnungseingang/docs/T2MED-EINRICHTUNG.md';
 /** Anleitung für T2med: Drittanbieter-Zugriff mit Menüleisten-Button (Aufruf-Adresse zum Kopieren). */
 function t2medSetupHelp() {
-  const d = el('details', null, 'tz-how'); d.append(el('summary', 'In T2med einrichten: Button „Kienzle-SumUp“'));
+  const d = el('details', null, 'tz-how'); d.append(el('summary', 'In T2med einrichten: Button „Kartenzahlung“ in der Funktionsleiste'));
   const ol = el('ol');
-  ol.append(el('li', 'In T2med in der Suche „Drittanbieter-Zugriffe verwalten“ öffnen (fehlt die Funktion, muss ein Admin sie für den Benutzer freischalten). Den Eintrag mit dem Stift bearbeiten, Adresse und Bezeichnung (z. B. „Kartenzahlung“) eintragen, Plus anklicken, mit dem Häkchen oben rechts speichern, danach in der Liste auf „aktualisieren“ klicken.'));
-  ol.append(el('li', 'Dann „Funktionsleisten verwalten“: Konfiguration anlegen (Name, Benutzer, Benutzergruppe, Station), „Aktion hinzufügen“, die Aktion unter der vergebenen Bezeichnung suchen, Farbe und Kürzel oder Icon wählen.'));
-  const guide = el('li'); guide.append('Mit Bildern: ', el('a', 'Anleitung „T2med einrichten“', null, {href: GUIDE_URL, target: '_blank', rel: 'noopener'})); ol.append(guide);
-  const li = el('li', 'Als Adresse eintragen (genau so, mit den Platzhaltern):'); li.append(el('br'), el('code', 'kienzle-sumup://?kontextId=${kontextId}&fhirBasisUrl=${fhirBasisUrl}&oAuthToken=${oAuthToken}', 'code-copy')); ol.append(li);
+  ol.append(el('li', 'In T2med in der Suche „Drittanbieter-Zugriffe verwalten“ öffnen (fehlt die Funktion, muss ein Admin sie für den Benutzer erst freischalten) und den Eintrag mit dem Stift bearbeiten.'));
+  const li = el('li', 'Als Adresse eintragen (genau so, mit den Platzhaltern) und eine Bezeichnung vergeben, z. B. „Kartenzahlung“:'); li.append(el('br'), el('code', 'kienzle-sumup://?kontextId=${kontextId}&fhirBasisUrl=${fhirBasisUrl}&oAuthToken=${oAuthToken}', 'code-copy')); ol.append(li);
+  ol.append(el('li', 'Auf Plus klicken, oben rechts mit dem Häkchen speichern und in der Liste davor auf „aktualisieren“ (Pfeile) klicken.'));
+  ol.append(el('li', 'Dann „Funktionsleisten verwalten“: Konfiguration anlegen oder bearbeiten (Name, Benutzer, Benutzergruppe, Station), „Aktion hinzufügen“, die Aktion unter der vergebenen Bezeichnung suchen, Farbe und Kürzel oder Icon wählen und bestätigen.'));
   ol.append(el('li', 'Der Starter-Aufruf funktioniert erst, wenn auf dem Arbeitsplatz das Starter-Paket installiert ist (Karte „Arbeitsplätze einrichten“).'));
   ol.append(el('li', 'Die FHIR-Adresse, die T2med beim Aufruf mitgibt, muss unter „Erlaubte fhirBasisUrl aus T2med“ stehen. Bei einer Fehlermeldung zeigt die Seite die tatsächlichen Werte.'));
+  const guide = el('li'); guide.append('Mit Bildern: ', el('a', 'Anleitung „T2med einrichten“', null, {href: GUIDE_URL, target: '_blank', rel: 'noopener'})); ol.append(guide);
   d.append(ol); return d;
 }
 
